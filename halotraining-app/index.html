@@ -290,21 +290,27 @@ main{flex:1;padding:14px 14px 24px;max-width:560px;width:100%;margin:0 auto}
 .ibatch-carousel::-webkit-scrollbar{display:none}
 .ibatch-card{flex:0 0 100%;scroll-snap-align:center;min-width:0}
 
-/* ── HR zone pie chart (Profile) ──
-   Dylon: "can we change the heart rate zones in profile to an interactive pie chart? i feel like
-   we are littered with bars let's add some variety." Replaces the old stacked-bar list with true
-   pie wedges sized by each zone's bpm width, using the same ZONE_TREND_BAR_COLORS ramp the bars
-   used. Slices pop out from their own centroid on select (transform-box:fill-box), same idea as a
-   classic "exploded" pie-chart highlight, and the legend row underneath doubles as a second way to
-   pick a zone (useful on desktop where hover isn't the primary input). */
-.hrzone-pie{display:block}
-.hrzone-slice{cursor:pointer;transition:transform .15s ease,opacity .15s ease;transform-box:fill-box;transform-origin:center}
+/* ── HR zone donut chart (per-activity) ──
+   Went through a few rounds on Profile first (bars -> pie -> a Strava-style donut with a center
+   readout/floating callout/chip-row legend), then Dylon settled where it actually belongs: "the
+   zones in the profile stay stagnant and the one in the activities are more catered for a pie chart
+   feature" -- moved to activityAnalyticsHTML's per-activity zone breakdown, which has real
+   time-in-zone data to drive it (activityHRZoneBreakdown). Same ZONE_TREND_BAR_COLORS ramp
+   throughout so the palette's stayed consistent across every iteration of this chart. */
+.hrzone-pie{display:block;position:relative;z-index:1}
+.hrzone-slice{cursor:pointer;transition:opacity .15s ease}
 .hrzone-slice:hover{opacity:.85}
-.hrzone-pie.has-selection .hrzone-slice{opacity:.45}
-.hrzone-pie.has-selection .hrzone-slice.selected{opacity:1;transform:scale(1.06)}
-.hrzone-legend-item{border-radius:8px;transition:background .15s ease}
-.hrzone-legend-item:hover{background:var(--s2)}
-.hrzone-legend-item.selected{background:var(--s2)}
+.hrzone-pie.has-selection .hrzone-slice{opacity:.55}
+.hrzone-pie.has-selection .hrzone-slice.selected{opacity:1}
+.hrzone-donut-wrap{position:relative;width:132px;height:132px;margin:0 auto 12px}
+.hrzone-donut-center{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none;width:68px}
+.hrzone-donut-center .hrzone-dc-sub{font-size:9.5px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.3px}
+.hrzone-donut-center .hrzone-dc-main{font-size:17px;font-weight:800;color:var(--t1);line-height:1.15;margin-top:2px}
+.hrzone-donut-center .hrzone-dc-unit{font-size:9.5px;font-weight:600;color:var(--t3);margin-top:1px}
+.hrzone-callout{position:absolute;transform:translate(-50%,-50%);background:var(--s3);color:var(--t1);font-size:10.5px;font-weight:700;padding:5px 9px;border-radius:8px;white-space:nowrap;pointer-events:none;box-shadow:0 3px 10px rgba(0,0,0,.28);z-index:2}
+.hrzone-chiprow{display:flex;border-radius:10px;overflow:hidden}
+.hrzone-chip{flex:1;text-align:center;padding:8px 3px;font-size:10.5px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;transition:background .15s ease,color .15s ease}
+.hrzone-chip:not(.selected):hover{background:var(--s3)}
 
 /* ── quick add (ad-hoc run/walk/weight logging) ── */
 .qa-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:4px}
@@ -509,9 +515,14 @@ main{flex:1;padding:14px 14px 24px;max-width:560px;width:100%;margin:0 auto}
 .fab-item{display:flex;align-items:center;gap:8px;background:var(--s1);color:var(--t1);border:1px solid var(--b1);border-radius:22px;padding:9px 14px 9px 10px;box-shadow:0 4px 14px rgba(0,0,0,.22);font-family:var(--font);font-size:12.5px;font-weight:700;white-space:nowrap}
 .fab-item .sess-ico{width:26px;height:26px}
 .fab-item .sess-ico svg{width:15px;height:15px}
-.fab-main{width:56px;height:56px;border-radius:50%;background:var(--accent);color:#0B0D12;border:none;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(0,0,0,.3);flex-shrink:0;transition:transform .15s ease}
+.fab-main{width:56px;height:56px;border-radius:50%;background:var(--accent);color:#fff;border:none;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(0,0,0,.3);flex-shrink:0;transition:transform .15s ease}
 .fab-main svg{width:26px;height:26px;transition:transform .15s ease}
-.activity-fab-wrap.open .fab-main svg{transform:rotate(45deg)}
+/* Two real icons (a plus, an X) swapped by open state, rather than one glyph rotated with a
+   transform -- Dylon supplied both explicitly ("icon FAB add.svg"/"icon Fab close.svg"). */
+.fab-main .fab-icon-close{display:none}
+.activity-fab-wrap.open .fab-main .fab-icon-add{display:none}
+.activity-fab-wrap.open .fab-main .fab-icon-close{display:block}
+.activity-fab-wrap.open .fab-main{transform:scale(.92)}
 
 /* ── onboarding (brand-new device, zero blocks) ── */
 /* z-index sits BELOW .overlay (200)/#confirm-overlay (260) on purpose — the embedded Upload Plan
@@ -827,7 +838,6 @@ main{flex:1;padding:14px 14px 24px;max-width:560px;width:100%;margin:0 auto}
   @keyframes fadescale{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:none}}
   #plans-overlay .sheet{max-width:860px}
   #shoes-overlay .sheet{max-width:760px}
-  #actfeed-overlay .sheet{max-width:760px}
   #history-overlay .sheet{max-width:760px}
   #injury-overlay .sheet{max-width:520px}
 
@@ -894,6 +904,8 @@ main{flex:1;padding:14px 14px 24px;max-width:560px;width:100%;margin:0 auto}
     <div class="sidebar-brand">HALO</div>
   </div>
   <nav class="sidebar-nav">
+    <!-- Dylon: "i dont like the today in center again move it back how it was" -- reverted to Today
+         leading the row, matching the bottom nav below. -->
     <button class="sidebar-btn active" data-view="today" onclick="switchView('today')">
       <svg class="icon" viewBox="0 -960 960 960" style="fill:currentColor;stroke:none"><path d="M440-760v-160h80v160h-80Zm266 110-55-55 112-115 56 57-113 113Zm54 210v-80h160v80H760ZM440-40v-160h80v160h-80ZM254-652 140-763l57-56 113 113-56 54Zm508 512L651-255l54-54 114 110-57 59ZM40-440v-80h160v80H40Zm157 300-56-57 112-112 29 27 29 28-114 114Zm113-170q-70-70-70-170t70-170q70-70 170-70t170 70q70 70 70 170t-70 170q-70 70-170 70t-170-70Zm283-57q47-47 47-113t-47-113q-47-47-113-47t-113 47q-47 47-47 113t47 113q47 47 113 47t113-47ZM480-480Z"/></svg>
       <span>Today</span>
@@ -901,6 +913,11 @@ main{flex:1;padding:14px 14px 24px;max-width:560px;width:100%;margin:0 auto}
     <button class="sidebar-btn" data-view="week" onclick="switchView('week')">
       <svg class="icon" viewBox="0 -960 960 960" style="fill:currentColor;stroke:none"><path d="M200-80q-33 0-56.5-23.5T120-160v-560q0-33 23.5-56.5T200-800h40v-80h80v80h320v-80h80v80h40q33 0 56.5 23.5T840-720v560q0 33-23.5 56.5T760-80H200Zm0-80h560v-400H200v400Zm0-480h560v-80H200v80Zm0 0v-80 80Z"/></svg>
       <span>Schedule</span>
+    </button>
+    <button class="sidebar-btn" data-view="activities" onclick="switchView('activities')">
+      <!-- Dylon supplied "icon-activities.svg" for this tab's own icon. -->
+      <svg class="icon" viewBox="0 -960 960 960" style="fill:currentColor;stroke:none"><path d="M120-160v-80h720v80H120Zm0-560v-80h720v80H120Zm80 400q-33 0-56.5-23.5T120-400v-160q0-33 23.5-56.5T200-640h560q33 0 56.5 23.5T840-560v160q0 33-23.5 56.5T760-320H200Zm0-80h560v-160H200v160Zm0-160v160-160Z"/></svg>
+      <span>Activities</span>
     </button>
     <button class="sidebar-btn" data-view="progress" onclick="switchView('progress')">
       <svg class="icon" viewBox="0 -960 960 960" style="fill:currentColor;stroke:none"><path d="m136-240-56-56 296-298 160 160 208-206H640v-80h240v240h-80v-104L536-320 376-480 136-240Z"/></svg>
@@ -922,10 +939,6 @@ main{flex:1;padding:14px 14px 24px;max-width:560px;width:100%;margin:0 auto}
     <button class="sidebar-btn" onclick="openShoes()">
       <svg class="icon" viewBox="0 -960 960 960" style="fill:currentColor;stroke:none"><path d="M222-79q-32 0-61.5-12T108-127l-7-7q-9-8-11.5-20t2.5-23l194-495q8-20 27.5-30.5T354-708l58 11q17 4 32.5-2.5T471-717q14-15 18.5-31.5T489-782l-5-15q-5-16-1.5-32.5T498-858l43-43q17-18 42.5-18t42.5 17l181 184q22 23 22.5 54.5T809-609l19 19q6 7 10.5 14.5T843-560q0 7-3 14t-11 15q-12 11-28.5 11.5T772-531l-18-19-28 29 18 18q11 11 11 28t-11 28q-12 11-28.5 11.5T687-447l-18-17-112 114 17 16q12 12 12 28.5T574-277q-12 11-28.5 11.5T517-277l-16-17-28 29 16 16q11 11 11 28t-11 28q-12 11-28.5 11.5T432-193l-16-15-28 28 16 15q11 12 11 28.5T404-108q-12 11-28.5 11.5T347-108l-16-16q-23 23-50.5 34T222-79Zm-57-283q5-11 8-19.5l3-8.5-22 56 3.5-8.5Q161-351 165-362Zm39-100q5-11 8-19.5l3-8.5-22 56 3.5-8.5Q200-451 204-462Zm39-100q5-11 8-19l3-8-22 55 3.5-8.5Q239-551 243-562Zm-21 402q17 0 31.5-6t25.5-18l471-478-166-169-20 20q12 40 4.5 78T528-662q-26 26-60 38.5t-71 4.5l-41-8-25 61 23 8q11 5 16 16t1 22q-4 12-15 18t-23 1l-24-9-17 44 19 7q11 5 16.5 16t1.5 22q-4 12-15.5 17.5t-23.5.5l-20-7-17 44 16 6q11 5 16 15.5t1 21.5q-4 12-15.5 18t-23.5 1l-16-6-54 136q10 7 21.5 10.5T222-160Zm242-336Z"/></svg>
       <span>Shoes</span>
-    </button>
-    <button class="sidebar-btn" onclick="openActivityFeed()">
-      <svg class="icon" viewBox="0 -960 960 960" style="fill:currentColor;stroke:none"><path d="M520-40v-240l-84-80-40 176-276-56 16-80 192 40 64-324-72 28v136h-80v-188l158-68q35-15 51.5-19.5T480-720q21 0 39 11t29 29l40 64q26 42 70.5 69T760-520v80q-66 0-123.5-27.5T540-540l-24 120 84 80v300h-80Zm-36.5-723.5Q460-787 460-820t23.5-56.5Q507-900 540-900t56.5 23.5Q620-853 620-820t-23.5 56.5Q573-740 540-740t-56.5-23.5Z"/></svg>
-      <span>Activity Feed</span>
     </button>
     <div class="sidebar-sep"></div>
     <button class="sidebar-btn" onclick="openPaceCalc()">
@@ -1001,6 +1014,8 @@ main{flex:1;padding:14px 14px 24px;max-width:560px;width:100%;margin:0 auto}
     <div class="view active" id="view-today"></div>
     <!-- WEEK -->
     <div class="view" id="view-week"></div>
+    <!-- ACTIVITIES -->
+    <div class="view" id="view-activities"></div>
     <!-- PROGRESS -->
     <div class="view" id="view-progress"></div>
     <!-- PROFILE -->
@@ -1024,7 +1039,11 @@ main{flex:1;padding:14px 14px 24px;max-width:560px;width:100%;margin:0 auto}
       <button class="fab-item" onclick="fabUploadPlan()"><div class="sess-ico ico-checkin"><svg class="icon" viewBox="0 -960 960 960" style="fill:currentColor;stroke:none"><path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h168q13-36 43.5-58t68.5-22q38 0 68.5 22t43.5 58h168q33 0 56.5 23.5T840-760v268q-19-9-39-15.5t-41-9.5v-243H200v560h242q3 22 9.5 42t15.5 38H200Zm0-120v40-560 243-3 280Zm80-40h163q3-21 9.5-41t14.5-39H280v80Zm0-160h244q32-30 71.5-50t84.5-27v-3H280v80Zm0-160h400v-80H280v80Zm221.5-198.5Q510-807 510-820t-8.5-21.5Q493-850 480-850t-21.5 8.5Q450-833 450-820t8.5 21.5Q467-790 480-790t21.5-8.5ZM720-40q-83 0-141.5-58.5T520-240q0-83 58.5-141.5T720-440q83 0 141.5 58.5T920-240q0 83-58.5 141.5T720-40Zm-20-80h40v-100h100v-40H740v-100h-40v100H600v40h100v100Z"/></svg></div>Import Training Plan</button>
     </div>
     <button class="fab-main" onclick="toggleActivityFab()" aria-label="Add activity">
-      <svg viewBox="0 -960 960 960" style="fill:currentColor;stroke:none"><path d="M440-440H200v-80h240v-240h80v240h240v80H520v240h-80v-240Z"/></svg>
+      <!-- Dylon supplied these two exact glyphs ("icon FAB add.svg"/"icon Fab close.svg") -- a real
+           plus for the closed/default state, a real X for the open state, swapped via CSS on
+           .activity-fab-wrap.open rather than a single icon rotated with a transform. -->
+      <svg class="fab-icon-add" viewBox="0 -960 960 960" style="fill:currentColor;stroke:none"><path d="M440-440H200v-80h240v-240h80v240h240v80H520v240h-80v-240Z"/></svg>
+      <svg class="fab-icon-close" viewBox="0 -960 960 960" style="fill:currentColor;stroke:none"><path d="m256-200-56-56 224-224-224-224 56-56 224 224 224-224 56 56-224 224 224 224-56 56-224-224-224 224Z"/></svg>
     </button>
   </div>
   <input type="file" id="fab-activity-import-input" accept=".tcx,.gpx,.fit" multiple style="display:none" onchange="handleActivityImportFile(event)">
@@ -1035,6 +1054,8 @@ main{flex:1;padding:14px 14px 24px;max-width:560px;width:100%;margin:0 auto}
   <input type="file" id="fab-plan-upload-input" accept="application/json,.json" style="display:none" onchange="handlePlanUploadFile(event)">
 
   <div class="bottom-nav">
+    <!-- Dylon: "i dont like the today in center again move it back how it was" -- reverted to Today
+         leading the row (matches switchView's default CURR_VIEW). Sidebar order below matches. -->
     <button class="nav-btn active" data-view="today" onclick="switchView('today')">
       <svg class="icon" viewBox="0 -960 960 960" style="fill:currentColor;stroke:none"><path d="M440-760v-160h80v160h-80Zm266 110-55-55 112-115 56 57-113 113Zm54 210v-80h160v80H760ZM440-40v-160h80v160h-80ZM254-652 140-763l57-56 113 113-56 54Zm508 512L651-255l54-54 114 110-57 59ZM40-440v-80h160v80H40Zm157 300-56-57 112-112 29 27 29 28-114 114Zm113-170q-70-70-70-170t70-170q70-70 170-70t170 70q70 70 70 170t-70 170q-70 70-170 70t-170-70Zm283-57q47-47 47-113t-47-113q-47-47-113-47t-113 47q-47 47-47 113t47 113q47 47 113 47t113-47ZM480-480Z"/></svg>
       Today
@@ -1042,6 +1063,11 @@ main{flex:1;padding:14px 14px 24px;max-width:560px;width:100%;margin:0 auto}
     <button class="nav-btn" data-view="week" onclick="switchView('week')">
       <svg class="icon" viewBox="0 -960 960 960" style="fill:currentColor;stroke:none"><path d="M200-80q-33 0-56.5-23.5T120-160v-560q0-33 23.5-56.5T200-800h40v-80h80v80h320v-80h80v80h40q33 0 56.5 23.5T840-720v560q0 33-23.5 56.5T760-80H200Zm0-80h560v-400H200v400Zm0-480h560v-80H200v80Zm0 0v-80 80Z"/></svg>
       Schedule
+    </button>
+    <button class="nav-btn" data-view="activities" onclick="switchView('activities')">
+      <!-- Dylon supplied "icon-activities.svg" for this tab's own icon. -->
+      <svg class="icon" viewBox="0 -960 960 960" style="fill:currentColor;stroke:none"><path d="M120-160v-80h720v80H120Zm0-560v-80h720v80H120Zm80 400q-33 0-56.5-23.5T120-400v-160q0-33 23.5-56.5T200-640h560q33 0 56.5 23.5T840-560v160q0 33-23.5 56.5T760-320H200Zm0-80h560v-160H200v160Zm0-160v160-160Z"/></svg>
+      Activities
     </button>
     <button class="nav-btn" data-view="progress" onclick="switchView('progress')">
       <svg class="icon" viewBox="0 -960 960 960" style="fill:currentColor;stroke:none"><path d="m136-240-56-56 296-298 160 160 208-206H640v-80h240v240h-80v-104L536-320 376-480 136-240Z"/></svg>
@@ -1195,26 +1221,6 @@ main{flex:1;padding:14px 14px 24px;max-width:560px;width:100%;margin:0 auto}
       </button>
     </div>
     <div class="sheet-body" id="shoes-sh-body"></div>
-  </div>
-</div>
-
-<!-- Dedicated Activity Feed (Task 48/v0.22.0) -- Dylon: "we need to build a dedicated activity feed
-     that will show all activities logged planned or not" and "i dont like how buried all the
-     activities is behind history". Same underlying query (historyItems()/matchesHistoryFilter()/
-     logFeedItemHTML()) the Progress > History screen already uses, but reachable in one tap from
-     the sidebar (desktop) or Tools sheet (mobile) instead of two taps deep inside Progress. -->
-<div class="overlay" id="actfeed-overlay">
-  <div class="sheet">
-    <div class="sheet-hdr">
-      <div class="sh-ico" style="background:var(--s3);color:var(--t2)">
-        <svg class="icon" viewBox="0 -960 960 960" style="fill:currentColor;stroke:none"><path d="M520-40v-240l-84-80-40 176-276-56 16-80 192 40 64-324-72 28v136h-80v-188l158-68q35-15 51.5-19.5T480-720q21 0 39 11t29 29l40 64q26 42 70.5 69T760-520v80q-66 0-123.5-27.5T540-540l-24 120 84 80v300h-80Zm-36.5-723.5Q460-787 460-820t23.5-56.5Q507-900 540-900t56.5 23.5Q620-853 620-820t-23.5 56.5Q573-740 540-740t-56.5-23.5Z"/></svg>
-      </div>
-      <h3>Activity Feed</h3>
-      <button class="sheet-close" onclick="closeOverlay('actfeed-overlay')">
-        <svg class="icon icon-sm" viewBox="0 -960 960 960" style="fill:currentColor;stroke:none"><path d="m336-280-56-56 144-144-144-143 56-56 144 144 143-144 56 56-144 143 144 144-56 56-143-144-144 144Z"/></svg>
-      </button>
-    </div>
-    <div class="sheet-body" id="actfeed-sh-body"></div>
   </div>
 </div>
 
@@ -1444,7 +1450,7 @@ main{flex:1;padding:14px 14px 24px;max-width:560px;width:100%;margin:0 auto}
    session-style restyle, race-target connection, iOS install fix, icon redesign, onboarding flow).
    APP_STAGE is 'alpha.N' pre-launch, bump N each time you hand a build to a real tester (Dylon's
    sister counts); once launched, APP_VERSION resets to 1.0.0 and APP_STAGE becomes ''. */
-const APP_VERSION='0.32.32';
+const APP_VERSION='0.32.40';
 const APP_STAGE='alpha.1';
 const APP_VERSION_DATE='2026-07-28';
 /* ═══════════════════════════ DATA ═══════════════════════════ */
@@ -2791,6 +2797,14 @@ function normalizeActivityRecord(a){
     shoe:a.shoe||'',
     tags:(a.tags&&a.tags.length)?a.tags:[],
     rpe:a.rpe||'',
+    // Dylon: "not every activity is meant to be attached to a planned session so we need something
+    // to do with those activities that are in the needs review tab." A genuinely standalone activity
+    // that just happens to fall near a planned day (e.g. a shakeout jog the same week as a long run)
+    // would otherwise sit in the Needs Review inbox forever with no way out -- dismissActivityReview()
+    // sets this so needsReviewActivities()/matchesHistoryFilter('needsreview') stop counting it,
+    // without touching role/linkedSessionId at all (it's still just as "unplanned" as before; only
+    // whether it needs YOUR attention changed).
+    reviewDismissed:!!a.reviewDismissed,
     createdAt:a.createdAt||new Date().toISOString()
   };
 }
@@ -2896,7 +2910,7 @@ function backfillActivityWeatherIfNeeded(activity){
     if(w){
       setActivityWeather(activity.id,w);
       refreshOpenActivityDetail(activity.id);
-      refreshActivityFeedIfOpen();
+      refreshActivitiesIfOpen();
     }
   });
 }
@@ -2945,6 +2959,17 @@ function candidateSessionsForActivity(activity,maxDays){
     .filter(x=>x.days<=maxDays)
     .sort((a,b)=>a.days-b.days)
     .map(x=>x.session);
+}
+// The Needs Review inbox itself -- every unplanned activity with at least one nearby candidate
+// session, minus anything already dismissed (see reviewDismissed in normalizeActivityRecord). A
+// genuinely unplanned one-off with nothing planned anywhere near it never appears here at all; it has
+// nothing to reconcile in the first place. No longer a filter pill in the Activities tab's own list --
+// Dylon: "move needs review behind an icon which display a list of the activities that require
+// review or needs the user attention" -- surfaced instead via a flag icon + count badge and its own
+// sheet (openNeedsReviewSheet).
+function needsReviewActivities(){
+  return ACTIVITIES.filter(a=>a.role==='unplanned' && !a.reviewDismissed && candidateSessionsForActivity(a).length>0)
+    .sort((a,b)=>b.date.localeCompare(a.date));
 }
 // The reverse direction -- unplanned activities near a given planned session's date, for the
 // "+ Attach Activity" picker in openLog(). Only ever offers currently-unplanned activities; one
@@ -3451,14 +3476,14 @@ function renderActivityPaceZoneBreakdown(a){
   const rows=zones.filter(z=>z.sec>0).map(z=>{
     const zoneNum=parseInt((z.label||'').replace(/\D/g,''),10);
     const color=PACE_ZONE_BAR_COLORS[(zoneNum||1)-1]||'--accent';
-    return `<div style="margin:6px 0">
-      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--t3);margin-bottom:2px"><span>${escAttr(z.label)} · ${escAttr(z.name)}</span><span>${fmtDurationSec(z.sec)} (${z.pct}%)</span></div>
-      <div style="height:6px;border-radius:3px;background:var(--s2);overflow:hidden"><div style="width:${z.pct}%;height:100%;background:var(${color})"></div></div>
+    return `<div style="margin:10px 0">
+      <div style="display:flex;justify-content:space-between;font-size:12.5px;color:var(--t3);margin-bottom:4px"><span>${escAttr(z.label)} · ${escAttr(z.name)}</span><span style="color:var(--t1);font-weight:700">${fmtDurationSec(z.sec)} <span style="color:var(--t3);font-weight:400">(${z.pct}%)</span></span></div>
+      <div style="height:7px;border-radius:4px;background:var(--s2);overflow:hidden"><div style="width:${z.pct}%;height:100%;background:var(${color})"></div></div>
     </div>`;
   }).join('');
-  return `<div class="section-lbl" style="margin-top:14px">Pace Zones</div>
-    <div class="card" style="padding:8px 12px">${rows}
-      <div style="font-size:10.5px;color:var(--t3);margin-top:6px;line-height:1.4">Estimated from your projected 15K pace, bucketed by Grade-Adj. Pace.</div>
+  return `${actHdr('Pace Zones')}
+    <div class="card" style="padding:16px">${rows}
+      <div style="font-size:11px;color:var(--t3);margin-top:10px;line-height:1.4">Estimated from your projected 15K pace, bucketed by Grade-Adj. Pace.</div>
     </div>`;
 }
 // Weekly Zone Time Trends (ANALYTICS_ROADMAP.md Phase 3) -- aggregates activityHRZoneBreakdown /
@@ -3859,7 +3884,7 @@ function renderActivityRouteMapHTML(a,idPrefix){
   // -- which only the popup ever calls -- could grab the WRONG (inline) element and render the live
   // map in the session card instead of the popup. Only the popup's unprefixed ids are ever looked up
   // by id, so the inline copy just needs to not collide, not be independently addressable.
-  return `<div class="section-lbl" style="margin-top:0">Route</div>
+  return `${actHdr('Route',true)}
     <div class="card" id="${idPrefix}route-card-${a.id}" style="padding:0;overflow:hidden;flex-shrink:0">
       <div id="${idPrefix}route-live-${a.id}" style="width:100%;height:260px;display:none"></div>
       <div id="${idPrefix}route-svg-${a.id}" style="padding:8px">${svg}</div>
@@ -3951,7 +3976,7 @@ function renderActivitySplitsTable(a){
       ${hasElev?`<td style="padding:5px 6px;font-size:12px">${s.elevGainM>0?'+'+s.elevGainM+'m':'—'}</td>`:''}
     </tr>`;
   }).join('');
-  return `<div class="section-lbl" style="margin-top:14px">Splits (per ${unit})</div>
+  return `${actHdr('Splits (per '+unit+')')}
     <div class="card" style="padding:0;overflow-x:auto;flex-shrink:0">
       <table style="width:100%;border-collapse:collapse">
         <thead><tr style="border-bottom:1px solid var(--bd,#eee)">
@@ -3995,8 +4020,8 @@ function renderActivityLapsTable(a){
       ${hasElev?`<td style="padding:5px 6px;font-size:12px">${l.elevGainM>0?'+'+l.elevGainM+'m':'—'}</td>`:''}
     </tr>`;
   }).join('');
-  return `<div class="section-lbl" style="margin-top:14px">Laps</div>
-    <div style="font-size:11px;color:var(--t3);margin-bottom:4px">Real lap markers recorded by your device.</div>
+  return `${actHdr('Laps')}
+    <div style="font-size:11px;color:var(--t3);margin-bottom:8px">Real lap markers recorded by your device.</div>
     <div class="card" style="padding:0;overflow-x:auto;flex-shrink:0">
       <table style="width:100%;border-collapse:collapse">
         <thead><tr style="border-bottom:1px solid var(--bd,#eee)">
@@ -4161,19 +4186,20 @@ function effortRankAmong(sec,km){
 function renderActivityBestEffortsHTML(a){
   const efforts=activityBestEfforts(a);
   if(!efforts.length) return '';
-  const rows=efforts.map(e=>{
+  const rows=efforts.map((e,i)=>{
     const rk=effortRankAmong(e.durSec,e.km);
     const rankStr=rk?(rk.rank===1?`Fastest ${escAttr(e.label)} all-time!`:`${ordinalStr(rk.rank)} fastest ${escAttr(e.label)} of ${rk.total}`):'';
-    return `<div style="padding:6px 0;border-bottom:1px solid var(--bd,rgba(255,255,255,.06))">
-    <div style="display:flex;justify-content:space-between;font-size:12.5px">
+    const isLast=i===efforts.length-1;
+    return `<div style="padding:10px 0${isLast?'':';border-bottom:1px solid var(--b1)'}">
+    <div style="display:flex;justify-content:space-between;font-size:13.5px">
       <span style="color:var(--t3)">${escAttr(e.label)}</span>
       <span><span style="font-weight:700">${fmtDurationSec(Math.round(e.durSec))}</span> <span style="color:var(--t3)">(${fmtPaceFromSecPerKm(e.paceSecPerKm)}/km)</span></span>
     </div>
-    ${rankStr?`<div style="font-size:11px;color:${rk.rank===1?'var(--gr)':'var(--t3)'};font-weight:${rk.rank===1?'700':'600'};margin-top:1px">${rankStr}</div>`:''}
+    ${rankStr?`<div style="font-size:11.5px;color:${rk.rank===1?'var(--gr)':'var(--t3)'};font-weight:${rk.rank===1?'700':'600'};margin-top:2px">${rankStr}</div>`:''}
   </div>`;
   }).join('');
-  return `<div class="section-lbl" style="margin-top:14px">Best Efforts in This Activity</div>
-    <div class="card" style="padding:8px 12px">${rows}</div>`;
+  return `${actHdr('Best Efforts in This Activity')}
+    <div class="card" style="padding:4px 16px">${rows}</div>`;
 }
 
 /* ═══════════════════════════ ACTIVITY IMPORT — TCX/GPX parsing (Phase 1) ═══════════════════════════ */
@@ -5755,10 +5781,13 @@ let PACECALC_LAST_CONVERT=null;
 // reloading the app doesn't silently blank them out -- only the calculator sheet's own live-preview
 // rendering (hrzoneBodyHTML/calcHRZones) still touches HRZONE_LAST itself.
 let HRZONE_LAST=null;
-// Which slice of Profile's HR-zone pie chart is currently "opened" (null = nothing selected yet).
-// Module-level like HRZONE_LAST so the selection survives a renderAll() (e.g. after Recalculate)
-// rather than resetting on every re-render.
-let HRZONE_PIE_SELECTED=null;
+// Which wedge of a given activity's HR-zone donut chart is currently "opened" -- keyed by
+// idPrefix+activityId (same key convention IMPORT_EDIT_TAGS uses) rather than one shared value,
+// since more than one activity's chart can exist in the DOM/be revisited across a session. See
+// activityHRZoneDonutSVG/selectActivityHRZoneSlice below (Profile's own Heart Rate Zones card went
+// back to a plain static list -- this chart now lives only on the per-activity breakdown, which has
+// real time-in-zone data to show, unlike Profile's static bpm-range reference).
+let ACT_HRZONE_SELECTED={};
 // The one real source of truth every HR-zone-dependent feature reads from: whatever was last
 // explicitly saved via "Save to Profile" in the calculator (saveHRZonesToProfile()), persisted on
 // PROFILE same as weight/personal bests/everything else, so it survives reload, syncs in backups,
@@ -5770,8 +5799,6 @@ function currentHRZones(){ return PROFILE.savedHRZones||null; }
 // Mileage already covers), styled like the Strength Progression list rather than the mileage bars.
 let CURR_RUN_PROG_TAB='long';
 let PLAN_VIEW='list';
-let PROGRESS_SUB='main';
-let HISTORY_FILTER='all';
 
 /* ═══════════════════════════ HELPERS ═══════════════════════════ */
 function todayISO(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
@@ -6836,9 +6863,7 @@ const TOOLS_LIST=[
   {icon:'M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h168q13-36 43.5-58t68.5-22q38 0 68.5 22t43.5 58h168q33 0 56.5 23.5T840-760v268q-19-9-39-15.5t-41-9.5v-243H200v560h242q3 22 9.5 42t15.5 38H200Zm0-120v40-560 243-3 280Zm80-40h163q3-21 9.5-41t14.5-39H280v80Zm0-160h244q32-30 71.5-50t84.5-27v-3H280v80Zm0-160h400v-80H280v80Zm221.5-198.5Q510-807 510-820t-8.5-21.5Q493-850 480-850t-21.5 8.5Q450-833 450-820t8.5 21.5Q467-790 480-790t21.5-8.5ZM720-40q-83 0-141.5-58.5T520-240q0-83 58.5-141.5T720-440q83 0 141.5 58.5T920-240q0 83-58.5 141.5T720-40Zm-20-80h40v-100h100v-40H740v-100h-40v100H600v40h100v100Z',
     viewBox:'0 -960 960 960',title:'Plan Generator',sub:'Build a periodized training plan from your race, experience, and schedule',onclick:"closeOverlay('tools-overlay');gpOpenWizard()"},
   {icon:'M222-79q-32 0-61.5-12T108-127l-7-7q-9-8-11.5-20t2.5-23l194-495q8-20 27.5-30.5T354-708l58 11q17 4 32.5-2.5T471-717q14-15 18.5-31.5T489-782l-5-15q-5-16-1.5-32.5T498-858l43-43q17-18 42.5-18t42.5 17l181 184q22 23 22.5 54.5T809-609l19 19q6 7 10.5 14.5T843-560q0 7-3 14t-11 15q-12 11-28.5 11.5T772-531l-18-19-28 29 18 18q11 11 11 28t-11 28q-12 11-28.5 11.5T687-447l-18-17-112 114 17 16q12 12 12 28.5T574-277q-12 11-28.5 11.5T517-277l-16-17-28 29 16 16q11 11 11 28t-11 28q-12 11-28.5 11.5T432-193l-16-15-28 28 16 15q11 12 11 28.5T404-108q-12 11-28.5 11.5T347-108l-16-16q-23 23-50.5 34T222-79Zm-57-283q5-11 8-19.5l3-8.5-22 56 3.5-8.5Q161-351 165-362Zm39-100q5-11 8-19.5l3-8.5-22 56 3.5-8.5Q200-451 204-462Zm39-100q5-11 8-19l3-8-22 55 3.5-8.5Q239-551 243-562Zm-21 402q17 0 31.5-6t25.5-18l471-478-166-169-20 20q12 40 4.5 78T528-662q-26 26-60 38.5t-71 4.5l-41-8-25 61 23 8q11 5 16 16t1 22q-4 12-15 18t-23 1l-24-9-17 44 19 7q11 5 16.5 16t1.5 22q-4 12-15.5 17.5t-23.5.5l-20-7-17 44 16 6q11 5 16 15.5t1 21.5q-4 12-15.5 18t-23.5 1l-16-6-54 136q10 7 21.5 10.5T222-160Zm242-336Z',
-    viewBox:'0 -960 960 960',title:'Shoes',sub:'Track mileage, rotation, and replacement alerts for each pair',onclick:"closeOverlay('tools-overlay');openShoes()"},
-  {icon:'M520-40v-240l-84-80-40 176-276-56 16-80 192 40 64-324-72 28v136h-80v-188l158-68q35-15 51.5-19.5T480-720q21 0 39 11t29 29l40 64q26 42 70.5 69T760-520v80q-66 0-123.5-27.5T540-540l-24 120 84 80v300h-80Zm-36.5-723.5Q460-787 460-820t23.5-56.5Q507-900 540-900t56.5 23.5Q620-853 620-820t-23.5 56.5Q573-740 540-740t-56.5-23.5Z',
-    viewBox:'0 -960 960 960',title:'Activity Feed',sub:'Every activity you’ve logged or imported, planned or not, in one place',onclick:"closeOverlay('tools-overlay');openActivityFeed()"}
+    viewBox:'0 -960 960 960',title:'Shoes',sub:'Track mileage, rotation, and replacement alerts for each pair',onclick:"closeOverlay('tools-overlay');openShoes()"}
 ];
 function toolsBodyHTML(){
   const rows=TOOLS_LIST.map(t=>`<button class="card" style="display:flex;align-items:center;gap:12px;width:100%;border:none;text-align:left;cursor:pointer;font-family:var(--font)" onclick="${t.onclick}">
@@ -7171,84 +7196,19 @@ function hrZoneResultHTML(r){
     </div>`;
 }
 // Profile's own Heart Rate Zones card -- Dylon: "in the profile there should be a heart rate zone
-// chart but this chart is generated after the the user does a heart rate zone calculation." Started
-// as a static set of bars (low -> high intensity); Dylon later asked for a redesign: "can we change
-// the heart rate zones in profile to an interactive pie chart? i feel like we are littered with
-// bars let's add some variety." Now a true pie chart -- each wedge sized by that zone's bpm width
-// under the saved method, tap/click a wedge (or the legend row below it) to see its name/range/
-// best-for in the detail panel, using the same ZONE_TREND_BAR_COLORS ramp the bars (and Weekly Zone
-// Time) already established as "the" HR zone color language, so the palette stays consistent even
-// though the shape changed. Empty state doubles as the entry point into the calculator for anyone
-// who hasn't set zones up yet at all.
-function hrZonePolarPoint(cx,cy,r,angleDeg){
-  const rad=angleDeg*Math.PI/180;
-  return {x:cx+r*Math.cos(rad),y:cy+r*Math.sin(rad)};
-}
-// Pure geometry, split out from the HTML builder so it's independently unit-testable: given each
-// zone's bpm width (hi-lo) returns the wedge angles (startAngle/endAngle/sweepDeg, degrees,
-// 0=3-o'clock/clockwise-positive SVG convention) a <path> arc command needs. Starts at -90deg (12
-// o'clock) like progressRingSVG's ring does, so the two "progress" visuals in the app read the same
-// way. Zones with a zero-or-negative width (shouldn't happen with real data, but a malformed manual
-// Max HR could produce one) get floored to a 1bpm sliver rather than vanishing entirely, so every
-// zone always has a visible, clickable wedge.
-function hrZonePieSlices(zones,method){
-  const widths=zones.map(z=>Math.max(1,z[method][1]-z[method][0]));
-  const total=widths.reduce((a,b)=>a+b,0);
-  let angle=-90;
-  return zones.map((z,i)=>{
-    const sweepDeg=total>0?(widths[i]/total)*360:360/zones.length;
-    const startAngle=angle;
-    const endAngle=angle+sweepDeg;
-    angle=endAngle;
-    return {zone:z,idx:i,startAngle,endAngle,sweepDeg,widthBpm:widths[i]};
-  });
-}
-function hrZonePieSVG(hz){
-  const method=hz.method||'karvonen';
-  const size=132,cx=size/2,cy=size/2,r=size/2-3;
-  const slices=hrZonePieSlices(hz.zones,method);
-  const paths=slices.map(s=>{
-    const p1=hrZonePolarPoint(cx,cy,r,s.startAngle);
-    const p2=hrZonePolarPoint(cx,cy,r,s.endAngle);
-    const largeArc=s.sweepDeg>180?1:0;
-    const d=`M ${cx} ${cy} L ${p1.x.toFixed(2)} ${p1.y.toFixed(2)} A ${r} ${r} 0 ${largeArc} 1 ${p2.x.toFixed(2)} ${p2.y.toFixed(2)} Z`;
-    const color=ZONE_TREND_BAR_COLORS[s.idx]||'--accent';
-    const z=s.zone;
-    const sel=HRZONE_PIE_SELECTED===s.idx?' selected':'';
-    return `<path class="hrzone-slice${sel}" data-idx="${s.idx}" d="${d}" fill="var(${color})" stroke="var(--s1)" stroke-width="2" onclick="selectHRZoneSlice(${s.idx})"><title>${escAttr(z.label)} · ${escAttr(z.name)}: ${z[method][0]}–${z[method][1]} bpm</title></path>`;
-  }).join('');
-  const hasSel=HRZONE_PIE_SELECTED!=null?' has-selection':'';
-  return `<svg class="hrzone-pie${hasSel}" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">${paths}</svg>`;
-}
-function hrZonePieDetailHTML(hz,idx){
-  if(idx==null||!hz.zones[idx]){
-    return `<div style="font-size:12px;color:var(--t3);line-height:1.4;padding:2px 0">Tap a zone in the chart, or in the list below, to see its range and what it's best for.</div>`;
-  }
-  const method=hz.method||'karvonen';
-  const z=hz.zones[idx];
-  const color=ZONE_TREND_BAR_COLORS[idx]||'--accent';
-  return `<div style="display:flex;align-items:center;gap:7px;margin-bottom:6px">
-      <span style="width:11px;height:11px;border-radius:50%;background:var(${color});flex:0 0 auto"></span>
-      <span style="font-weight:700;font-size:13.5px;color:var(--t1)">${escAttr(z.label)} · ${escAttr(z.name)}</span>
-    </div>
-    <div style="font-size:21px;font-weight:800;color:var(--t1);margin-bottom:4px">${z[method][0]}–${z[method][1]} <span style="font-size:12px;font-weight:600;color:var(--t3)">bpm</span></div>
-    <div style="font-size:12px;color:var(--t3);line-height:1.4">${escAttr(z.use)}</div>`;
-}
-// Shared by both the pie wedges' onclick and the legend rows' onclick below -- keeps the SVG (via a
-// full re-render, since path 'd' attributes are cheap to regenerate) and the detail panel in sync
-// with whichever zone was last tapped.
-function selectHRZoneSlice(idx){
-  HRZONE_PIE_SELECTED=idx;
-  const hz=currentHRZones();
-  if(!hz) return;
-  const pieHost=document.getElementById('hrzone-pie-host');
-  if(pieHost) pieHost.innerHTML=hrZonePieSVG(hz);
-  const detail=document.getElementById('hrzone-pie-detail');
-  if(detail) detail.innerHTML=hrZonePieDetailHTML(hz,idx);
-  document.querySelectorAll('.hrzone-legend-item').forEach((el,i)=>{
-    el.classList.toggle('selected',i===idx);
-  });
-}
+// chart but this chart is generated after the the user does a heart rate zone calculation." Went
+// through two chart iterations (a full pie, then a Strava-style donut with a center readout/floating
+// callout/chip-row legend) before Dylon settled the question of where that chart actually belongs:
+// "ok i messed up the new chart u created in profile I would like to use that instead for heart rate
+// zones measured within activities in the profile lets use this new version since the zones in the
+// profile stay stagnant and the one in the activities are more catered for a pie chart feature."
+// Right call -- Profile's zones are a static bpm-range reference with nothing to fill a donut's
+// center readout except the range itself (no real "% of time" to show), while
+// activityHRZoneBreakdown() already computes genuine time-in-zone seconds/percentages per activity --
+// literally the same data Strava's own activity-detail chart is built from. So: Profile goes back to
+// a plain list (closer to Strava's own Training Zones *settings* page -- a vertical color bar, zone
+// name, bpm range, "Rest"/"Max" at the open ends), and the donut/callout/chip-row chart moved to
+// activityAnalyticsHTML's zone breakdown below (see "Per-activity HR zone donut chart" further down).
 function profileHRZonesCardHTML(){
   const hz=currentHRZones();
   if(!hz||!hz.zones||!hz.zones.length){
@@ -7259,27 +7219,161 @@ function profileHRZonesCardHTML(){
     </div>`;
   }
   const method=hz.method||'karvonen';
-  const legend=hz.zones.map((z,i)=>{
+  const n=hz.zones.length;
+  // Listed highest zone first (Strava's own Training Zones page orders Zone 5 -> Zone 1 top to
+  // bottom), with the open ends of the whole range read as "Rest"/"Max" rather than raw numbers --
+  // same small touch Strava's screenshot uses ("Rest - 120" / "180 - Max").
+  const rows=hz.zones.map((z,i)=>({z,i})).reverse().map(({z,i},ri)=>{
     const color=ZONE_TREND_BAR_COLORS[i]||'--accent';
     const lo=z[method][0],hi=z[method][1];
-    const sel=HRZONE_PIE_SELECTED===i?' selected':'';
-    return `<div class="hrzone-legend-item${sel}" onclick="selectHRZoneSlice(${i})" style="display:flex;align-items:center;gap:7px;padding:5px 6px;cursor:pointer">
-      <span style="width:9px;height:9px;border-radius:50%;background:var(${color});flex:0 0 auto"></span>
-      <span style="font-size:11.5px;color:var(--t2);flex:1;font-weight:600">${escAttr(z.label)}</span>
-      <span style="font-size:11.5px;color:var(--t3)">${lo}–${hi} bpm</span>
+    const loLabel=i===0?'Rest':String(lo);
+    const hiLabel=i===n-1?'Max':String(hi);
+    return `<div style="padding:9px 0${ri<n-1?';border-bottom:1px solid var(--b1)':''}">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="width:4px;align-self:stretch;border-radius:2px;background:var(${color});flex:0 0 auto"></span>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:700;color:var(--t1)">${escAttr(z.label)}</div>
+          <div style="font-size:11px;color:var(--t3)">${escAttr(z.name)}</div>
+        </div>
+        <div style="font-size:13px;font-weight:700;color:var(--t2);white-space:nowrap">${loLabel} - ${hiLabel}</div>
+      </div>
+      <div style="font-size:11px;color:var(--t3);line-height:1.4;margin:4px 0 0 14px">${escAttr(z.use)}</div>
     </div>`;
   }).join('');
   return `<div class="card">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
       <div class="section-lbl" style="margin:0">Heart Rate Zones</div>
       ${hz.savedAt?`<span style="font-size:10.5px;color:var(--t3)">Saved ${fmtDate(hz.savedAt)}</span>`:''}
     </div>
-    <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
-      <div id="hrzone-pie-host" style="flex:0 0 auto">${hrZonePieSVG(hz)}</div>
-      <div id="hrzone-pie-detail" style="flex:1 1 130px;min-width:130px">${hrZonePieDetailHTML(hz,HRZONE_PIE_SELECTED)}</div>
-    </div>
-    <div style="margin-top:8px">${legend}</div>
-    <button class="btn btn-ghost btn-sm" style="margin-top:6px" onclick="openHRZone()">Recalculate</button>
+    ${rows}
+    <button class="btn btn-ghost btn-sm" style="margin-top:8px" onclick="openHRZone()">Recalculate</button>
+  </div>`;
+}
+function hrZonePolarPoint(cx,cy,r,angleDeg){
+  const rad=angleDeg*Math.PI/180;
+  return {x:cx+r*Math.cos(rad),y:cy+r*Math.sin(rad)};
+}
+// Annular (donut) sector path -- an outer arc from start to end, a line in to the inner radius, an
+// inner arc back from end to start, then closed. Shared pure geometry, independent of what data's
+// driving the wedge sizes.
+function hrZoneAnnularPath(cx,cy,rOuter,rInner,startAngle,endAngle){
+  const large=(endAngle-startAngle)>180?1:0;
+  const po1=hrZonePolarPoint(cx,cy,rOuter,startAngle);
+  const po2=hrZonePolarPoint(cx,cy,rOuter,endAngle);
+  const pi2=hrZonePolarPoint(cx,cy,rInner,endAngle);
+  const pi1=hrZonePolarPoint(cx,cy,rInner,startAngle);
+  return `M ${po1.x.toFixed(2)} ${po1.y.toFixed(2)} A ${rOuter} ${rOuter} 0 ${large} 1 ${po2.x.toFixed(2)} ${po2.y.toFixed(2)} L ${pi2.x.toFixed(2)} ${pi2.y.toFixed(2)} A ${rInner} ${rInner} 0 ${large} 0 ${pi1.x.toFixed(2)} ${pi1.y.toFixed(2)} Z`;
+}
+/* ── Per-activity HR zone donut chart ──
+   Strava-style donut for a single activity's real time-in-zone breakdown (activityHRZoneBreakdown()
+   above) -- see the big comment on profileHRZonesCardHTML for why this moved here from Profile. The
+   wedges are sized by actual seconds spent in each zone (not a static bpm width), so the center
+   readout can show a real "Zone 3 / 48%" the way Strava's own chart does, and the floating callout
+   shows the zone name plus how long you were in it (e.g. "Tempo 12:04"). The chip row underneath
+   still shows each zone's static bpm range (from currentHRZones(), same numbers Profile's list
+   shows) since that's a fixed reference regardless of which activity you're looking at -- only the
+   donut itself and the center/callout change per activity. */
+function activityHRZonePieSlices(zones){
+  const total=zones.reduce((a,z)=>a+z.sec,0);
+  let angle=-90;
+  return zones.map((z,i)=>{
+    const sweepDeg=total>0?(z.sec/total)*360:0;
+    const startAngle=angle;
+    const endAngle=angle+sweepDeg;
+    angle=endAngle;
+    return {zone:z,idx:i,startAngle,endAngle,sweepDeg};
+  });
+}
+const ACT_HRZONE_DONUT_SIZE=132,ACT_HRZONE_DONUT_R_OUTER=60,ACT_HRZONE_DONUT_R_INNER=38;
+function activityHRZoneDonutSVG(zones,idPrefix,activityId,selIdx){
+  const size=ACT_HRZONE_DONUT_SIZE,cx=size/2,cy=size/2,rOuter=ACT_HRZONE_DONUT_R_OUTER,rInner=ACT_HRZONE_DONUT_R_INNER;
+  // Zero-second zones are skipped entirely rather than drawn as a zero-width sliver -- unlike
+  // Profile's old bpm-based chart, a real activity genuinely can have no time at all in a given
+  // zone, and that should just mean no wedge, not a degenerate one.
+  const slices=activityHRZonePieSlices(zones).filter(s=>s.sweepDeg>0.05);
+  const paths=slices.map(s=>{
+    const d=hrZoneAnnularPath(cx,cy,rOuter,rInner,s.startAngle,s.endAngle);
+    const color=ZONE_TREND_BAR_COLORS[s.idx]||'--accent';
+    const z=s.zone;
+    const sel=selIdx===s.idx?' selected':'';
+    return `<path class="hrzone-slice${sel}" data-idx="${s.idx}" d="${d}" fill="var(${color})" stroke="var(--s1)" stroke-width="2" onclick="selectActivityHRZoneSlice('${idPrefix}','${activityId}',${s.idx})"><title>${escAttr(z.label)} · ${escAttr(z.name)}: ${fmtDurationSec(z.sec)} (${z.pct}%)</title></path>`;
+  }).join('');
+  const hasSel=selIdx!=null?' has-selection':'';
+  return `<svg class="hrzone-pie${hasSel}" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">${paths}</svg>`;
+}
+function activityHRZoneDonutOverlayHTML(zones,selIdx){
+  if(selIdx==null||!zones[selIdx]||!(zones[selIdx].sec>0)){
+    return `<div class="hrzone-donut-center">
+      <div class="hrzone-dc-sub">Heart Rate</div>
+      <div class="hrzone-dc-main" style="font-size:13.5px">Tap a zone</div>
+    </div>`;
+  }
+  const z=zones[selIdx];
+  const center=`<div class="hrzone-donut-center">
+    <div class="hrzone-dc-sub">${escAttr(z.label)}</div>
+    <div class="hrzone-dc-main">${z.pct}%</div>
+    <div class="hrzone-dc-unit">${fmtDurationSec(z.sec)}</div>
+  </div>`;
+  const size=ACT_HRZONE_DONUT_SIZE,cx=size/2,cy=size/2,rOuter=ACT_HRZONE_DONUT_R_OUTER;
+  const slices=activityHRZonePieSlices(zones);
+  const s=slices[selIdx];
+  const midAngle=(s.startAngle+s.endAngle)/2;
+  const pt=hrZonePolarPoint(cx,cy,rOuter+16,midAngle);
+  const x=Math.max(30,Math.min(size-30,pt.x));
+  const y=Math.max(12,Math.min(size-12,pt.y));
+  const callout=`<div class="hrzone-callout" style="left:${x.toFixed(1)}px;top:${y.toFixed(1)}px">${escAttr(z.name)} ${fmtDurationSec(z.sec)}</div>`;
+  return center+callout;
+}
+// Static bpm-range legend row -- pulled from currentHRZones() (the same numbers Profile's list
+// shows), matched to this activity's zones by index. Doubles as a second, larger way to select a
+// zone, same as it did on Profile's own version of this chart.
+function activityHRZoneChipRowHTML(zones,idPrefix,activityId,selIdx){
+  const hz=currentHRZones();
+  const method=(hz&&hz.method)||'karvonen';
+  return zones.map((z,i)=>{
+    const colorVar=ZONE_TREND_BAR_COLORS[i]||'--accent';
+    const range=(hz&&hz.zones[i])?`${hz.zones[i][method][0]}-${hz.zones[i][method][1]}`:'';
+    const sel=selIdx===i;
+    const bg=sel?`var(${colorVar}3)`:'var(--s2)';
+    const fg=sel?`var(${colorVar})`:'var(--t3)';
+    const underline=sel?`var(${colorVar})`:'transparent';
+    return `<div class="hrzone-chip${sel?' selected':''}" data-idx="${i}" onclick="selectActivityHRZoneSlice('${idPrefix}','${activityId}',${i})" style="background:${bg};color:${fg};border-bottom-color:${underline}">${range}</div>`;
+  }).join('');
+}
+function activityHRZoneCaptionHTML(zones,selIdx){
+  if(selIdx==null||!zones[selIdx]||!(zones[selIdx].sec>0)){
+    return `<div style="font-size:11.5px;color:var(--t3);line-height:1.4">Tap a zone in the chart, or in the range row below, to see how long you spent there.</div>`;
+  }
+  const z=zones[selIdx];
+  return `<div style="font-size:11.5px;color:var(--t3);line-height:1.4"><b style="color:var(--t2)">${escAttr(z.label)} · ${escAttr(z.name)}:</b> ${fmtDurationSec(z.sec)} (${z.pct}% of this activity)</div>`;
+}
+// Shared by the donut wedges' onclick and the chip row's onclick -- re-derives this activity's own
+// zone breakdown from ACTIVITIES (same lookup pattern used throughout the activity-detail code) and
+// re-renders the donut+overlay/chip row/caption for that one activity's key, so multiple activities'
+// charts (visited across a session) never share or clobber each other's selection state.
+function selectActivityHRZoneSlice(idPrefix,activityId,idx){
+  const key=idPrefix+activityId;
+  ACT_HRZONE_SELECTED[key]=idx;
+  const a=ACTIVITIES.find(x=>x.id===activityId);
+  const zones=a&&activityHRZoneBreakdown(a);
+  if(!zones) return;
+  const pieHost=document.getElementById(key+'-hrzone-pie-host');
+  if(pieHost) pieHost.innerHTML=activityHRZoneDonutSVG(zones,idPrefix,activityId,idx)+activityHRZoneDonutOverlayHTML(zones,idx);
+  const chipRow=document.getElementById(key+'-hrzone-chip-row');
+  if(chipRow) chipRow.innerHTML=activityHRZoneChipRowHTML(zones,idPrefix,activityId,idx);
+  const caption=document.getElementById(key+'-hrzone-caption');
+  if(caption) caption.innerHTML=activityHRZoneCaptionHTML(zones,idx);
+}
+// Assembles the whole donut+chips+caption block for one activity's Effort card -- called from
+// activityAnalyticsHTML in place of the old flat list of zone bars.
+function activityHRZoneChartHTML(zones,idPrefix,activityId){
+  const key=idPrefix+activityId;
+  const selIdx=ACT_HRZONE_SELECTED[key];
+  const idx=(selIdx===undefined)?null:selIdx;
+  return `<div style="margin-top:10px">
+    <div id="${key}-hrzone-pie-host" class="hrzone-donut-wrap">${activityHRZoneDonutSVG(zones,idPrefix,activityId,idx)}${activityHRZoneDonutOverlayHTML(zones,idx)}</div>
+    <div id="${key}-hrzone-chip-row" class="hrzone-chiprow">${activityHRZoneChipRowHTML(zones,idPrefix,activityId,idx)}</div>
+    <div id="${key}-hrzone-caption" style="margin-top:8px">${activityHRZoneCaptionHTML(zones,idx)}</div>
   </div>`;
 }
 
@@ -10065,12 +10159,12 @@ function historyItems(){
 }
 function matchesHistoryFilter(item,filter){
   if(filter==='all') return true;
-  // Phase 2 reconciliation inbox -- see the needsReviewCount comment in activityFeedBodyHTML above for
-  // exactly what counts.
+  // Phase 2 reconciliation inbox -- see the needsReviewCount comment in renderActivities (the
+  // Activities tab) for exactly what counts.
   if(filter==='needsreview'){
     if(item.kind!=='activity') return false;
     const act=ACTIVITIES.find(x=>x.id===item.id);
-    return !!act && act.role==='unplanned' && candidateSessionsForActivity(act).length>0;
+    return !!act && act.role==='unplanned' && !act.reviewDismissed && candidateSessionsForActivity(act).length>0;
   }
   if(filter==='run') return (item.kind==='session' && (item.ty==='easy'||item.ty==='long'||item.ty==='qual'||item.ty==='race')) || (item.kind==='extra' && item.ty==='run') || (item.kind==='activity' && item.ty==='run');
   if(filter==='walk') return (item.kind==='extra' && item.ty==='walk') || (item.kind==='activity' && item.ty==='walk');
@@ -10078,6 +10172,160 @@ function matchesHistoryFilter(item,filter){
   if(filter==='str') return (item.kind==='session' && item.ty==='str') || (item.kind==='extra' && item.ty==='str') || (item.kind==='activity' && item.ty==='strength');
   if(filter==='mob') return (item.kind==='session' && item.ty==='rest') || (item.kind==='activity' && (item.ty==='yoga'||item.ty==='mobility'));
   return true;
+}
+/* ── Activities tab card redesign — Runna-inspired ──
+   Dylon, sharing a Runna screenshot: "wee need to redesign the activities to look more presentable
+   as a home page tab take a look at runna stream to redesign it with a preview of data give each
+   activity it's own card as well dont use the coloured line on the outside of runnas card though you
+   may colour each card base don activity." Three pieces: (1) each history item gets its own real
+   .card instead of every item sharing one big wrapper, (2) each card previews Distance/Time/Avg Pace
+   (or whatever subset actually applies) instead of one packed text line, and (3) cards are still
+   colored per activity type — reusing the exact same sess-ico tint/color pairs Today/Schedule already
+   use — just as a soft full-card tint instead of Runna's outer accent bar, which Dylon explicitly
+   ruled out ("dont use the coloured line on the outside").
+   ACTIVITIES.type uses its own small vocabulary (run/walk/strength/yoga/mobility/workout) rather than
+   DATA's session-type codes (easy/qual/long/str/race/rest) that ICOCLS/ICONS are keyed by — these two
+   map an imported Activity's type onto that same existing icon/color system instead of inventing a
+   second one. */
+function activityTypeIcoCls(type){
+  return {run:'ico-easy',walk:'ico-walk',strength:'ico-str',yoga:'ico-yoga',mobility:'ico-mobility',workout:'ico-qual'}[type]||'ico-easy';
+}
+function activityTypeIcon(type){
+  return {run:ICONS.easy,walk:ICONS.walk,strength:ICONS.str,yoga:ICONS.yoga,mobility:ICONS.mobility,workout:ICONS.exercise}[type]||ICONS.easy;
+}
+// A soft full-card gradient tint per icon class, reusing the same light "3"/"2" tint variables the
+// icon badges themselves already sit on — deliberately NOT a bar/stripe along any edge. Types that are
+// already neutral grey in the badge system (walk/weight/mobility/rest) stay a plain card background
+// rather than tinting toward grey, which would just look like a rendering glitch.
+const ICO_CARD_TINT={
+  'ico-easy':'linear-gradient(160deg,var(--dur3),var(--s1) 60%)',
+  'ico-qual':'linear-gradient(160deg,var(--ign3),var(--s1) 60%)',
+  'ico-long':'linear-gradient(160deg,var(--long2),var(--s1) 60%)',
+  'ico-str':'linear-gradient(160deg,var(--str2),var(--s1) 60%)',
+  'ico-race':'linear-gradient(160deg,var(--race2),var(--s1) 60%)',
+  'ico-yoga':'linear-gradient(160deg,var(--dur3),var(--s1) 60%)',
+  'ico-checkin':'linear-gradient(160deg,var(--accent3),var(--s1) 60%)'
+};
+// "Today"/"Yesterday" reads more naturally on a recent card than a bare date, matching Runna's own
+// "Today · 5:24 AM" style — falls back to the existing short-date format (fmtDate) past that.
+function relDayLabel(dateStr){
+  if(!dateStr) return 'TBD';
+  const today=todayISO();
+  if(dateStr===today) return 'Today';
+  const yd=new Date(today+'T12:00:00'); yd.setDate(yd.getDate()-1);
+  const yISO=yd.getFullYear()+'-'+String(yd.getMonth()+1).padStart(2,'0')+'-'+String(yd.getDate()).padStart(2,'0');
+  if(dateStr===yISO) return 'Yesterday';
+  return fmtDate(dateStr);
+}
+// This item's own logged distance in km, if it has one — shared by both the month-group total and
+// (indirectly, via historyItemStatsHTML) the card's own Distance stat, so the two can never disagree
+// about what a given entry's distance actually is.
+function historyItemDistanceKm(item){
+  if(item.kind==='session'){ const n=NOTES[item.id]; return n&&n.dist?(parseFloat(n.dist)||0):0; }
+  if(item.kind==='activity'){ const a=ACTIVITIES.find(x=>x.id===item.id); return a&&a.distanceKm?a.distanceKm:0; }
+  const x=EXTRALOGS.find(e=>e.id===item.id); return x&&x.dist?(parseFloat(x.dist)||0):0;
+}
+// Buckets an already-date-sorted item list into month groups (most-recent month first, since items
+// arrive pre-sorted descending) — mirrors Runna's "July 2026 ... 51.7 km" header row, one per month,
+// with that month's own total distance next to it rather than a running grand total.
+function activitiesMonthGroups(items){
+  const groups=[];
+  let cur=null;
+  items.forEach(item=>{
+    const key=(item.date||'').slice(0,7);
+    if(!cur||cur.key!==key){
+      const d=new Date((item.date||todayISO())+'T12:00:00');
+      const label=isNaN(d.getTime())?'Undated':d.toLocaleDateString('en-US',{month:'long',year:'numeric'});
+      cur={key,label,items:[],totalKm:0};
+      groups.push(cur);
+    }
+    cur.items.push(item);
+    cur.totalKm+=historyItemDistanceKm(item);
+  });
+  return groups;
+}
+// Up to 3 preview stats per card, Runna-style (Distance/Time/Avg Pace) — falls back to whatever's
+// actually available (HR/RPE/weight) for non-running entries so the row isn't left mostly blank, and
+// finally to the same "no metrics" caption the old single-line feed used when nothing was logged.
+function historyItemStatsHTML(item){
+  let stats=[];
+  if(item.kind==='session'){
+    const n=NOTES[item.id]||{};
+    if(n.dist) stats.push({label:'Distance',value:n.dist+' km'});
+    const durSec=sessionDurationSec(item.id);
+    if(durSec) stats.push({label:'Time',value:fmtDurationSec(durSec)});
+    if(n.pace) stats.push({label:'Avg Pace',value:n.pace+'/km'});
+    if(stats.length<3 && n.hr) stats.push({label:'Avg HR',value:n.hr+' bpm'});
+    if(stats.length<3 && n.rpe) stats.push({label:'RPE',value:n.rpe});
+    if(stats.length<3 && n.weight) stats.push({label:'Weight',value:n.weight+' kg'});
+  } else if(item.kind==='activity'){
+    const a=ACTIVITIES.find(x=>x.id===item.id);
+    if(a){
+      if(a.distanceKm) stats.push({label:'Distance',value:fmtDist(a.distanceKm)});
+      if(a.durationSec) stats.push({label:'Time',value:fmtDurationSec(a.durationSec)});
+      if(a.avgPace) stats.push({label:'Avg Pace',value:a.avgPace+'/km'});
+      if(stats.length<3 && a.avgHr) stats.push({label:'Avg HR',value:a.avgHr+' bpm'});
+    }
+  } else {
+    const x=EXTRALOGS.find(e=>e.id===item.id);
+    if(x){
+      if(x.dist) stats.push({label:'Distance',value:x.dist+' km'});
+      if(x.duration) stats.push({label:'Time',value:x.duration});
+      if(x.pace) stats.push({label:'Avg Pace',value:x.pace+'/km'});
+      if(stats.length<3 && x.hr) stats.push({label:'Avg HR',value:x.hr+' bpm'});
+      if(stats.length<3 && x.weight) stats.push({label:'Weight',value:x.weight+' kg'});
+    }
+  }
+  stats=stats.slice(0,3);
+  if(!stats.length) return `<div style="margin-top:8px;font-size:12px;color:var(--t3)">${item.kind==='activity'?'Imported, no metrics parsed':'Logged, no metrics entered'}</div>`;
+  return `<div style="display:flex;margin-top:10px;padding-top:10px;border-top:1px solid var(--b1)">${stats.map(st=>`<div style="flex:1;min-width:0"><div style="font-size:10.5px;color:var(--t3);text-transform:uppercase;letter-spacing:.3px;margin-bottom:2px">${escAttr(st.label)}</div><div style="font-size:14px;font-weight:700;color:var(--t1)">${escAttr(String(st.value))}</div></div>`).join('')}</div>`;
+}
+// The card itself — icon badge + title + relative date(/time for imported activities) up top,
+// historyItemStatsHTML's preview row underneath. Same tap-through targets the old single-line feed
+// item had (openLog/openActivityDetail/openQuickAdd); each item now just gets its own real .card
+// instead of every item sharing one wrapper.
+function historyItemCardHTML(item){
+  let title='',dateLine='',onclick='',icoCls='ico-easy',icon=ICONS.easy,footHTML='';
+  if(item.kind==='session'){
+    const s=findSess(item.id);
+    if(!s) return '';
+    title=escAttr(s.ti);
+    dateLine=relDayLabel(s.date);
+    onclick=`openLog('${s.id}')`;
+    icoCls=ICOCLS[s.ty]||'ico-easy';
+    icon=ICONS[s.ty]||ICONS.easy;
+  } else if(item.kind==='activity'){
+    const a=ACTIVITIES.find(x=>x.id===item.id);
+    if(!a) return '';
+    title=escAttr(activityDisplayName(a));
+    dateLine=relDayLabel(a.date)+(a.startTime?' · '+fmtTime12(a.startTime):'');
+    onclick=`openActivityDetail('${a.id}')`;
+    icoCls=activityTypeIcoCls(a.type);
+    icon=activityTypeIcon(a.type);
+    const roleTxt=a.role==='unplanned'?'Unplanned':(a.role==='fulfillment'?'Completes a session':'Attached to a session');
+    footHTML=`<div style="margin-top:6px;font-size:11px;color:var(--t3)">Imported · ${roleTxt}</div>`;
+  } else {
+    const x=EXTRALOGS.find(e=>e.id===item.id);
+    if(!x) return '';
+    title=escAttr(qaTitle(x.kind,x.subtype));
+    dateLine=relDayLabel(x.date);
+    onclick=`openQuickAdd('${x.kind}','${x.subtype||''}','${x.id}')`;
+    icoCls=qaIcoCls(x.kind,x.subtype);
+    icon=qaIcon(x.kind,x.subtype);
+    footHTML=tagPillsHTML(x.tags);
+  }
+  const tint=ICO_CARD_TINT[icoCls]||'var(--s1)';
+  return `<div class="card" style="cursor:pointer;background:${tint}" onclick="${onclick}">
+    <div style="display:flex;align-items:center;gap:10px">
+      <div class="sess-ico ${icoCls}">${icon}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:14px;font-weight:700;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${title}</div>
+        <div style="font-size:12px;color:var(--t3);margin-top:1px">${dateLine}</div>
+      </div>
+    </div>
+    ${historyItemStatsHTML(item)}
+    ${footHTML}
+  </div>`;
 }
 function logFeedItemHTML(item){
   if(item.kind==='session'){
@@ -10113,36 +10361,11 @@ function logFeedItemHTML(item){
   if(x.duration) bits.push(x.duration);
   return `<div class="log-feed-item" style="cursor:pointer" onclick="openQuickAdd('${x.kind}','${x.subtype||''}','${x.id}')"><div class="t">${label} (extra) · ${fmtDate(x.date)}</div><div class="m">${bits.join(' · ')||'Logged'}</div>${tagPillsHTML(x.tags)}</div>`;
 }
-function openHistory(){ PROGRESS_SUB='history'; renderProgress(); window.scrollTo(0,0); }
-function closeHistory(){ PROGRESS_SUB='main'; HISTORY_FILTER='all'; renderProgress(); window.scrollTo(0,0); }
-function selectHistoryFilter(f){ HISTORY_FILTER=f; renderProgress(); }
-function renderHistoryHTML(){
-  const filters=[{key:'all',label:'All'},{key:'run',label:'Run'},{key:'walk',label:'Walk'},{key:'weight',label:'Weight'},{key:'str',label:'Strength'},{key:'mob',label:'Mobility'}];
-  let html=`<div class="plan-detail-hdr">
-    <button class="plan-back-btn" onclick="closeHistory()">
-      <svg class="icon" viewBox="0 -960 960 960" style="fill:currentColor;stroke:none"><path d="M560-240 320-480l240-240 56 56-184 184 184 184-56 56Z"/></svg>
-    </button>
-    <div style="flex:1;text-align:center"><div class="plan-detail-title">Full History</div></div>
-    <div style="width:34px;flex-shrink:0"></div>
-  </div>`;
-  html+=`<div class="trend-pills" style="margin-bottom:12px">`;
-  filters.forEach(f=>{ html+=`<button class="trend-pill${HISTORY_FILTER===f.key?' active':''}" onclick="selectHistoryFilter('${f.key}')">${f.label}</button>`; });
-  html+=`</div>`;
-  // Import Activity — the Phase 1 entry point for TCX/GPX files (see ANALYTICS_ROADMAP.md). Lives
-  // here rather than a new dedicated view, since History is already the "everything logged, planned
-  // or not" feed this same phase calls for.
-  html+=`<div class="data-row" style="margin-top:0;margin-bottom:12px"><button class="btn btn-ghost btn-sm btn-block" onclick="triggerActivityImport()">+ Import Activity (.tcx / .gpx / .fit)</button></div>
-  <input type="file" id="activity-import-input" accept=".tcx,.gpx,.fit" multiple style="display:none" onchange="handleActivityImportFile(event)">`;
-  const items=historyItems().filter(it=>matchesHistoryFilter(it,HISTORY_FILTER));
-  html+=`<div class="card">`;
-  if(items.length){
-    items.forEach(item=>{ html+=logFeedItemHTML(item); });
-  } else {
-    html+=`<div style="font-size:12.5px;color:var(--t3);text-align:center;padding:14px 0">Nothing logged yet for this filter.</div>`;
-  }
-  html+=`</div>`;
-  return html;
-}
+// Progress used to have its own embedded "History" card + a "Full History" sub-screen
+// (openHistory/closeHistory/selectHistoryFilter/renderHistoryHTML, toggled via PROGRESS_SUB) built
+// on this exact same historyItems()/matchesHistoryFilter() query -- removed when Activities became
+// its own primary tab (see the big comment above renderActivities()) rather than left as a second,
+// now-redundant way to reach the identical data.
 // Set right before opening the file picker from within a planned session's own "+ Add Activity"
 // button (see sessionActivitiesHTML) -- Dylon: "the add activity is supposed to upload the activity
 // (tcx, gpx files and complete the data" -- so confirmActivityImport() knows to pre-fill the name with
@@ -10151,14 +10374,14 @@ function renderHistoryHTML(){
 // every OTHER import entry point's own triggerActivityImport() call (they simply don't pass a second
 // argument), so a cancelled session-scoped import can never leak into an unrelated later import.
 let PENDING_IMPORT_SESSION_ID=null;
-// inputId defaults to the Full History screen's own file input — the Activity Feed
-// ('actfeed-activity-import-input'), the Add-Activity FAB ('fab-activity-import-input'), and a planned
-// session's own Activities card ('sess-add-activity-import-input') each pass their own input's id
-// since they're independent entry points to the exact same import pipeline (handleActivityImportFile
-// below doesn't care which input triggered it) -- forSessionId is only ever passed by the last one.
+// inputId defaults to the Activities tab's own file input — the Add-Activity FAB
+// ('fab-activity-import-input') and a planned session's own Activities card
+// ('sess-add-activity-import-input') each pass their own input's id since they're independent entry
+// points to the exact same import pipeline (handleActivityImportFile below doesn't care which input
+// triggered it) -- forSessionId is only ever passed by the last one.
 function triggerActivityImport(inputId,forSessionId){
   PENDING_IMPORT_SESSION_ID=forSessionId||null;
-  const input=document.getElementById(inputId||'activity-import-input');
+  const input=document.getElementById(inputId||'activities-activity-import-input');
   if(input) input.click();
 }
 // Reads one File as a raw ArrayBuffer, Promise-wrapped so multiple files can be read in parallel and
@@ -10293,7 +10516,7 @@ function finalizeActivityImport(){
   if(forSessionId) saveState(); // persists the STATUS='done' flip; addActivity only saves ACTIVITIES itself
   renderProgress();
   renderAll();
-  refreshActivityFeedIfOpen();
+  refreshActivitiesIfOpen();
   backfillActivityWeatherIfNeeded(a);
   const bits=[activityDisplayName(a)];
   if(a.distanceKm) bits.push(a.distanceKm+'km');
@@ -10469,7 +10692,7 @@ function finalizeActivityImportBatch(){
   PENDING_IMPORT_BATCH=[];
   renderProgress();
   renderAll();
-  refreshActivityFeedIfOpen();
+  refreshActivitiesIfOpen();
   showToast(count?`Imported ${count} activit${count===1?'y':'ies'}`:'Nothing imported');
 }
 function cancelActivityImportBatch(){
@@ -10485,26 +10708,68 @@ function activityDisplayName(a){ return (a&&a.title)||ACTIVITY_TYPE_LABELS[a&&a.
 // GPS/cadence weren't in the source file at all rather than silently omitting them. Used by both the
 // post-save detail popup (openActivityDetail) and the pre-save import confirmation card
 // (confirmActivityImport) so the two can't drift into showing different things for the same activity.
-function activityStatRowsHTML(a){
-  const row=(label,val)=>val?`<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:13px"><span style="color:var(--t3)">${label}</span><span>${val}</span></div>`:'';
-  return `<div style="border-top:1px solid var(--bd,#eee);padding-top:6px">
-    ${row('Type',ACTIVITY_TYPE_LABELS[a.type]||a.type)}
-    ${row('Date',fmtDate(a.date)+(a.startTime?' · '+a.startTime:''))}
-    ${row('Distance',a.distanceKm?a.distanceKm+' km':'')}
-    ${row('Duration',a.durationSec?fmtDurationSec(a.durationSec):'')}
-    ${row('Avg pace',a.avgPace?a.avgPace+'/km':'')}
-    ${(()=>{ const gap=activityAvgGAP(a); return row('Grade-Adj. Pace',gap?fmtPaceFromSecPerKm(gap)+'/km':''); })()}
-    ${row('Avg HR',a.avgHr?a.avgHr+' bpm':'')}
-    ${row('Max HR',a.maxHr?a.maxHr+' bpm':'')}
-    ${row('Avg Power',a.avgPower?a.avgPower+' W':'')}
-    ${row('Max Power',a.maxPower?a.maxPower+' W':'')}
-    ${row('Elevation gain',a.elevationGainM?a.elevationGainM+' m':'')}
-    ${row('Temperature',(a.minTempC!==null&&a.minTempC!==undefined)?a.minTempC+'–'+a.maxTempC+'°C':(a.weather?a.weather.minC+'–'+a.weather.maxC+'°C (estimated)':''))}
-    ${row('Calories',a.calories?a.calories:'')}
-    ${(()=>{ const shoe=a.shoe&&SHOES[a.shoe]; return row('Shoe',shoe?shoe.name+(shoe.retired?' (retired)':''):''); })()}
-    ${row('RPE',a.rpe?a.rpe+' · '+(RPE_LABELS[parseInt(a.rpe,10)]||''):'')}
+// Bigger, bolder section header used only within the activity detail popup (and the render functions
+// feeding it) — Dylon, sharing Runna's own session detail screen: "can you update the session details
+// to be just as clean as well ... take special not of font sizing and spacing specifically."
+// Deliberately a separate helper rather than changing the shared .section-lbl class used everywhere
+// else in the app (Recovery, Progress, etc.) — this screen specifically needed a bigger, more
+// generously-spaced header to read like Runna's own "Heart rate"/"Heart Rate Zones"/"Splits" headers,
+// not a small uppercase eyebrow label. `first` drops the usual generous top margin for whichever
+// section renders first in the popup (Route), matching Runna's own tight gap under the nav bar.
+function actHdr(label,first){
+  return `<div style="font-size:17px;font-weight:800;color:var(--t1);letter-spacing:-.2px;margin:${first?'2px 2px 12px':'30px 2px 12px'}">${escAttr(label)}</div>`;
+}
+// opts.hero (new, opt-in) renders the handful of stats Runna's own activity screen leads with —
+// Distance/Time/Avg Pace, then Elevation Gain/Avg HR/Calories — as a big bold two-row stat grid up
+// top, with everything else (Type, Date, Grade-Adj. Pace, Max HR, Power, Temperature, Shoe, RPE)
+// demoted to a plain "Details" list underneath, each row now spaced out with its own divider instead
+// of the old single dense block of 3px-padded rows. Only openActivityDetail's main popup passes
+// opts.hero=true; the import-confirmation cards (confirmActivityImport/its batch-carousel counterpart)
+// and a planned session's own inline Activities list all keep the original compact list — their own
+// space is much tighter (2-3 activities, or an edit form, sharing the same card), and a hero grid
+// would dominate rather than clarify there.
+function activityStatRowsHTML(a,opts){
+  const hero=!!(opts&&opts.hero);
+  const gap=activityAvgGAP(a);
+  const shoe=a.shoe&&SHOES[a.shoe];
+  const allRows=[
+    ['Type',ACTIVITY_TYPE_LABELS[a.type]||a.type],
+    ['Date',fmtDate(a.date)+(a.startTime?' · '+a.startTime:'')],
+    ['Distance',a.distanceKm?a.distanceKm+' km':''],
+    ['Duration',a.durationSec?fmtDurationSec(a.durationSec):''],
+    ['Avg pace',a.avgPace?a.avgPace+'/km':''],
+    ['Grade-Adj. Pace',gap?fmtPaceFromSecPerKm(gap)+'/km':''],
+    ['Avg HR',a.avgHr?a.avgHr+' bpm':''],
+    ['Max HR',a.maxHr?a.maxHr+' bpm':''],
+    ['Avg Power',a.avgPower?a.avgPower+' W':''],
+    ['Max Power',a.maxPower?a.maxPower+' W':''],
+    ['Elevation gain',a.elevationGainM?a.elevationGainM+' m':''],
+    ['Temperature',(a.minTempC!==null&&a.minTempC!==undefined)?a.minTempC+'–'+a.maxTempC+'°C':(a.weather?a.weather.minC+'–'+a.weather.maxC+'°C (estimated)':'')],
+    ['Calories',a.calories?a.calories:''],
+    ['Shoe',shoe?shoe.name+(shoe.retired?' (retired)':''):''],
+    ['RPE',a.rpe?a.rpe+' · '+(RPE_LABELS[parseInt(a.rpe,10)]||''):'']
+  ];
+  const HERO_KEYS={'Distance':'Distance','Duration':'Time','Avg pace':'Avg Pace','Elevation gain':'Elevation Gain','Avg HR':'Avg HR','Calories':'Calories'};
+  let heroHTML='';
+  if(hero){
+    const heroFields=allRows.filter(([k,v])=>HERO_KEYS[k]&&v).map(([k,v])=>[HERO_KEYS[k],v]);
+    if(heroFields.length){
+      heroHTML=`<div style="display:flex;flex-wrap:wrap;gap:16px 0;margin-bottom:18px">${heroFields.map(([label,val])=>`
+        <div style="flex:1 1 33%;min-width:90px">
+          <div style="font-size:10.5px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:3px">${label}</div>
+          <div style="font-size:19px;font-weight:800;color:var(--t1)">${val}</div>
+        </div>`).join('')}</div>`;
+    }
+  }
+  const detailFields=(hero?allRows.filter(([k])=>!HERO_KEYS[k]):allRows).filter(([,v])=>v);
+  const rowsHTML=detailFields.map(([label,val],i)=>{
+    const isLast=i===detailFields.length-1;
+    return `<div style="display:flex;justify-content:space-between;padding:${hero?'9px 0':'3px 0'};font-size:13.5px${(hero&&!isLast)?';border-bottom:1px solid var(--b1)':''}"><span style="color:var(--t3)">${label}</span><span>${val}</span></div>`;
+  }).join('');
+  return `${heroHTML}<div style="${hero?'':'border-top:1px solid var(--bd,#eee);padding-top:6px'}">
+    ${rowsHTML}
     </div>
-    ${a.notes?`<div style="margin-top:8px;font-size:12.5px;color:var(--t2);line-height:1.5;white-space:pre-wrap">${escAttr(a.notes)}</div>`:''}
+    ${a.notes?`<div style="margin-top:${hero?'14px':'8px'};font-size:${hero?'13px':'12.5px'};color:var(--t2);line-height:1.5;white-space:pre-wrap">${escAttr(a.notes)}</div>`:''}
     ${tagPillsHTML(a.tags)}`;
 }
 // Split out of activityStatRowsHTML (v0.28.1) so the activity detail popup can move this note down
@@ -10638,11 +10903,15 @@ function activityAnalyticsHTML(a,idPrefix){
   if(series.length){
     if(!series.some(s=>s.m===ACT_DETAIL_METRIC)) ACT_DETAIL_METRIC=series[0].m;
     const active=series.find(s=>s.m===ACT_DETAIL_METRIC)||series[0];
-    html+=`<div class="section-lbl" style="margin-top:14px">Over the Activity</div>
-      <div class="trend-pills" style="margin-bottom:8px">${series.map(s=>
+    // Header now names the metric actually showing (e.g. "Heart Rate", "Pace") rather than a generic
+    // "Over the Activity" label — matching Runna's own per-metric "Heart rate"/"Pace"/"Elevation"
+    // headers — and the chart itself sits inside a real .card now instead of floating with no
+    // background, same treatment every other section here already gets.
+    html+=`${actHdr(ACTIVITY_METRIC_META[ACT_DETAIL_METRIC].label)}
+      <div class="trend-pills" style="margin-bottom:10px">${series.map(s=>
         `<button class="trend-pill${ACT_DETAIL_METRIC===s.m?' active':''}" onclick="switchActivityMetric('${a.id}','${s.m}')">${ACTIVITY_METRIC_META[s.m].label}</button>`
       ).join('')}</div>
-      ${renderActivityMetricChart(active.pts,ACT_DETAIL_METRIC)}`;
+      <div class="card" style="padding:16px">${renderActivityMetricChart(active.pts,ACT_DETAIL_METRIC)}</div>`;
   }
   if(a.type==='run'){
     html+=(a.laps&&a.laps.length>=2)?renderActivityLapsTable(a):renderActivitySplitsTable(a);
@@ -10652,32 +10921,22 @@ function activityAnalyticsHTML(a,idPrefix){
   const effort=activityRelativeEffort(a);
   const zones=activityHRZoneBreakdown(a);
   if(effort!==null||zones){
-    html+=`<div class="section-lbl" style="margin-top:14px">Effort</div><div class="card" style="padding:12px">`;
+    html+=`${actHdr('Effort')}<div class="card" style="padding:16px">`;
     if(effort!==null){
       const effortBand=relativeEffortBand(effort);
       html+=`<div style="display:flex;align-items:center;justify-content:space-between">
-        <span style="font-size:13px;color:var(--t3)">Relative Effort</span>
-        <span style="display:flex;align-items:center;gap:6px">
-          <span style="font-size:15px;font-weight:800;color:var(--t1)">${effort}</span>
+        <span style="font-size:13.5px;color:var(--t3)">Relative Effort</span>
+        <span style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:17px;font-weight:800;color:var(--t1)">${effort}</span>
           <span class="pill" style="background:var(${effortBand.tint});color:var(${effortBand.color});border:1px solid var(${effortBand.border})">${effortBand.label}</span>
         </span>
       </div>${renderRelativeEffortGauge(effort)}`;
     }
-    if(zones){
-      // A low-to-high intensity color ramp (blue -> green -> gold -> amber -> red), matching the
-      // same convention Strava's own Training Zones page and Google Health's zone view both use
-      // (light/easy reads cool, peak effort reads hot) -- every zone used to share one flat accent
-      // color, which read as one indistinct block instead of a real zone breakdown.
-      const HR_ZONE_BAR_COLORS=['--dur','--gr','--gold','--am','--re'];
-      html+=zones.filter(z=>z.sec>0).map(z=>{
-        const zoneNum=parseInt((z.label||'').replace(/\D/g,''),10);
-        const color=HR_ZONE_BAR_COLORS[(zoneNum||1)-1]||'--accent';
-        return `<div style="margin:6px 0">
-        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--t3);margin-bottom:2px"><span>${escAttr(z.label)} · ${escAttr(z.name)}</span><span>${fmtDurationSec(z.sec)} (${z.pct}%)</span></div>
-        <div style="height:6px;border-radius:3px;background:var(--s2);overflow:hidden"><div style="width:${z.pct}%;height:100%;background:var(${color})"></div></div>
-      </div>`;
-      }).join('');
-    }
+    // Strava-style donut instead of a flat list of zone bars -- see the big comment above
+    // profileHRZonesCardHTML for why this chart lives here rather than on Profile: real
+    // time-in-zone seconds/percentages per activity are exactly what a donut's center readout
+    // needs, which Profile's static bpm-range reference never had.
+    if(zones) html+=activityHRZoneChartHTML(zones,idPrefix||'',a.id);
     html+=`</div>`;
   }
   if(a.type==='run'){
@@ -10795,7 +11054,7 @@ function openActivityDetail(id){
   // sheet's sticky Delete/Close buttons -- the actual visual "footer" position of the popup.
   const msg=`
     ${editBlock}
-    ${activityStatRowsHTML(a)}
+    ${activityStatRowsHTML(a,{hero:true})}
     ${activityPlanLinkHTML(a)}
     ${needsWeather?`<button class="btn btn-ghost btn-sm" style="margin-top:8px" onclick="retryActivityWeather('${id}')">Add Weather</button>`:''}
     ${activityAnalyticsHTML(a)}
@@ -10832,7 +11091,7 @@ function retryActivityWeather(id){
   if(!a) return;
   showToast('Looking up weather…');
   fetchActivityWeather(a).then(w=>{
-    if(w){ setActivityWeather(id,w); refreshOpenActivityDetail(id); refreshActivityFeedIfOpen(); showToast('Weather added'); }
+    if(w){ setActivityWeather(id,w); refreshOpenActivityDetail(id); refreshActivitiesIfOpen(); showToast('Weather added'); }
     else showToast('Could not find weather for this activity');
   });
 }
@@ -10860,7 +11119,7 @@ function saveActivityDetailsInline(id){
   a.tags=Array.from(ACT_EDIT_TAGS);
   saveActivitiesList();
   renderProgress();
-  refreshActivityFeedIfOpen();
+  refreshActivitiesIfOpen();
   ACT_EDIT_MODE=false;
   showToast('Activity updated');
   refreshOpenActivityDetail(id);
@@ -10875,7 +11134,8 @@ function pickActivitySessionLink(activityId,sessionId,role){
   ACT_LINK_PICKER_OPEN=false;
   renderAll();
   refreshOpenActivityDetail(activityId);
-  refreshActivityFeedIfOpen();
+  refreshActivitiesIfOpen();
+  refreshNeedsReviewSheetIfOpen();
   showToast(role==='fulfillment'?'Linked — session marked complete':'Attached to session');
 }
 function unlinkActivityFromPlan(activityId){
@@ -10883,67 +11143,198 @@ function unlinkActivityFromPlan(activityId){
   saveState();
   renderAll();
   refreshOpenActivityDetail(activityId);
-  refreshActivityFeedIfOpen();
+  refreshActivitiesIfOpen();
+  refreshNeedsReviewSheetIfOpen();
   showToast('Unlinked');
 }
 function deleteActivity(id){
   ACTIVITIES=ACTIVITIES.filter(a=>a.id!==id);
   saveActivitiesList();
   renderProgress();
-  refreshActivityFeedIfOpen();
+  refreshActivitiesIfOpen();
+  refreshNeedsReviewSheetIfOpen();
   showToast('Activity deleted');
 }
+// Dylon: "not every activity is meant to be attached to a planned session so we need something to do
+// with those activities that are in the needs review tab." Dismissing just clears an activity from
+// needsReviewActivities() (see reviewDismissed above) -- it stays exactly as unplanned/unlinked as it
+// was before, and "Link to a planned session" still works normally afterward from its own detail
+// popup if this call turns out to be wrong.
+function dismissActivityReview(id){
+  const a=ACTIVITIES.find(x=>x.id===id);
+  if(!a) return;
+  a.reviewDismissed=true;
+  saveActivitiesList();
+  refreshActivitiesIfOpen();
+  refreshNeedsReviewSheetIfOpen();
+  showToast('Dismissed — won’t show in Needs Review again');
+}
+/* ── Needs Review sheet ──
+   The flag icon + count badge on the Activities tab's own toolbar (see renderActivities) opens this
+   instead of a "Needs Review" filter pill that used to sit inline with every other filter -- Dylon:
+   "move needs review behind an icon which display a list of the activities that require review or
+   needs the user attention." Each entry gets the exact same Fulfills/Attach-as-extra actions the
+   single-activity detail popup's own picker (activityPlanLinkHTML) offers, always expanded here since
+   reconciling is the entire point of this sheet, plus the new "Not related to a session" dismiss
+   action. */
+let NEEDS_REVIEW_SHEET_OPEN=false;
+function needsReviewItemHTML(a){
+  const icoCls=activityTypeIcoCls(a.type), icon=activityTypeIcon(a.type);
+  const candidates=candidateSessionsForActivity(a);
+  return `<div class="card" style="margin-bottom:10px;text-align:left">
+    <div style="display:flex;align-items:center;gap:10px;cursor:pointer" onclick="openActivityDetail('${a.id}')">
+      <div class="sess-ico ${icoCls}">${icon}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:14px;font-weight:700;color:var(--t1)">${escAttr(activityDisplayName(a))}</div>
+        <div style="font-size:12px;color:var(--t3);margin-top:1px">${relDayLabel(a.date)}${a.startTime?' · '+fmtTime12(a.startTime):''}</div>
+      </div>
+    </div>
+    <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--b1);font-size:12px;color:var(--t3)">Which session is this?</div>
+    ${candidates.map(s=>{
+      const likely=sessionTypeMatchesActivityType(s.ty,a.type);
+      return `<div style="margin-top:8px">
+        <div style="font-size:13px;font-weight:600;color:var(--t1)">${escAttr(s.ti)} · ${fmtDate(s.date)}${likely?' <span style="color:var(--gr);font-weight:700">· likely match</span>':''}</div>
+        <div style="display:flex;gap:6px;margin-top:5px">
+          <button class="btn btn-primary btn-sm" onclick="pickActivitySessionLink('${a.id}','${s.id}','fulfillment')">Fulfills this</button>
+          <button class="btn btn-ghost btn-sm" onclick="pickActivitySessionLink('${a.id}','${s.id}','accessory')">Attach as extra</button>
+        </div>
+      </div>`;
+    }).join('')}
+    <button class="btn btn-ghost btn-sm btn-block" style="margin-top:10px" onclick="dismissActivityReview('${a.id}')">Not related to a session</button>
+  </div>`;
+}
+function needsReviewSheetBodyHTML(){
+  const items=needsReviewActivities();
+  if(!items.length) return `<div style="font-size:13px;color:var(--t3);text-align:center;padding:20px 0">Nothing needs review right now.</div>`;
+  return `<div style="text-align:left">${items.map(a=>needsReviewItemHTML(a)).join('')}</div>`;
+}
+function openNeedsReviewSheet(){
+  NEEDS_REVIEW_SHEET_OPEN=true;
+  showConfirm('Needs Review',needsReviewSheetBodyHTML(),[
+    {label:'Close',cls:'btn-ghost',fn:()=>{ NEEDS_REVIEW_SHEET_OPEN=false; }}
+  ],{wide:true});
+}
+// Same "re-render in place if it's still the thing open" pattern refreshOpenActivityDetail already
+// uses for the single-activity popup -- called after any action that could change who's in the Needs
+// Review list (linking, dismissing, deleting) so the sheet reflects it immediately instead of showing
+// a stale entry until closed and reopened.
+function refreshNeedsReviewSheetIfOpen(){
+  const overlay=document.getElementById('confirm-overlay');
+  if(NEEDS_REVIEW_SHEET_OPEN && overlay && overlay.classList.contains('open')) openNeedsReviewSheet();
+}
 
-/* ═══════════════════════════ DEDICATED ACTIVITY FEED (Task 48) ═══════════════════════════
+/* ═══════════════════════════ ACTIVITIES (primary tab) ═══════════════════════════
    Dylon: "we need to build a dedicated activity feed that will show all activities logged planned
    or not" and, after Phase 1a shipped History-as-feed to keep that phase small, "i dont like how
-   buried all the activities is behind history". Same query as Progress > History
-   (historyItems()/matchesHistoryFilter()/logFeedItemHTML() -- every done session, Quick Add extra,
-   and Activity, regardless of role) but its own overlay reachable in one tap from the sidebar
-   (desktop) or the Tools sheet (mobile), instead of two taps deep inside Progress. History itself
-   is left as-is rather than removed -- it's still useful in its own block-scoped context -- this is
-   an additional, more prominent home for the same "everything, planned or not" picture. */
-let ACTFEED_FILTER='all';
-function openActivityFeed(){
-  ACTFEED_FILTER='all';
-  document.getElementById('actfeed-sh-body').innerHTML=activityFeedBodyHTML();
-  document.getElementById('actfeed-overlay').classList.add('open');
+   buried all the activities is behind history" -- fixed at the time with a dedicated "Activity Feed"
+   sheet (one tap from the sidebar/Tools instead of two taps into Progress), living alongside Progress's
+   own embedded "History" card+"Full History" sub-screen, which used the exact same underlying query.
+   Later, Dylon: "I want to move activities out of Progress -- give them their own main tab. So we
+   now have five tabs: Today, Schedule, Activities (or Feed), Progress, and Recovery." That's the
+   right call given the app now had THREE separate UIs (Progress's History card, Full History, and
+   the Activity Feed sheet) all built on the identical historyItems()/matchesHistoryFilter()/
+   logFeedItemHTML() query -- consolidated into this one real primary tab instead. Same query, same
+   filter set (including Phase 2's "Needs Review" reconciliation inbox), same Import Activity entry
+   point; just promoted from a sheet to `#view-activities`, following the same
+   `function render<View>(){ const el=document.getElementById('view-<view>'); el.innerHTML=...; }`
+   pattern every other primary tab (renderToday/renderWeek/renderProgress/renderRecovery) already
+   uses, rather than being assigned into a sheet-body element and toggled open/closed. */
+let ACTIVITIES_FILTER='all';
+// Dylon: "implement a search function on the activity screen and move the filters behind the search
+// function." ACTIVITIES_SEARCH holds the current query text; ACTIVITIES_FILTERS_OPEN is whether the
+// filter-pill row (All/Run/Walk/Weight/Strength/Mobility -- Needs Review moved out entirely, see
+// needsReviewActivities) is currently expanded, tucked behind a toggle button next to the search box
+// instead of always sitting on screen.
+let ACTIVITIES_SEARCH='';
+let ACTIVITIES_FILTERS_OPEN=false;
+function selectActivitiesFilter(f){
+  ACTIVITIES_FILTER=f;
+  renderActivities();
 }
-function selectActivityFeedFilter(f){
-  ACTFEED_FILTER=f;
-  document.getElementById('actfeed-sh-body').innerHTML=activityFeedBodyHTML();
+function toggleActivitiesFilters(){
+  ACTIVITIES_FILTERS_OPEN=!ACTIVITIES_FILTERS_OPEN;
+  renderActivities();
 }
-// Called after any Activity is added/edited/deleted so the feed reflects it immediately if it
-// happens to already be open (e.g. importing from within the feed itself), the same way
-// renderProgress() keeps History in sync -- without this, the feed would only pick up the change
-// the next time it's opened fresh.
-function refreshActivityFeedIfOpen(){
-  const overlay=document.getElementById('actfeed-overlay');
-  if(overlay && overlay.classList.contains('open')){
-    document.getElementById('actfeed-sh-body').innerHTML=activityFeedBodyHTML();
+// Re-renders on every keystroke, same as every other filter here -- a full innerHTML replacement
+// would normally drop focus and caret position on the input that triggered it, so both are restored
+// on the freshly-rebuilt element right after.
+function setActivitiesSearch(v){
+  ACTIVITIES_SEARCH=v;
+  renderActivities();
+  const el=document.getElementById('activities-search-input');
+  if(el){ el.focus(); const p=el.value.length; try{ el.setSelectionRange(p,p); }catch(e){} }
+}
+// The plain-text label a history item shows on its own card (historyItemCardHTML uses the exact same
+// per-kind logic) -- one place deciding what an item is "called" so search can never match against
+// something different from what's actually printed on screen.
+function historyItemSearchLabel(item){
+  if(item.kind==='session'){ const s=findSess(item.id); return s?s.ti:''; }
+  if(item.kind==='activity'){ const a=ACTIVITIES.find(x=>x.id===item.id); return a?activityDisplayName(a):''; }
+  const x=EXTRALOGS.find(e=>e.id===item.id);
+  return x?qaTitle(x.kind,x.subtype):'';
+}
+// Called after any Activity is added/edited/deleted so the tab reflects it immediately if it's the
+// one currently open (e.g. importing from within the tab itself) -- without this, a change made via
+// an async callback (like the weather backfill) or a handler that doesn't otherwise call renderAll()
+// wouldn't show up until the tab was left and reopened.
+function refreshActivitiesIfOpen(){
+  if(CURR_VIEW==='activities') renderActivities();
+}
+function renderActivities(){
+  const el=document.getElementById('view-activities');
+  if(!el) return;
+  const needsReviewCount=needsReviewActivities().length;
+  const filters=[{key:'all',label:'All'},{key:'run',label:'Run'},{key:'walk',label:'Walk'},{key:'weight',label:'Weight'},{key:'str',label:'Strength'},{key:'mob',label:'Mobility'}];
+  const filtersActive=ACTIVITIES_FILTERS_OPEN||ACTIVITIES_FILTER!=='all';
+  // Toolbar: search box (Dylon: "implement a search function on the activity screen") + a filter
+  // toggle (the pill row below only renders when this is open or a non-default filter is picked --
+  // "move the filters behind the search function") + the Needs Review flag icon with a count badge,
+  // replacing the old inline "Needs Review (N)" pill entirely. The "+ Import Activity" button/input
+  // that used to sit right under this is gone too -- "remove the import activity botton on the
+  // activy feed and place the same fab we created on the screen" -- the shared Add-Activity FAB
+  // (updateActivityFabVisibility) now shows on this tab instead.
+  let html=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+    <div style="flex:1;position:relative;display:flex;align-items:center;min-width:0">
+      <span style="position:absolute;left:11px;color:var(--t3);display:flex;pointer-events:none">
+        <svg class="icon-sm" viewBox="0 -960 960 960" style="fill:currentColor;stroke:none"><path d="M784-120 532-372q-30 24-69 38t-83 14q-109 0-184.5-75.5T120-580q0-109 75.5-184.5T380-840q109 0 184.5 75.5T640-580q0 44-14 83t-38 69l252 252-56 56ZM380-400q75 0 127.5-52.5T560-580q0-75-52.5-127.5T380-760q-75 0-127.5 52.5T200-580q0 75 52.5 127.5T380-400Z"/></svg>
+      </span>
+      <input type="text" id="activities-search-input" value="${escAttr(ACTIVITIES_SEARCH)}" placeholder="Search activities" oninput="setActivitiesSearch(this.value)" style="width:100%;box-sizing:border-box;padding:9px 12px 9px 36px;border-radius:10px;border:1px solid var(--b1);background:var(--s2);color:var(--t1);font-family:var(--font);font-size:13.5px">
+    </div>
+    <button class="sheet-close" onclick="toggleActivitiesFilters()" aria-label="Filters" title="Filters" style="${filtersActive?'background:var(--accent3);color:var(--accent)':''}">
+      <!-- Dylon supplied "Icon Filter List.svg" -- replaces the earlier hand-authored filter-bars
+           icon. -->
+      <svg class="icon-sm" viewBox="0 -960 960 960" style="fill:currentColor;stroke:none"><path d="M400-240v-80h160v80H400ZM240-440v-80h480v80H240ZM120-640v-80h720v80H120Z"/></svg>
+    </button>
+    <button class="sheet-close" onclick="openNeedsReviewSheet()" aria-label="Needs review" title="Needs review" style="position:relative">
+      <!-- Dylon supplied "icon-review.svg" -- replaces the earlier bookmark icon. -->
+      <svg class="icon-sm" viewBox="0 -960 960 960" style="fill:currentColor;stroke:none"><path d="M508.5-291.5Q520-303 520-320t-11.5-28.5Q497-360 480-360t-28.5 11.5Q440-337 440-320t11.5 28.5Q463-280 480-280t28.5-11.5ZM440-440h80v-240h-80v240ZM200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h168q13-36 43.5-58t68.5-22q38 0 68.5 22t43.5 58h168q33 0 56.5 23.5T840-760v560q0 33-23.5 56.5T760-120H200Zm0-80h560v-560H200v560Zm301.5-598.5Q510-807 510-820t-8.5-21.5Q493-850 480-850t-21.5 8.5Q450-833 450-820t8.5 21.5Q467-790 480-790t21.5-8.5ZM200-200v-560 560Z"/></svg>
+      ${needsReviewCount?`<span id="activities-needsreview-badge" style="position:absolute;top:-3px;right:-3px;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:var(--re);color:#fff;font-size:9.5px;font-weight:800;display:flex;align-items:center;justify-content:center;line-height:1">${needsReviewCount>9?'9+':needsReviewCount}</span>`:''}
+    </button>
+  </div>`;
+  if(filtersActive){
+    html+=`<div class="trend-pills" style="margin-bottom:12px">`;
+    filters.forEach(f=>{ html+=`<button class="trend-pill${ACTIVITIES_FILTER===f.key?' active':''}" onclick="selectActivitiesFilter('${f.key}')">${f.label}</button>`; });
+    html+=`</div>`;
   }
-}
-function activityFeedBodyHTML(){
-  // "Needs Review" -- Phase 2's reconciliation inbox (ANALYTICS_ROADMAP.md: "really just the Activity
-  // Feed filtered to unplanned entries near a plan day"). Only counts unplanned activities that
-  // actually HAVE a nearby candidate session -- a genuinely unplanned one-off with nothing planned
-  // anywhere near it has nothing to reconcile, so it stays out of this count/filter entirely.
-  const needsReviewCount=ACTIVITIES.filter(a=>a.role==='unplanned' && candidateSessionsForActivity(a).length>0).length;
-  const filters=[{key:'all',label:'All'},{key:'needsreview',label:'Needs Review'+(needsReviewCount?' ('+needsReviewCount+')':'')},{key:'run',label:'Run'},{key:'walk',label:'Walk'},{key:'weight',label:'Weight'},{key:'str',label:'Strength'},{key:'mob',label:'Mobility'}];
-  let html=`<div class="trend-pills" style="margin-bottom:12px">`;
-  filters.forEach(f=>{ html+=`<button class="trend-pill${ACTFEED_FILTER===f.key?' active':''}" onclick="selectActivityFeedFilter('${f.key}')">${f.label}</button>`; });
-  html+=`</div>`;
-  html+=`<div class="data-row" style="margin-top:0;margin-bottom:12px"><button class="btn btn-ghost btn-sm btn-block" onclick="triggerActivityImport('actfeed-activity-import-input')">+ Import Activity (.tcx / .gpx / .fit)</button></div>
-  <input type="file" id="actfeed-activity-import-input" accept=".tcx,.gpx,.fit" multiple style="display:none" onchange="handleActivityImportFile(event)">`;
-  const items=historyItems().filter(it=>matchesHistoryFilter(it,ACTFEED_FILTER));
-  html+=`<div class="card">`;
+  let items=historyItems().filter(it=>matchesHistoryFilter(it,ACTIVITIES_FILTER));
+  const query=ACTIVITIES_SEARCH.trim().toLowerCase();
+  if(query) items=items.filter(it=>historyItemSearchLabel(it).toLowerCase().includes(query));
   if(items.length){
-    items.forEach(item=>{ html+=logFeedItemHTML(item); });
+    // Runna-style month header row ("July 2026 ... 51.7 km") + one real .card per item underneath it
+    // (historyItemCardHTML) — replaces the old single shared <div class="card"> wrapping every item as
+    // one flat text line each. See the big comment above activityTypeIcoCls for the full redesign
+    // rationale.
+    activitiesMonthGroups(items).forEach(g=>{
+      html+=`<div style="display:flex;justify-content:space-between;align-items:baseline;margin:16px 0 8px">
+        <div style="font-size:13.5px;font-weight:800;color:var(--t1)">${escAttr(g.label)}</div>
+        ${g.totalKm?`<div style="font-size:12.5px;color:var(--t3)">${fmtDist(g.totalKm)}</div>`:''}
+      </div>`;
+      g.items.forEach(item=>{ html+=historyItemCardHTML(item); });
+    });
   } else {
-    html+=`<div style="font-size:12.5px;color:var(--t3);text-align:center;padding:14px 0">Nothing logged yet for this filter — import a watch file or log something on Today to see it here.</div>`;
+    html+=`<div class="card" style="font-size:12.5px;color:var(--t3);text-align:center;padding:14px 0">${query?'No activities match your search.':'Nothing logged yet for this filter — import a watch file or log something on Today to see it here.'}</div>`;
   }
-  html+=`</div>`;
-  return html;
+  el.innerHTML=html;
 }
 
 // qaGridHTML() (the inline "Add Activity" grid: Run/Walk/Weight/Strength + Import Activity) used
@@ -11283,7 +11674,7 @@ function coachNoteFor(s){
 // the page you're actually on (like "Your Plan") rather than a static app wordmark taking up that
 // space on every screen. The app's own name still shows plenty of other places (tab title, home
 // screen icon, desktop sidebar) so nothing's lost by giving this slot to something more useful.
-const TB_BRAND_LABELS={today:'Today',week:'Schedule',progress:'Progress',recovery:'Recovery',profile:'Profile'};
+const TB_BRAND_LABELS={today:'Today',week:'Schedule',activities:'Activities',progress:'Progress',recovery:'Recovery',profile:'Profile'};
 // Small ring-shaped progress indicator (Runna-style — a compact donut rather than a full bar),
 // built from two stacked SVG circles: a static track and a foreground arc whose stroke-dashoffset
 // is trimmed to the percentage complete. Rotated -90deg so the arc starts at 12 o'clock like a
@@ -13544,7 +13935,8 @@ function switchView(v){
   document.querySelectorAll('.sidebar-btn[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===v));
   if(v==='today'){ SELECTED_DATE=todayISO(); renderToday(); }
   if(v==='week'){ PLAN_VIEW='list'; renderWeek(); }
-  if(v==='progress'){ PROGRESS_SUB='main'; renderProgress(); }
+  if(v==='activities'){ ACTIVITIES_FILTER='all'; ACTIVITIES_SEARCH=''; ACTIVITIES_FILTERS_OPEN=false; renderActivities(); }
+  if(v==='progress') renderProgress();
   if(v==='profile') renderProfile();
   if(v==='recovery') renderRecovery();
   updateDeskShellVisibility();
@@ -13555,10 +13947,9 @@ function switchView(v){
   window.scrollTo(0,0);
 }
 // Profile's "Best Efforts → View" row -- Dylon: "you can also make best efforts accessable from the
-// profile tab." Jumps to Progress (switchView already resets PROGRESS_SUB and re-renders it) then
-// scrolls straight to the Best Efforts section's own id instead of leaving it to be found by scrolling
-// past everything above it. The small delay gives the freshly-rendered Progress DOM a moment to exist
-// before scrollIntoView looks for it.
+// profile tab." Jumps to Progress then scrolls straight to the Best Efforts section's own id instead
+// of leaving it to be found by scrolling past everything above it. The small delay gives the
+// freshly-rendered Progress DOM a moment to exist before scrollIntoView looks for it.
 function openBestEffortsFromProfile(){
   switchView('progress');
   setTimeout(()=>{
@@ -13568,14 +13959,17 @@ function openBestEffortsFromProfile(){
 }
 
 /* ── Add-Activity FAB (Task 48) ──
-   Only visible on Today/Schedule (view id 'today'/'week') -- the two pages Dylon asked for it on --
-   toggled here rather than tied to any one view's own render function, since the FAB markup lives
-   once outside the .view divs and just needs its 'show' class flipped on tab switches. */
+   Visible on Today/Schedule/Activities -- originally just the two pages Dylon asked for it on, now
+   also the Activities tab itself: "remove the import activity botton on the activy feed and place
+   the same fab we created on the screen" -- toggled here rather than tied to any one view's own
+   render function, since the FAB markup lives once outside the .view divs and just needs its 'show'
+   class flipped on tab switches. */
 function updateActivityFabVisibility(){
   const wrap=document.getElementById('activity-fab-wrap');
   if(!wrap) return;
-  wrap.classList.toggle('show', CURR_VIEW==='today'||CURR_VIEW==='week');
-  if(CURR_VIEW!=='today'&&CURR_VIEW!=='week') closeActivityFab();
+  const show=CURR_VIEW==='today'||CURR_VIEW==='week'||CURR_VIEW==='activities';
+  wrap.classList.toggle('show', show);
+  if(!show) closeActivityFab();
 }
 function toggleActivityFab(){
   const wrap=document.getElementById('activity-fab-wrap');
@@ -14453,7 +14847,6 @@ function runProgressionCardHTML(){
 }
 function renderProgress(){
   const el=document.getElementById('view-progress');
-  if(PROGRESS_SUB==='history'){ el.innerHTML=renderHistoryHTML(); return; }
   const done=countDone(),missed=DATA.filter(s=>!isCheckinSession(s) && STATUS[s.id]==='missed').length,tot=totalSessions();
   const cum=cumulativeActualKm();
   const planTotal=blockPlanTotal();
@@ -14622,19 +15015,10 @@ function renderProgress(){
   // against (blockComparisonHTML returns '' with fewer than two blocks).
   html+=blockComparisonHTML();
 
-  // recent log feed — always visible, even empty, so it's clear where completed activity will show up.
-  // "View all" used to only render once allLogItems had something in it — harmless when History was
-  // just a read-only recap, but Full History is also where Import Activity lives (see
-  // ANALYTICS_ROADMAP.md Phase 1) now, so a brand-new account with nothing logged yet had no way to
-  // reach the one screen that would let them import their first activity. Always shown now.
-  const allLogItems=historyItems();
-  html+=`<div class="section-lbl" style="display:flex;justify-content:space-between;align-items:center">History<button class="see-more-btn" style="padding:0" onclick="openHistory()">View all →</button></div><div class="card">`;
-  if(allLogItems.length){
-    allLogItems.slice(0,8).forEach(item=>{ html+=logFeedItemHTML(item); });
-  } else {
-    html+=`<div style="font-size:12.5px;color:var(--t3);text-align:center;padding:16px 4px">Nothing logged yet. Mark a session done, use Add Activity on the Today tab, or tap "View all" to import a watch file.</div>`;
-  }
-  html+='</div>';
+  // Progress used to end with a "History" card (recent log feed + "View all" into a Full History
+  // sub-screen) here -- removed once Activities became its own primary tab (Dylon: "I want to move
+  // activities out of Progress -- give them their own main tab"), rather than duplicating the same
+  // historyItems() feed in two places. See renderActivities() for where this content lives now.
 
   el.innerHTML=isDesktop()
     ? `<div class="progress-split"><div class="progress-col-left">${left}</div><div class="progress-col-right">${html}</div></div>`
@@ -15277,7 +15661,7 @@ function attachActivityToSession(activityId,sessionId,role){
   SESS_ATTACH_OPEN=false;
   renderAll();
   openLog(sessionId);
-  refreshActivityFeedIfOpen();
+  refreshActivitiesIfOpen();
   showToast(role==='fulfillment'?'Attached — marked complete':'Attached as extra');
 }
 function detachActivityFromSession(activityId,sessionId){
@@ -15285,7 +15669,7 @@ function detachActivityFromSession(activityId,sessionId){
   saveState();
   renderAll();
   openLog(sessionId);
-  refreshActivityFeedIfOpen();
+  refreshActivitiesIfOpen();
   showToast('Unlinked');
 }
 function openLog(id){
@@ -15840,8 +16224,12 @@ function showConfirm(title,msg,btns,opts){
       ? `<button class="sheet-close" id="cf-btn-${i}" title="${escAttr(b.label)}" style="${b.cls==='btn-danger'?'color:var(--re)':''}">${b.icon}</button>`
       : `<button class="btn ${b.cls} btn-sm" id="cf-btn-${i}" style="white-space:nowrap">${b.label}</button>`
     ).join('');
-    html=`<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:2px">
-      <h3 style="font-size:15px;font-weight:800;flex:1;min-width:0">${title}</h3>
+    // Only openActivityDetail passes cornerBtns today, so bumping this title up to match Runna's own
+    // bold activity-name header (Dylon: "update the session details to be just as clean as well ...
+    // take special not of font sizing and spacing") is safe to do here without affecting any other
+    // popup's title size.
+    html=`<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:8px">
+      <h3 style="font-size:19px;font-weight:800;flex:1;min-width:0;line-height:1.25">${title}</h3>
       <div style="display:flex;gap:6px;flex-shrink:0">${btnRow}</div>
     </div>
     <p>${msg}</p>`;
@@ -15869,7 +16257,7 @@ function closeOverlay(id){
   // every showConfirm button all route through here) -- confirm-overlay is reused for lots of
   // different popups, so this runs on every one of them, but destroyActivityLiveMap() is a safe no-op
   // when there's no live map instance to tear down.
-  if(id==='confirm-overlay'){ destroyActivityLiveMap(); ACT_EDIT_MODE=false; }
+  if(id==='confirm-overlay'){ destroyActivityLiveMap(); ACT_EDIT_MODE=false; NEEDS_REVIEW_SHEET_OPEN=false; }
 }
 
 /* ═══════════════════════════ TOAST ═══════════════════════════ */
@@ -15895,6 +16283,7 @@ function renderAll(){
   renderTopbar();
   if(CURR_VIEW==='today') renderToday();
   else if(CURR_VIEW==='week') renderWeek();
+  else if(CURR_VIEW==='activities') renderActivities();
   else if(CURR_VIEW==='progress') renderProgress();
   else if(CURR_VIEW==='profile') renderProfile();
   else if(CURR_VIEW==='recovery') renderRecovery();
@@ -15967,7 +16356,7 @@ document.addEventListener('keydown',e=>{
     // topmost overlay first — confirm-overlay sits above everything else by design (see its own
     // z-index comment near the markup), the docked/pop-over log pane is checked last since on a
     // wide docked screen "closing" it just clears it rather than hiding anything
-    const order=['crop-overlay','confirm-overlay','log-overlay','history-overlay','injury-overlay','wellness-overlay','qa-overlay','settings-overlay','shoes-overlay','actfeed-overlay','plans-overlay'];
+    const order=['crop-overlay','confirm-overlay','log-overlay','history-overlay','injury-overlay','wellness-overlay','qa-overlay','settings-overlay','shoes-overlay','plans-overlay'];
     for(const id of order){
       const el=document.getElementById(id);
       if(el && el.classList.contains('open')){ closeOverlay(id); return; }
@@ -15977,7 +16366,7 @@ document.addEventListener('keydown',e=>{
   if(e.key==='?'){ e.preventDefault(); showShortcutsHelp(); return; }
 
   // the rest only make sense when no modal dialog is already sitting on top
-  const modalOpen=['crop-overlay','confirm-overlay','qa-overlay','settings-overlay','shoes-overlay','actfeed-overlay','plans-overlay','history-overlay','injury-overlay','wellness-overlay']
+  const modalOpen=['crop-overlay','confirm-overlay','qa-overlay','settings-overlay','shoes-overlay','plans-overlay','history-overlay','injury-overlay','wellness-overlay']
     .some(id=>{ const el=document.getElementById(id); return el && el.classList.contains('open'); });
   if(modalOpen) return;
 

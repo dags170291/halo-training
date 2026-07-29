@@ -134,20 +134,25 @@ function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
   console.log('Test 8 (detachActivityFromSession removes the link and the sheet reverts to the empty state):',
     (t8Count === 0 && /No activity attached yet\./.test(t8HTML)) ? 'PASS' : 'FAIL');
 
-  // Test 9: the Activity Feed's "Needs Review" filter (the roadmap's "unmatched activities inbox") --
-  // an unplanned activity with a nearby candidate session counts and is included; a genuinely unplanned
-  // one-off with nothing planned anywhere near it does not.
+  // Test 9: the "Needs Review" reconciliation inbox (the roadmap's "unmatched activities inbox") --
+  // an unplanned activity with a nearby candidate session counts and is included; a genuinely
+  // unplanned one-off with nothing planned anywhere near it does not. No longer a filter pill in the
+  // Activities tab's own list -- Dylon: "move needs review behind an icon which display a list of
+  // the activities that require review" -- needsReviewActivities() is the query now, surfaced via a
+  // flag icon + count badge on the Activities tab toolbar (openNeedsReviewSheet).
   win.eval(`
     ACTIVITIES=[];
     window.__nearAct = addActivity({type:'run',date:'2027-06-10'});
     window.__farAct = addActivity({type:'run',date:'2027-01-01'});
-    ACTFEED_FILTER='needsreview';
   `);
-  const t9Body = win.eval(`activityFeedBodyHTML()`);
   const t9NearIncluded = win.eval(`matchesHistoryFilter({kind:'activity',id:window.__nearAct.id},'needsreview')`);
   const t9FarExcluded = win.eval(`matchesHistoryFilter({kind:'activity',id:window.__farAct.id},'needsreview')`);
-  console.log('Test 9 (Needs Review includes an unplanned activity with a nearby session, excludes one with nothing nearby, and shows a count pill):',
-    (t9NearIncluded === true && t9FarExcluded === false && /Needs Review \(1\)/.test(t9Body)) ? 'PASS' : 'FAIL');
+  const t9Count = win.eval(`needsReviewActivities().length`);
+  win.eval(`switchView('activities');`);
+  const t9Body = win.eval(`document.getElementById('view-activities').innerHTML`);
+  const t9BadgeShows1 = /id="activities-needsreview-badge"[^>]*>1</.test(t9Body);
+  console.log('Test 9 (Needs Review includes an unplanned activity with a nearby session, excludes one with nothing nearby, and shows a count badge):',
+    (t9NearIncluded === true && t9FarExcluded === false && t9Count === 1 && t9BadgeShows1) ? 'PASS' : 'FAIL');
 
   // Tests 10-12: Dylon -- "when you attach an activity it combines the total volume so it gets
   // doubled." A session already logged by hand (NOTES.dist typed in, marked done) plus a real Activity
@@ -346,7 +351,7 @@ function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
   const t22LogHTML = win.eval(`document.getElementById('log-sh-body').innerHTML`);
   const t22gpsId = win.eval(`window.__gpsAct.id`);
   console.log('Test 22 (a linked activity shows only basic stat rows inline in the session -- no Route card, chart, or Splits table -- plus an Analyze Activity button, and the title itself is no longer clickable):',
-    (!/>Route</.test(t22LogHTML) && !/Over the Activity/.test(t22LogHTML) && !/Splits/.test(t22LogHTML) &&
+    (!/>Route</.test(t22LogHTML) && !/class="trend-pills"/.test(t22LogHTML) && !/Splits/.test(t22LogHTML) &&
      !new RegExp('id="sess-route-card-'+t22gpsId+'"').test(t22LogHTML) &&
      />Analyze Activity</.test(t22LogHTML) &&
      new RegExp(`onclick="openActivityDetail\\('${t22gpsId}'\\)"`).test(t22LogHTML) &&
@@ -354,13 +359,14 @@ function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
     { t22LogHTML });
 
   // Test 23: the "Analyze Activity" button opens the exact same full-analytics popup Activity Feed's
-  // own entries use -- Route card, "Over the Activity" chart, Splits table, all with real unprefixed
-  // ids -- so nothing was lost by moving it behind a button instead of showing inline.
+  // own entries use -- Route card, the per-metric chart (headed "Pace"/"Heart Rate"/etc, not a
+  // generic "Over the Activity" label), Splits table, all with real unprefixed ids -- so nothing was
+  // lost by moving it behind a button instead of showing inline.
   win.eval(`openActivityDetail(window.__gpsAct.id);`);
   const t23PopupHTML = win.eval(`document.getElementById('confirm-sheet-inner').innerHTML`);
   const t23gpsId = win.eval(`window.__gpsAct.id`);
   console.log('Test 23 (Analyze Activity opens the full popup with Route card, chart, and Splits table intact):',
-    (/>Route</.test(t23PopupHTML) && /Over the Activity/.test(t23PopupHTML) && /Splits/.test(t23PopupHTML) &&
+    (/>Route</.test(t23PopupHTML) && /class="trend-pills"/.test(t23PopupHTML) && /Splits/.test(t23PopupHTML) &&
      new RegExp(`id="route-card-${t23gpsId}"`).test(t23PopupHTML)) ? 'PASS' : 'FAIL');
 
   // Tests 24-28: Dylon -- "I still think there is too many descreprencies with planned data and

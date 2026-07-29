@@ -138,7 +138,6 @@ function buildBlock(win, startISO, weeks) {
   // renderProgress() anymore, so its old "stat-card" chip markup shouldn't appear in this HTML. ----
   win.eval(`
     RACES_LIST = [{key:'near', name:'Near 10K', date:'2026-07-28', status:'registered', dateTBD:false}];
-    PROGRESS_SUB='main';
     renderProgress();
   `);
   const progressHTML = win.eval(`document.getElementById('view-progress').innerHTML`);

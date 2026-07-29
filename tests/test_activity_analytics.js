@@ -167,7 +167,7 @@ const STREAM_ALT = [100,101,102,102,101,103,104,105,106,107];
   `);
   const detailHTML = win.eval(`document.getElementById('confirm-sheet-inner').innerHTML`);
   console.log('Test 11 (activity detail popup renders chart pills, Relative Effort, and walk-break summary):',
-    (/Over the Activity/.test(detailHTML) && /Relative Effort/.test(detailHTML) && /walk break/.test(detailHTML)) ? 'PASS' : 'FAIL');
+    (/class="trend-pills"/.test(detailHTML) && /Relative Effort/.test(detailHTML) && /walk break/.test(detailHTML)) ? 'PASS' : 'FAIL');
 
   // ==== Chart visual upgrade + Run/Walk/Idle timeline (Tasks 61/62) ====
 
@@ -586,12 +586,15 @@ const STREAM_ALT = [100,101,102,102,101,103,104,105,106,107];
     (t50LiveIdx>=0 && t50SvgIdx>t50LiveIdx && /id="route-live-[^"]*"\s+style="[^"]*display:none/.test(t50) &&
      t50PillsIdx>t50SvgIdx) ? 'PASS' : 'FAIL');
 
-  // Test 51: activityAnalyticsHTML now renders the Route card FIRST, ahead of the "Over the
-  // Activity" chart -- matching the Google Health-style "map at the top" layout Dylon referenced.
+  // Test 51: activityAnalyticsHTML now renders the Route card FIRST, ahead of the per-metric chart
+  // (headed "Pace"/"Heart Rate"/etc, not a generic "Over the Activity" label -- see actHdr) --
+  // matching the Google Health-style "map at the top" layout Dylon referenced. The chart's own card
+  // is the only section using the padding:16px card style ahead of Splits/Best Efforts/Pace
+  // Zones/Effort further down, so that's what marks its position here.
   const t51 = win.eval(`activityAnalyticsHTML(window.__routeFixture)`);
   const t51RouteIdx = t51.indexOf('>Route<');
-  const t51ChartIdx = t51.indexOf('Over the Activity');
-  console.log('Test 51 (Route section now renders before the "Over the Activity" chart in the popup):',
+  const t51ChartIdx = t51.indexOf('style="padding:16px"');
+  console.log('Test 51 (Route section now renders before the per-metric chart in the popup):',
     (t51RouteIdx>=0 && t51ChartIdx>=0 && t51RouteIdx<t51ChartIdx) ? 'PASS' : 'FAIL');
 
   // Test 52: initActivityRouteLiveMap gracefully no-ops (returns false, doesn't throw) when

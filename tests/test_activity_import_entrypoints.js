@@ -66,12 +66,16 @@ function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
   const t2 = win.eval(`window.__clicked`);
   console.log('Test 2 (triggerActivityImport works with a caller-supplied input id):', t2 === 'test-fake-input' ? 'PASS' : 'FAIL');
 
-  // Test 3: with zero logged sessions/extras/activities (a brand-new account), Progress's History
-  // card still shows "View all" so Full History (and its Import button) stays reachable.
-  win.eval(`STATUS={}; NOTES={}; EXTRALOGS=[]; ACTIVITIES=[]; PROGRESS_SUB='main'; renderProgress();`);
-  const progressHTML = win.eval(`document.getElementById('view-progress').innerHTML`);
-  const t3ok = /View all/.test(progressHTML) && /Nothing logged yet/.test(progressHTML);
-  console.log('Test 3 ("View all" link is present on Progress even with nothing logged):', t3ok ? 'PASS' : 'FAIL');
+  // Test 3: with zero logged sessions/extras/activities (a brand-new account), there's still a way
+  // to import from the Activities tab -- not its own inline button anymore (Dylon: "remove the
+  // import activity botton on the activy feed and place the same fab we created on the screen" --
+  // see test_activity_feed_fab.js/test_activities_toolbar_redesign.js), but the shared Add-Activity
+  // FAB now shows on this tab too, so the empty state is never a dead end.
+  win.eval(`STATUS={}; NOTES={}; EXTRALOGS=[]; ACTIVITIES=[]; switchView('activities');`);
+  const activitiesHTML = win.eval(`document.getElementById('view-activities').innerHTML`);
+  const fabShown = win.eval(`document.getElementById('activity-fab-wrap').classList.contains('show')`);
+  const t3ok = /Nothing logged yet/.test(activitiesHTML) && fabShown;
+  console.log('Test 3 (no inline Import button on the Activities tab, but the shared FAB shows there so there’s still a way to import with nothing logged):', t3ok ? 'PASS' : 'FAIL');
 
   // Test 4: activityDisplayName() falls back to the type label with no title, and prefers a real
   // title once one's been set — the one place this fallback rule lives, so the feed and the detail

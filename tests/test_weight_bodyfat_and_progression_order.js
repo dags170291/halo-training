@@ -56,7 +56,6 @@ function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
     RACES_LIST=[];
     EXTRALOGS=[];
     PROFILE={name:'Dylon'};
-    PROGRESS_SUB='main';
   `);
 
   // ---- Test 1: buildQuickAddBody('weight') includes a Body fat (%) input alongside Weight ----

@@ -58,7 +58,6 @@ function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
     MILEAGE_PLAN={1:20,2:20};
     RACES_LIST=[];
     EXTRALOGS=[];
-    PROGRESS_SUB='main';
   `);
 
   // ---- Test 1: isCheckinSession correctly identifies checkin-type sessions only ----

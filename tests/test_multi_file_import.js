@@ -68,20 +68,20 @@ const SAMPLE_GPX = `<?xml version="1.0" encoding="UTF-8"?>
   win.eval(`SB = { auth:{ getSession:async()=>({data:{session:null}}), onAuthStateChange:()=>({data:{subscription:{unsubscribe(){}}}}) } };`);
   win.eval(`window.renderAll = function(){};`);
 
-  // ---- Test 1: the 3 general-purpose import inputs got the `multiple` attribute; the
-  // session-specific "+ Add Activity" input deliberately did not. fab-activity-import-input is static
-  // top-level markup (checked live in the DOM); the other two are only ever built inside their own
-  // render functions' returned HTML strings (renderHistoryHTML/activityFeedBodyHTML), so those are
-  // checked directly off that returned markup instead of requiring a full view render first ----
-  win.eval(`BLOCKS=[]; DATA=[]; STATUS={}; NOTES={}; EXTRALOGS=[]; RACES_LIST=[]; ACTIVITIES=[]; HISTORY_FILTER='all'; ACTFEED_FILTER='all';`);
+  // ---- Test 1: the shared FAB's own general-purpose import input has the `multiple` attribute; the
+  // session-specific "+ Add Activity" input deliberately does not. Used to be 2 general-purpose
+  // inputs (this one plus the Activities tab's own) before that tab's inline Import Activity
+  // button/input was removed entirely in favor of showing this same FAB there too -- Dylon: "remove
+  // the import activity botton on the activy feed and place the same fab we created on the screen"
+  // (see test_activity_feed_fab.js/test_activities_toolbar_redesign.js). fab-activity-import-input
+  // is static top-level markup, checked live in the DOM ----
+  win.eval(`BLOCKS=[]; DATA=[]; STATUS={}; NOTES={}; EXTRALOGS=[]; RACES_LIST=[]; ACTIVITIES=[]; ACTIVITIES_FILTER='all'; renderActivities();`);
   const fabHasMultiple = win.eval(`document.getElementById('fab-activity-import-input').hasAttribute('multiple')`);
-  const historyHTML = win.eval(`renderHistoryHTML()`);
-  const actfeedHTML = win.eval(`activityFeedBodyHTML()`);
-  const todayHasMultiple = /id="activity-import-input"[^>]*\bmultiple\b/.test(historyHTML);
-  const actfeedHasMultiple = /id="actfeed-activity-import-input"[^>]*\bmultiple\b/.test(actfeedHTML);
-  console.log('Test 1 (the 3 general-purpose import inputs all have the multiple attribute):',
-    (fabHasMultiple === true && todayHasMultiple === true && actfeedHasMultiple === true) ? 'PASS' : 'FAIL',
-    { fabHasMultiple, todayHasMultiple, actfeedHasMultiple });
+  const activitiesHTML = win.eval(`document.getElementById('view-activities').innerHTML`);
+  const activitiesHasOwnInput = /activities-activity-import-input/.test(activitiesHTML);
+  console.log('Test 1 (the shared FAB import input has the multiple attribute; the Activities tab no longer has its own separate input):',
+    (fabHasMultiple === true && activitiesHasOwnInput === false) ? 'PASS' : 'FAIL',
+    { fabHasMultiple, activitiesHasOwnInput });
 
   // ---- Test 2: parseActivityBuffer routes correctly for both text formats (same routing
   // importActivityText itself already does, just reachable as its own named function now) ----

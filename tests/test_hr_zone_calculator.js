@@ -168,13 +168,16 @@ function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
   console.log('Test 15 (a fresh page load with no HRZONE_LAST but a saved profile still has the data in PROFILE):',
     JSON.parse(win.eval(`JSON.stringify(PROFILE.savedHRZones)`)) !== null ? 'PASS' : 'FAIL');
 
-  // Test 16: the Profile "Heart Rate Zones" card renders the saved zones (now a pie chart + legend
-  // with bpm ranges, as of v0.32.32 -- see test_hrzone_pie_chart.js for the chart's own dedicated
-  // coverage) and offers Recalculate -- Dylon originally: "in the profile there should be a heart
-  // rate zone chart but this chart is generated after the user does a heart rate zone calculation."
+  // Test 16: the Profile "Heart Rate Zones" card renders the saved zones as a plain static list
+  // (went through a pie chart, then a Strava-style donut, before Dylon moved the interactive chart
+  // to the per-activity zone breakdown instead -- see test_activity_hrzone_donut.js -- since
+  // "the zones in the profile stay stagnant and the one in the activities are more catered for a
+  // pie chart feature") and offers Recalculate -- Dylon originally: "in the profile there should be
+  // a heart rate zone chart but this chart is generated after the user does a heart rate zone
+  // calculation."
   const t16HTML = win.eval(`profileHRZonesCardHTML()`);
-  console.log('Test 16 (Profile Heart Rate Zones card shows saved zones + Recalculate once saved):',
-    (t16HTML.includes('Heart Rate Zones') && t16HTML.includes('bpm') && t16HTML.includes('Recalculate') && !t16HTML.includes('Calculate Heart Rate Zones')) ? 'PASS' : 'FAIL');
+  console.log('Test 16 (Profile Heart Rate Zones card shows saved zones as a list + Recalculate once saved):',
+    (t16HTML.includes('Heart Rate Zones') && t16HTML.includes('Recovery') && t16HTML.includes('Recalculate') && !t16HTML.includes('Calculate Heart Rate Zones') && !t16HTML.includes('hrzone-donut-wrap')) ? 'PASS' : 'FAIL');
 
   // Test 17: with nothing saved at all, the Profile card instead shows the empty-state prompt that
   // doubles as the entry point into the calculator.

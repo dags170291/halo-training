@@ -80,7 +80,6 @@ function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
     NOTES={s1:{dist:'5'}};
     MILEAGE_PLAN={1:20};
     RACES_LIST=[];
-    PROGRESS_SUB='main';
     renderProgress();
   `);
   const progressHTML = win.eval(`document.getElementById('view-progress').innerHTML`);
