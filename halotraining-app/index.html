@@ -290,6 +290,22 @@ main{flex:1;padding:14px 14px 24px;max-width:560px;width:100%;margin:0 auto}
 .ibatch-carousel::-webkit-scrollbar{display:none}
 .ibatch-card{flex:0 0 100%;scroll-snap-align:center;min-width:0}
 
+/* ── HR zone pie chart (Profile) ──
+   Dylon: "can we change the heart rate zones in profile to an interactive pie chart? i feel like
+   we are littered with bars let's add some variety." Replaces the old stacked-bar list with true
+   pie wedges sized by each zone's bpm width, using the same ZONE_TREND_BAR_COLORS ramp the bars
+   used. Slices pop out from their own centroid on select (transform-box:fill-box), same idea as a
+   classic "exploded" pie-chart highlight, and the legend row underneath doubles as a second way to
+   pick a zone (useful on desktop where hover isn't the primary input). */
+.hrzone-pie{display:block}
+.hrzone-slice{cursor:pointer;transition:transform .15s ease,opacity .15s ease;transform-box:fill-box;transform-origin:center}
+.hrzone-slice:hover{opacity:.85}
+.hrzone-pie.has-selection .hrzone-slice{opacity:.45}
+.hrzone-pie.has-selection .hrzone-slice.selected{opacity:1;transform:scale(1.06)}
+.hrzone-legend-item{border-radius:8px;transition:background .15s ease}
+.hrzone-legend-item:hover{background:var(--s2)}
+.hrzone-legend-item.selected{background:var(--s2)}
+
 /* ── quick add (ad-hoc run/walk/weight logging) ── */
 .qa-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:4px}
 .qa-btn{display:flex;flex-direction:column;align-items:center;gap:6px;background:var(--s1);border:1px solid var(--b1);border-radius:var(--r14);padding:12px 4px;font-family:var(--font);cursor:pointer}
@@ -1428,7 +1444,7 @@ main{flex:1;padding:14px 14px 24px;max-width:560px;width:100%;margin:0 auto}
    session-style restyle, race-target connection, iOS install fix, icon redesign, onboarding flow).
    APP_STAGE is 'alpha.N' pre-launch, bump N each time you hand a build to a real tester (Dylon's
    sister counts); once launched, APP_VERSION resets to 1.0.0 and APP_STAGE becomes ''. */
-const APP_VERSION='0.32.31';
+const APP_VERSION='0.32.32';
 const APP_STAGE='alpha.1';
 const APP_VERSION_DATE='2026-07-28';
 /* ═══════════════════════════ DATA ═══════════════════════════ */
@@ -5739,6 +5755,10 @@ let PACECALC_LAST_CONVERT=null;
 // reloading the app doesn't silently blank them out -- only the calculator sheet's own live-preview
 // rendering (hrzoneBodyHTML/calcHRZones) still touches HRZONE_LAST itself.
 let HRZONE_LAST=null;
+// Which slice of Profile's HR-zone pie chart is currently "opened" (null = nothing selected yet).
+// Module-level like HRZONE_LAST so the selection survives a renderAll() (e.g. after Recalculate)
+// rather than resetting on every re-render.
+let HRZONE_PIE_SELECTED=null;
 // The one real source of truth every HR-zone-dependent feature reads from: whatever was last
 // explicitly saved via "Save to Profile" in the calculator (saveHRZonesToProfile()), persisted on
 // PROFILE same as weight/personal bests/everything else, so it survives reload, syncs in backups,
@@ -7151,11 +7171,84 @@ function hrZoneResultHTML(r){
     </div>`;
 }
 // Profile's own Heart Rate Zones card -- Dylon: "in the profile there should be a heart rate zone
-// chart but this chart is generated after the the user does a heart rate zone calculation." Reuses
-// the same zone-color ramp (ZONE_TREND_BAR_COLORS) Weekly Zone Time already established as "the" HR
-// zone visual language, as a static set of bars (low -> high intensity) rather than reinventing a
-// new chart style for what's fundamentally the same 5-zone breakdown. Empty state doubles as the
-// entry point into the calculator for anyone who hasn't set zones up yet at all.
+// chart but this chart is generated after the the user does a heart rate zone calculation." Started
+// as a static set of bars (low -> high intensity); Dylon later asked for a redesign: "can we change
+// the heart rate zones in profile to an interactive pie chart? i feel like we are littered with
+// bars let's add some variety." Now a true pie chart -- each wedge sized by that zone's bpm width
+// under the saved method, tap/click a wedge (or the legend row below it) to see its name/range/
+// best-for in the detail panel, using the same ZONE_TREND_BAR_COLORS ramp the bars (and Weekly Zone
+// Time) already established as "the" HR zone color language, so the palette stays consistent even
+// though the shape changed. Empty state doubles as the entry point into the calculator for anyone
+// who hasn't set zones up yet at all.
+function hrZonePolarPoint(cx,cy,r,angleDeg){
+  const rad=angleDeg*Math.PI/180;
+  return {x:cx+r*Math.cos(rad),y:cy+r*Math.sin(rad)};
+}
+// Pure geometry, split out from the HTML builder so it's independently unit-testable: given each
+// zone's bpm width (hi-lo) returns the wedge angles (startAngle/endAngle/sweepDeg, degrees,
+// 0=3-o'clock/clockwise-positive SVG convention) a <path> arc command needs. Starts at -90deg (12
+// o'clock) like progressRingSVG's ring does, so the two "progress" visuals in the app read the same
+// way. Zones with a zero-or-negative width (shouldn't happen with real data, but a malformed manual
+// Max HR could produce one) get floored to a 1bpm sliver rather than vanishing entirely, so every
+// zone always has a visible, clickable wedge.
+function hrZonePieSlices(zones,method){
+  const widths=zones.map(z=>Math.max(1,z[method][1]-z[method][0]));
+  const total=widths.reduce((a,b)=>a+b,0);
+  let angle=-90;
+  return zones.map((z,i)=>{
+    const sweepDeg=total>0?(widths[i]/total)*360:360/zones.length;
+    const startAngle=angle;
+    const endAngle=angle+sweepDeg;
+    angle=endAngle;
+    return {zone:z,idx:i,startAngle,endAngle,sweepDeg,widthBpm:widths[i]};
+  });
+}
+function hrZonePieSVG(hz){
+  const method=hz.method||'karvonen';
+  const size=132,cx=size/2,cy=size/2,r=size/2-3;
+  const slices=hrZonePieSlices(hz.zones,method);
+  const paths=slices.map(s=>{
+    const p1=hrZonePolarPoint(cx,cy,r,s.startAngle);
+    const p2=hrZonePolarPoint(cx,cy,r,s.endAngle);
+    const largeArc=s.sweepDeg>180?1:0;
+    const d=`M ${cx} ${cy} L ${p1.x.toFixed(2)} ${p1.y.toFixed(2)} A ${r} ${r} 0 ${largeArc} 1 ${p2.x.toFixed(2)} ${p2.y.toFixed(2)} Z`;
+    const color=ZONE_TREND_BAR_COLORS[s.idx]||'--accent';
+    const z=s.zone;
+    const sel=HRZONE_PIE_SELECTED===s.idx?' selected':'';
+    return `<path class="hrzone-slice${sel}" data-idx="${s.idx}" d="${d}" fill="var(${color})" stroke="var(--s1)" stroke-width="2" onclick="selectHRZoneSlice(${s.idx})"><title>${escAttr(z.label)} · ${escAttr(z.name)}: ${z[method][0]}–${z[method][1]} bpm</title></path>`;
+  }).join('');
+  const hasSel=HRZONE_PIE_SELECTED!=null?' has-selection':'';
+  return `<svg class="hrzone-pie${hasSel}" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">${paths}</svg>`;
+}
+function hrZonePieDetailHTML(hz,idx){
+  if(idx==null||!hz.zones[idx]){
+    return `<div style="font-size:12px;color:var(--t3);line-height:1.4;padding:2px 0">Tap a zone in the chart, or in the list below, to see its range and what it's best for.</div>`;
+  }
+  const method=hz.method||'karvonen';
+  const z=hz.zones[idx];
+  const color=ZONE_TREND_BAR_COLORS[idx]||'--accent';
+  return `<div style="display:flex;align-items:center;gap:7px;margin-bottom:6px">
+      <span style="width:11px;height:11px;border-radius:50%;background:var(${color});flex:0 0 auto"></span>
+      <span style="font-weight:700;font-size:13.5px;color:var(--t1)">${escAttr(z.label)} · ${escAttr(z.name)}</span>
+    </div>
+    <div style="font-size:21px;font-weight:800;color:var(--t1);margin-bottom:4px">${z[method][0]}–${z[method][1]} <span style="font-size:12px;font-weight:600;color:var(--t3)">bpm</span></div>
+    <div style="font-size:12px;color:var(--t3);line-height:1.4">${escAttr(z.use)}</div>`;
+}
+// Shared by both the pie wedges' onclick and the legend rows' onclick below -- keeps the SVG (via a
+// full re-render, since path 'd' attributes are cheap to regenerate) and the detail panel in sync
+// with whichever zone was last tapped.
+function selectHRZoneSlice(idx){
+  HRZONE_PIE_SELECTED=idx;
+  const hz=currentHRZones();
+  if(!hz) return;
+  const pieHost=document.getElementById('hrzone-pie-host');
+  if(pieHost) pieHost.innerHTML=hrZonePieSVG(hz);
+  const detail=document.getElementById('hrzone-pie-detail');
+  if(detail) detail.innerHTML=hrZonePieDetailHTML(hz,idx);
+  document.querySelectorAll('.hrzone-legend-item').forEach((el,i)=>{
+    el.classList.toggle('selected',i===idx);
+  });
+}
 function profileHRZonesCardHTML(){
   const hz=currentHRZones();
   if(!hz||!hz.zones||!hz.zones.length){
@@ -7166,12 +7259,14 @@ function profileHRZonesCardHTML(){
     </div>`;
   }
   const method=hz.method||'karvonen';
-  const rows=hz.zones.map((z,i)=>{
+  const legend=hz.zones.map((z,i)=>{
     const color=ZONE_TREND_BAR_COLORS[i]||'--accent';
     const lo=z[method][0],hi=z[method][1];
-    return `<div style="margin-bottom:8px">
-      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--t3);margin-bottom:2px"><span>${escAttr(z.label)} · ${escAttr(z.name)}</span><span>${lo}–${hi} bpm</span></div>
-      <div style="height:8px;border-radius:4px;background:var(${color})"></div>
+    const sel=HRZONE_PIE_SELECTED===i?' selected':'';
+    return `<div class="hrzone-legend-item${sel}" onclick="selectHRZoneSlice(${i})" style="display:flex;align-items:center;gap:7px;padding:5px 6px;cursor:pointer">
+      <span style="width:9px;height:9px;border-radius:50%;background:var(${color});flex:0 0 auto"></span>
+      <span style="font-size:11.5px;color:var(--t2);flex:1;font-weight:600">${escAttr(z.label)}</span>
+      <span style="font-size:11.5px;color:var(--t3)">${lo}–${hi} bpm</span>
     </div>`;
   }).join('');
   return `<div class="card">
@@ -7179,8 +7274,12 @@ function profileHRZonesCardHTML(){
       <div class="section-lbl" style="margin:0">Heart Rate Zones</div>
       ${hz.savedAt?`<span style="font-size:10.5px;color:var(--t3)">Saved ${fmtDate(hz.savedAt)}</span>`:''}
     </div>
-    ${rows}
-    <button class="btn btn-ghost btn-sm" style="margin-top:2px" onclick="openHRZone()">Recalculate</button>
+    <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+      <div id="hrzone-pie-host" style="flex:0 0 auto">${hrZonePieSVG(hz)}</div>
+      <div id="hrzone-pie-detail" style="flex:1 1 130px;min-width:130px">${hrZonePieDetailHTML(hz,HRZONE_PIE_SELECTED)}</div>
+    </div>
+    <div style="margin-top:8px">${legend}</div>
+    <button class="btn btn-ghost btn-sm" style="margin-top:6px" onclick="openHRZone()">Recalculate</button>
   </div>`;
 }
 

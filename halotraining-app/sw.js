@@ -1332,7 +1332,16 @@
 // currently is but only runs and walks as a minor number in the same card." New
 // totalLoggedKmRunsWalks() adds a small secondary "X km incl. walks" line under that same stat card
 // (only shown when it actually differs from the plan-only figure), without changing the card's size.
-const CACHE_NAME = 'halo-0.32.31-alpha.1';
+// v0.32.32: Profile's Heart Rate Zones card redesigned as an interactive pie chart -- Dylon: "can
+// we change the heart rate zones in profile to an interactive pie chart? i feel like we are
+// littered with bars let's add some variety." Replaces the old stacked-bar list with true SVG pie
+// wedges (hrZonePieSVG/hrZonePieSlices), each sized by that zone's bpm width under the saved
+// method and colored with the same ZONE_TREND_BAR_COLORS ramp the bars used. Tapping a wedge (or
+// its legend row) opens a detail panel with that zone's name/range/best-for (selectHRZoneSlice/
+// hrZonePieDetailHTML); selection is tracked in module-level HRZONE_PIE_SELECTED so it survives
+// re-renders. Data-only visual change -- Fitness & Freshness, Weekly Zone Time, and per-activity
+// zone breakdowns all still read the same PROFILE.savedHRZones, untouched.
+const CACHE_NAME = 'halo-0.32.32-alpha.1';
 const APP_SHELL = [
   './index.html',
   './manifest.webmanifest',

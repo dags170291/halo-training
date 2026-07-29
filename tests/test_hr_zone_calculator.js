@@ -168,9 +168,10 @@ function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
   console.log('Test 15 (a fresh page load with no HRZONE_LAST but a saved profile still has the data in PROFILE):',
     JSON.parse(win.eval(`JSON.stringify(PROFILE.savedHRZones)`)) !== null ? 'PASS' : 'FAIL');
 
-  // Test 16: the new Profile "Heart Rate Zones" card renders the saved zones as bars with bpm
-  // ranges, and offers Recalculate -- Dylon: "in the profile there should be a heart rate zone
-  // chart but this chart is generated after the user does a heart rate zone calculation."
+  // Test 16: the Profile "Heart Rate Zones" card renders the saved zones (now a pie chart + legend
+  // with bpm ranges, as of v0.32.32 -- see test_hrzone_pie_chart.js for the chart's own dedicated
+  // coverage) and offers Recalculate -- Dylon originally: "in the profile there should be a heart
+  // rate zone chart but this chart is generated after the user does a heart rate zone calculation."
   const t16HTML = win.eval(`profileHRZonesCardHTML()`);
   console.log('Test 16 (Profile Heart Rate Zones card shows saved zones + Recalculate once saved):',
     (t16HTML.includes('Heart Rate Zones') && t16HTML.includes('bpm') && t16HTML.includes('Recalculate') && !t16HTML.includes('Calculate Heart Rate Zones')) ? 'PASS' : 'FAIL');
