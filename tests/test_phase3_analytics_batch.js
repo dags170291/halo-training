@@ -147,7 +147,7 @@ function isoDaysAgo(baseISO, n) {
   console.log('Test 7 (Zone Time card shows an HR/Pace toggle once both schemes have data):',
     hasToggle ? 'PASS' : 'FAIL', { hasToggle });
 
-  win.eval(`PROGRESS_SUB='main'; renderProgress();`);
+  win.eval(`renderProgress();`);
   const progressHTML = win.eval(`document.getElementById('view-progress').innerHTML`);
   const zoneAfterTrends = progressHTML.indexOf('Weekly Zone Time') > progressHTML.indexOf('Activity Trends') && progressHTML.indexOf('Weekly Zone Time') > -1;
   console.log('Test 8 (Weekly Zone Time card renders in the real Progress tab, right after Activity Trends):',

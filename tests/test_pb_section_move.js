@@ -46,7 +46,6 @@ function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
     STATUS={};
     NOTES={};
     MILEAGE_PLAN={1:20};
-    PROGRESS_SUB='main';
   `);
 
   // ---- Test 1: personalBestsSectionHTML() renders the full hero + per-distance grid ----

@@ -1332,16 +1332,50 @@
 // currently is but only runs and walks as a minor number in the same card." New
 // totalLoggedKmRunsWalks() adds a small secondary "X km incl. walks" line under that same stat card
 // (only shown when it actually differs from the plan-only figure), without changing the card's size.
-// v0.32.32: Profile's Heart Rate Zones card redesigned as an interactive pie chart -- Dylon: "can
-// we change the heart rate zones in profile to an interactive pie chart? i feel like we are
-// littered with bars let's add some variety." Replaces the old stacked-bar list with true SVG pie
-// wedges (hrZonePieSVG/hrZonePieSlices), each sized by that zone's bpm width under the saved
-// method and colored with the same ZONE_TREND_BAR_COLORS ramp the bars used. Tapping a wedge (or
-// its legend row) opens a detail panel with that zone's name/range/best-for (selectHRZoneSlice/
-// hrZonePieDetailHTML); selection is tracked in module-level HRZONE_PIE_SELECTED so it survives
-// re-renders. Data-only visual change -- Fitness & Freshness, Weekly Zone Time, and per-activity
-// zone breakdowns all still read the same PROFILE.savedHRZones, untouched.
-const CACHE_NAME = 'halo-0.32.32-alpha.1';
+// v0.32.34: the HR-zone donut chart moved off Profile entirely -- Dylon: "the zones in the profile
+// stay stagnant and the one in the activities are more catered for a pie chart feature." Profile's
+// Heart Rate Zones card reverted to a plain static list (vertical color bar + name + bpm range,
+// Zone 5 -> Zone 1, "Rest"/"Max" at the open ends -- closer to Strava's own Training Zones settings
+// page). The donut/callout/chip-row chart (activityHRZoneDonutSVG/activityHRZoneDonutOverlayHTML/
+// activityHRZoneChipRowHTML/activityHRZoneChartHTML) now lives on each activity's own "Effort" card
+// in activityAnalyticsHTML, replacing its old flat list of zone bars -- wedges are sized by real
+// time-in-zone seconds from activityHRZoneBreakdown(), so the center readout can show an actual
+// "Zone 3 / 50%" the way Strava's own chart does, which Profile's static reference never could.
+// v0.32.35: two follow-ups to the HR-zone chart move. (1) Dylon: "I liked how you had what each
+// zone is meant for previously, so if you could include that again, perhaps under the heart-rate
+// zone in the profile" -- each zone's "best for" text is back under its name/range row in
+// profileHRZonesCardHTML's static list. (2) Dylon: "I want to move activities out of Progress --
+// give them their own main tab. So we now have five tabs: Today, Schedule, Activities (or Feed),
+// Progress, and Recovery." New primary tab (renderActivities/#view-activities/CURR_VIEW==='activities'),
+// consolidating what used to be THREE separate UIs on the identical historyItems() query -- Progress's
+// embedded "History" card + "Full History" sub-screen (PROGRESS_SUB/HISTORY_FILTER/openHistory/
+// closeHistory/renderHistoryHTML, all removed) and the standalone "Activity Feed" sheet
+// (actfeed-overlay/openActivityFeed/ACTFEED_FILTER, also removed) -- into this one tab.
+// v0.32.36 -- Dylon shared a screenshot of Runna's Activities tab: "wee need to redesign the
+// activities to look more presentable as a home page tab take a look at runna stream to redesign it
+// with a preview of data give each activity it's own card as well dont use the coloured line on the
+// outside of runnas card though you may colour each card base don activity." Each history item
+// (planned session, extra log, or imported activity) now renders as its own real .card instead of
+// every item sharing one big wrapper (historyItemCardHTML), grouped under a Runna-style month header
+// row showing that month's total distance (activitiesMonthGroups). Each card previews up to 3 labeled
+// stats -- Distance/Time/Avg Pace where that applies, falling back to HR/RPE/weight otherwise
+// (historyItemStatsHTML) -- instead of one packed text line. Cards are colored per activity type via
+// a soft full-card gradient tint (activityTypeIcoCls/ICO_CARD_TINT), reusing the exact same sess-ico
+// color pairs Today/Schedule already use, rather than Runna's own outer accent bar, which Dylon
+// explicitly ruled out.
+// v0.32.37 -- Dylon, after the Activities tab's card redesign shipped, shared Runna's own activity
+// detail screen: "great job on the activity feed design. can you update the session details to be
+// just as clean as well i am sharing runna's session detail screen for inspiration. take special not
+// of font sizing and spacing specifically." The activity detail popup (openActivityDetail) now leads
+// with a big bold hero stat grid (Distance/Time/Avg Pace, then Elevation Gain/Avg HR/Calories),
+// demoting everything else to a spaced-out Details list below it (activityStatRowsHTML's new
+// opts.hero, opt-in so the import-confirmation cards and a planned session's inline Activities list
+// keep their original compact rendering). Every section header (Route, the per-metric chart, Splits/
+// Laps, Best Efforts, Pace Zones, Effort) now uses a bigger, more generously-spaced header (actHdr)
+// instead of the small uppercase .section-lbl eyebrow style, card padding was bumped up throughout,
+// and the per-metric chart is now headed by the metric actually showing (e.g. "Pace") instead of a
+// generic "Over the Activity" label, sitting inside a real card like every other section now does.
+const CACHE_NAME = 'halo-0.32.40-alpha.1';
 const APP_SHELL = [
   './index.html',
   './manifest.webmanifest',

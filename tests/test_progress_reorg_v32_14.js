@@ -70,7 +70,6 @@ function buildBlock(win, startISO, weeks) {
   win.eval(`
     STATUS['w1s1']='done'; NOTES['w1s1']={pace:'6:00',hr:150,dist:'20'};
     STATUS['w2s1']='done'; NOTES['w2s1']={pace:'5:00',hr:140,dist:'18'};
-    PROGRESS_SUB='main';
   `);
 
   // ==== Item 3: Week Recap moved into Schedule's week-detail panel ====

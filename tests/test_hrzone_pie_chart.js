@@ -1,14 +1,19 @@
-// Regression test for v0.32.32's HR-zone pie chart. Dylon: "can we change the heart rate zones in
-// profile to an interactive pie chart? i feel like we are littered with bars let's add some
-// variety." profileHRZonesCardHTML()'s old stacked-bar list was replaced with a true SVG pie chart
-// (hrZonePieSVG/hrZonePieSlices/hrZonePolarPoint) sized by each zone's bpm width under the saved
-// method, plus a click-to-select detail panel (selectHRZoneSlice/hrZonePieDetailHTML) and a legend
-// list that's a second way to pick a zone. This covers: slice angle math sums to 360 and starts at
-// -90deg (12 o'clock, matching progressRingSVG's convention), each slice's sweep is proportional to
-// its bpm width, colors map 1:1 with ZONE_TREND_BAR_COLORS (same ramp the old bars used), the detail
-// panel's empty/selected states render correctly, selectHRZoneSlice updates the module-level
-// selection that survives independent of any single render, and the empty state (no saved zones)
-// still shows the original calculator prompt untouched.
+// Regression test for HALO's HR-zone donut chart -- this file's name is a holdover from when the
+// chart lived on Profile (v0.32.32: bars -> pie; v0.32.33: pie -> Strava-style donut), but Dylon
+// then moved it to the per-activity zone breakdown instead: "ok i messed up the new chart u created
+// in profile I would like to use that instead for heart rate zones measured within activities in
+// the profile lets use this new version since the zones in the profile stay stagnant and the one in
+// the activities are more catered for a pie chart feature." Right call -- Profile's zones are a
+// static bpm-range reference with no real duration to put in a donut's center; activityHRZoneBreakdown()
+// has genuine time-in-zone seconds/percentages per activity, exactly what a Strava-style donut needs.
+// Profile itself reverted to a plain list -- see test_profile_hrzone_list.js for that coverage.
+//
+// This file now covers the relocated chart: activityHRZonePieSlices (angle math, weighted by
+// per-zone seconds instead of bpm width), activityHRZoneDonutSVG (donut sectors, skipping
+// zero-second zones entirely rather than drawing degenerate slivers), activityHRZoneDonutOverlayHTML
+// (center readout showing a real %/duration, plus the floating callout), activityHRZoneChipRowHTML
+// (the static bpm-range legend row, sourced from currentHRZones() rather than the activity itself),
+// activityHRZoneCaptionHTML, and selectActivityHRZoneSlice's per-activity-keyed selection state.
 const fs = require('fs');
 const path = require('path');
 const { JSDOM } = require('/tmp/node_modules/jsdom');
@@ -40,11 +45,10 @@ function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
   win.eval(`SB = { auth:{ getSession:async()=>({data:{session:null}}), onAuthStateChange:()=>({data:{subscription:{unsubscribe(){}}}}) } };`);
   win.eval(`window.renderAll = function(){};`);
 
-  // A representative saved zone set (Karvonen method) to exercise the chart against -- distinct,
-  // non-uniform bpm widths per zone so proportional-sizing bugs (e.g. accidentally using equal
-  // slices) would actually show up as a test failure.
+  // Saved profile zones (bpm ranges) -- used by the chip-row legend, distinct on purpose from the
+  // activity's own time-in-zone numbers below, so a test bug conflating the two data sources would
+  // actually show up as a failure.
   win.eval(`
-    HRZONE_PIE_SELECTED = null;
     PROFILE.savedHRZones = {
       maxHR: 188, rhr: 55, hrr: 133, method: 'karvonen', savedAt: '2026-07-29',
       zones: [
@@ -62,75 +66,95 @@ function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
     };
   `);
 
-  // ---- Test 1: hrZonePieSlices' angle math -- 5 slices, sweeps sum to 360, first slice starts at
-  // -90deg (12 o'clock, same convention progressRingSVG already uses for "progress" visuals) ----
-  const slices1 = JSON.parse(win.eval(`JSON.stringify(hrZonePieSlices(PROFILE.savedHRZones.zones,'karvonen'))`));
+  // A representative activityHRZoneBreakdown() result -- distinct, non-uniform seconds per zone
+  // (including one zone with ZERO time, since that's the whole point of the "skip zero-sec zones"
+  // behavior being tested), matching that function's real return shape ({label,name,sec,pct}).
+  win.eval(`
+    __actZones = [
+      {label:'Zone 1', name:'Recovery', sec:60, pct:5},
+      {label:'Zone 2', name:'Aerobic / Endurance', sec:300, pct:25},
+      {label:'Zone 3', name:'Tempo', sec:600, pct:50},
+      {label:'Zone 4', name:'Threshold', sec:240, pct:20},
+      {label:'Zone 5', name:'Maximum', sec:0, pct:0}
+    ];
+    ACTIVITIES.push({id:'test-act-1', type:'run', stream:{t:[],hr:[]}});
+    ACT_HRZONE_SELECTED = {};
+  `);
+
+  // ---- Test 1: activityHRZonePieSlices' angle math is weighted by seconds (not bpm width) -- 5
+  // entries returned (including the zero-sec zone, with a zero sweep), non-zero sweeps sum to 360,
+  // starting at -90deg ----
+  const slices1 = JSON.parse(win.eval(`JSON.stringify(activityHRZonePieSlices(__actZones))`));
   const sweepSum = slices1.reduce((a,s)=>a+s.sweepDeg,0);
-  console.log('Test 1 (5 slices, sweeps sum to 360deg, first starts at -90deg):', {
-    count: slices1.length, sweepSum: Math.round(sweepSum*100)/100, firstStart: slices1[0].startAngle,
-    result: (slices1.length===5 && Math.abs(sweepSum-360)<0.01 && slices1[0].startAngle===-90) ? 'PASS' : 'FAIL'
+  console.log('Test 1 (5 slices incl. the zero-sec zone, sweeps sum to 360deg, first starts at -90deg):', {
+    count: slices1.length, sweepSum: Math.round(sweepSum*100)/100, firstStart: slices1[0].startAngle, zone5Sweep: slices1[4].sweepDeg,
+    result: (slices1.length===5 && Math.abs(sweepSum-360)<0.01 && slices1[0].startAngle===-90 && slices1[4].sweepDeg===0) ? 'PASS' : 'FAIL'
   });
 
-  // ---- Test 2: each slice's sweep is proportional to its own bpm width (hi-lo under the given
-  // method), not equal-sized wedges -- widths here are 13,13,13,14,13 so sweeps should differ ----
-  const loBounds = [122,135,148,161,175];
-  const hiBounds = [135,148,161,175,188];
-  const widths = loBounds.map((lo,i)=>hiBounds[i]-lo);
-  const totalW = widths.reduce((a,b)=>a+b,0);
-  const expectedSweeps = widths.map(w => (w/totalW)*360);
+  // ---- Test 2: each non-zero slice's sweep is proportional to its own seconds (600/300/240/60 out
+  // of 1200 total), not equal-sized wedges ----
+  const secs = [60,300,600,240,0];
+  const total = secs.reduce((a,b)=>a+b,0);
+  const expectedSweeps = secs.map(s => (s/total)*360);
   const sweepsMatch = slices1.every((s,i) => Math.abs(s.sweepDeg - expectedSweeps[i]) < 0.05);
-  console.log('Test 2 (each slice sweep proportional to its own bpm width):', {
-    actual: slices1.map(s=>Math.round(s.sweepDeg*100)/100),
-    expected: expectedSweeps.map(w=>Math.round(w*100)/100),
+  console.log('Test 2 (each slice sweep proportional to its own time-in-zone seconds):', {
+    actual: slices1.map(s=>Math.round(s.sweepDeg*100)/100), expected: expectedSweeps.map(w=>Math.round(w*100)/100),
     result: sweepsMatch ? 'PASS' : 'FAIL'
   });
 
-  // ---- Test 3: hrZonePieSVG renders one <path class="hrzone-slice"> per zone, each colored with
-  // the same ZONE_TREND_BAR_COLORS entry (by index) the old bars used, so the palette didn't change
-  // even though the shape did ----
-  const svg = win.eval(`hrZonePieSVG(PROFILE.savedHRZones)`);
-  const pathMatches = [...svg.matchAll(/<path class="hrzone-slice[^"]*" data-idx="(\d)" d="[^"]+" fill="var\((--\w+)\)"/g)];
-  const expectedColors = win.eval(`JSON.stringify(ZONE_TREND_BAR_COLORS.slice(0,5))`);
-  const expectedColorsArr = JSON.parse(expectedColors);
-  const colorsMatch = pathMatches.length===5 && pathMatches.every((m,i)=> m[1]===String(i) && m[2]===expectedColorsArr[i]);
-  console.log('Test 3 (5 slice paths, colored 1:1 with ZONE_TREND_BAR_COLORS by index):', {
-    found: pathMatches.map(m=>[m[1],m[2]]), expected: expectedColorsArr,
-    result: colorsMatch ? 'PASS' : 'FAIL'
+  // ---- Test 3: activityHRZoneDonutSVG renders exactly 4 wedges (skipping Zone 5's zero-second
+  // slice entirely -- no degenerate zero-width path), colored 1:1 with ZONE_TREND_BAR_COLORS by
+  // index, each onclick wired to selectActivityHRZoneSlice with this activity's own id ----
+  const svg = win.eval(`activityHRZoneDonutSVG(__actZones, 'sess-', 'test-act-1', null)`);
+  const pathMatches = [...svg.matchAll(/<path class="hrzone-slice[^"]*" data-idx="(\d)" d="([^"]+)" fill="var\((--\w+)\)"[^>]*onclick="selectActivityHRZoneSlice\('sess-','test-act-1',(\d)\)"/g)];
+  const expectedColors = JSON.parse(win.eval(`JSON.stringify(ZONE_TREND_BAR_COLORS.slice(0,5))`));
+  console.log('Test 3 (4 wedges rendered -- zero-sec Zone 5 skipped -- correctly colored and wired to this activity):', {
+    wedgeCount: pathMatches.length,
+    indices: pathMatches.map(m=>m[1]),
+    colorsOk: pathMatches.every(m => expectedColors[Number(m[1])]===m[3]),
+    result: (pathMatches.length===4 && pathMatches.every(m => expectedColors[Number(m[1])]===m[3] && m[1]===m[4])) ? 'PASS' : 'FAIL'
   });
 
-  // ---- Test 4: detail panel with no selection shows the "tap a zone" prompt, not a specific zone's
-  // data ----
-  const emptyDetail = win.eval(`hrZonePieDetailHTML(PROFILE.savedHRZones, null)`);
-  console.log('Test 4 (no-selection detail panel shows the tap-a-zone prompt):',
-    /Tap a zone/i.test(emptyDetail) ? 'PASS' : 'FAIL', { emptyDetail });
-
-  // ---- Test 5: detail panel for a specific zone (e.g. index 3, Threshold) shows its name, bpm
-  // range, and best-for text ----
-  const z3Detail = win.eval(`hrZonePieDetailHTML(PROFILE.savedHRZones, 3)`);
-  console.log('Test 5 (selected-zone detail panel shows name/range/best-for for index 3):', {
-    hasName: /Threshold/.test(z3Detail), hasRange: /161–175/.test(z3Detail), hasUse: /hill repeats/.test(z3Detail),
-    result: (/Threshold/.test(z3Detail) && /161–175/.test(z3Detail) && /hill repeats/.test(z3Detail)) ? 'PASS' : 'FAIL'
+  // ---- Test 4: with no selection, the overlay shows a neutral center prompt and no callout ----
+  const emptyOverlay = win.eval(`activityHRZoneDonutOverlayHTML(__actZones, null)`);
+  console.log('Test 4 (no-selection overlay: neutral prompt, no callout):', {
+    hasPrompt: /Tap a zone/i.test(emptyOverlay), hasCallout: /hrzone-callout/.test(emptyOverlay),
+    result: (/Tap a zone/i.test(emptyOverlay) && !/hrzone-callout/.test(emptyOverlay)) ? 'PASS' : 'FAIL'
   });
 
-  // ---- Test 6: selectHRZoneSlice updates the module-level HRZONE_PIE_SELECTED, and a subsequent
-  // profileHRZonesCardHTML() render reflects that selection (selected slice/legend row marked) ----
-  win.eval(`selectHRZoneSlice(2)`);
-  const selectedAfter = win.eval(`HRZONE_PIE_SELECTED`);
-  const cardAfterSelect = win.eval(`profileHRZonesCardHTML()`);
-  console.log('Test 6 (selectHRZoneSlice(2) persists and the next card render reflects it):', {
-    selectedAfter,
-    hasSelectedSliceClass: /hrzone-slice selected" data-idx="2"/.test(cardAfterSelect),
-    hasSelectedLegendClass: /hrzone-legend-item selected/.test(cardAfterSelect),
-    result: (selectedAfter===2 && /hrzone-slice selected" data-idx="2"/.test(cardAfterSelect) && /hrzone-legend-item selected/.test(cardAfterSelect)) ? 'PASS' : 'FAIL'
+  // ---- Test 5: selecting Zone 3 (index 2, 600s/50%) shows the real pct + duration in the center
+  // readout, and a callout with the zone name + duration (Strava's own "Tempo 41:11"-style format) ----
+  const z2Overlay = win.eval(`activityHRZoneDonutOverlayHTML(__actZones, 2)`);
+  console.log('Test 5 (selected zone shows real pct/duration in center + callout, not a bpm range):', {
+    hasPct: /50%/.test(z2Overlay), hasDuration: /10:00/.test(z2Overlay), hasCalloutName: /hrzone-callout/.test(z2Overlay) && /Tempo/.test(z2Overlay),
+    result: (/50%/.test(z2Overlay) && /10:00/.test(z2Overlay) && /hrzone-callout/.test(z2Overlay) && /Tempo/.test(z2Overlay)) ? 'PASS' : 'FAIL'
   });
 
-  // ---- Test 7: empty state (no saved zones at all) is untouched -- still shows the calculator
-  // prompt and button, no pie/legend markup ----
-  win.eval(`HRZONE_PIE_SELECTED=null; PROFILE.savedHRZones=null;`);
-  const emptyCard = win.eval(`profileHRZonesCardHTML()`);
-  console.log('Test 7 (no saved zones -> original empty-state prompt, no pie markup):', {
-    hasPrompt: /Not set up yet/.test(emptyCard), hasButton: /Calculate Heart Rate Zones/.test(emptyCard), hasPie: /hrzone-pie/.test(emptyCard),
-    result: (/Not set up yet/.test(emptyCard) && /Calculate Heart Rate Zones/.test(emptyCard) && !/hrzone-pie/.test(emptyCard)) ? 'PASS' : 'FAIL'
+  // ---- Test 6: the chip row shows each zone's STATIC bpm range from currentHRZones() (not
+  // anything derived from the activity's own seconds/pct), and marks the selected index ----
+  const chips = win.eval(`activityHRZoneChipRowHTML(__actZones, 'sess-', 'test-act-1', 2)`);
+  console.log('Test 6 (chip row shows static bpm ranges from currentHRZones(), selected index marked):', {
+    hasRange2: /148-161/.test(chips), chipCount: (chips.match(/class="hrzone-chip/g)||[]).length, selectedCount: (chips.match(/class="hrzone-chip selected"/g)||[]).length,
+    result: (/148-161/.test(chips) && (chips.match(/class="hrzone-chip/g)||[]).length===5 && (chips.match(/class="hrzone-chip selected"/g)||[]).length===1) ? 'PASS' : 'FAIL'
+  });
+
+  // ---- Test 7: selectActivityHRZoneSlice looks the activity back up via ACTIVITIES (by id),
+  // recomputes its zone breakdown, stores the selection keyed by idPrefix+activityId, and updates
+  // the three DOM regions if present ----
+  win.eval(`
+    document.body.insertAdjacentHTML('beforeend', '<div id="sess-test-act-1-hrzone-pie-host"></div><div id="sess-test-act-1-hrzone-chip-row"></div><div id="sess-test-act-1-hrzone-caption"></div>');
+    // activityHRZoneBreakdown needs real stream data to return non-null -- stub it for this one test
+    // so selectActivityHRZoneSlice's DOM-sync path can be exercised without a full TCX fixture.
+    window.__origBreakdown = activityHRZoneBreakdown;
+    activityHRZoneBreakdown = function(a){ return a.id==='test-act-1' ? __actZones : window.__origBreakdown(a); };
+    selectActivityHRZoneSlice('sess-','test-act-1',3);
+  `);
+  const selKey = win.eval(`ACT_HRZONE_SELECTED['sess-test-act-1']`);
+  const pieHostHTML = win.eval(`document.getElementById('sess-test-act-1-hrzone-pie-host').innerHTML`);
+  const captionHTML = win.eval(`document.getElementById('sess-test-act-1-hrzone-caption').innerHTML`);
+  console.log('Test 7 (selectActivityHRZoneSlice keys selection by idPrefix+activityId and syncs the DOM):', {
+    selKey, pieHostHasSelected4: /hrzone-slice selected" data-idx="3"/.test(pieHostHTML), captionHasThreshold: /Threshold/.test(captionHTML),
+    result: (selKey===3 && /hrzone-slice selected" data-idx="3"/.test(pieHostHTML) && /Threshold/.test(captionHTML)) ? 'PASS' : 'FAIL'
   });
 
   await wait(200);

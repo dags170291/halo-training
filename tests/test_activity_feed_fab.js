@@ -1,11 +1,14 @@
 // Regression test for Task 48 -- Dylon's feedback after Phase 1a shipped: "i dont like how buried
 // all the activities is behind history we need to build a dedicated activity feed" and "i think we
 // should move all the manual activity add buttons behind a FAB on the today page and schedule page".
-// Covers two independent pieces: (1) a dedicated Activity Feed overlay, reachable in one tap from
-// the sidebar/Tools sheet rather than two taps deep inside Progress > History, built on the exact
-// same historyItems()/matchesHistoryFilter()/logFeedItemHTML() query History already used; and
-// (2) a shared Add-Activity FAB (Run/Walk/Weight/Strength/Import Activity) shown on Today and
-// Schedule, replacing the inline "Add Activity" grid that used to live only on Today.
+// Covers two independent pieces: (1) what started as a dedicated Activity Feed overlay (reachable in
+// one tap from the sidebar/Tools sheet) and later became a full primary tab -- Dylon: "I want to
+// move activities out of Progress -- give them their own main tab" -- so Tests 1-4 now exercise
+// switchView('activities')/renderActivities()/#view-activities instead of the old
+// openActivityFeed()/#actfeed-overlay sheet, same underlying historyItems()/matchesHistoryFilter()/
+// logFeedItemHTML() query throughout; and (2) a shared Add-Activity FAB (Run/Walk/Weight/Strength/
+// Import Activity) shown on Today and Schedule, replacing the inline "Add Activity" grid that used
+// to live only on Today -- Tests 5-9, unaffected by the Activities-tab move.
 const fs = require('fs');
 const path = require('path');
 const { JSDOM } = require('/tmp/node_modules/jsdom');
@@ -47,27 +50,30 @@ function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
     STATUS={}; NOTES={}; RACES_LIST=[]; ACTIVITIES=[]; EXTRALOGS=[];
   `);
 
-  // ==== Dedicated Activity Feed (48-i) ====
+  // ==== Activities tab (48-i, later promoted from a sheet to its own primary tab) ====
 
-  // Test 1: the sidebar has its own Activity Feed button, and the mobile Tools sheet lists it too.
-  const sidebarHTML = win.eval(`document.querySelector('nav.sidebar, #sidebar')?document.getElementById('sidebar').innerHTML:document.body.innerHTML`);
-  const t1Sidebar = /openActivityFeed\(\)/.test(sidebarHTML) && /Activity Feed/.test(sidebarHTML);
-  const toolsHTML = win.eval(`toolsBodyHTML()`);
-  const t1Tools = /openActivityFeed\(\)/.test(toolsHTML) && /Activity Feed/.test(toolsHTML);
-  console.log('Test 1 (Activity Feed has its own sidebar button and Tools sheet row):', (t1Sidebar && t1Tools) ? 'PASS' : 'FAIL');
+  // Test 1: the sidebar and the mobile bottom nav both have a real "Activities" tab (data-view
+  // driven, same as Today/Schedule/Progress/Recovery), not a one-off sheet-opening button anymore.
+  const sidebarHTML = win.eval(`document.getElementById('sidebar').innerHTML`);
+  const t1Sidebar = /data-view="activities"/.test(sidebarHTML) && /Activities/.test(sidebarHTML);
+  const bottomNavHTML = win.eval(`document.querySelector('.bottom-nav').innerHTML`);
+  const t1BottomNav = /data-view="activities"/.test(bottomNavHTML) && /Activities/.test(bottomNavHTML);
+  console.log('Test 1 (Activities has a real data-view tab in both the sidebar and the bottom nav):', (t1Sidebar && t1BottomNav) ? 'PASS' : 'FAIL');
 
-  // Test 2: openActivityFeed() opens the dedicated overlay and renders the same kind of filterable
-  // feed History already has -- not a blank screen.
-  win.eval(`openActivityFeed();`);
-  const feedOpen = win.eval(`document.getElementById('actfeed-overlay').classList.contains('open')`);
-  const feedBodyEmpty = win.eval(`document.getElementById('actfeed-sh-body').innerHTML`);
-  console.log('Test 2 (openActivityFeed opens the overlay and renders filter pills + empty-state copy):',
-    (feedOpen && /trend-pill/.test(feedBodyEmpty) && /Nothing logged yet/.test(feedBodyEmpty)) ? 'PASS' : 'FAIL');
+  // Test 2: switchView('activities') renders the tab (search box + empty-state copy) into
+  // #view-activities -- not a blank screen, and not a sheet overlay. Filter pills are no longer
+  // shown by default -- Dylon: "move the filters behind the search function" -- so this checks for
+  // the search input instead; test_activities_toolbar_redesign.js covers the toggle itself.
+  win.eval(`switchView('activities');`);
+  const activitiesViewActive = win.eval(`document.getElementById('view-activities').classList.contains('active')`);
+  const activitiesBodyEmpty = win.eval(`document.getElementById('view-activities').innerHTML`);
+  console.log('Test 2 (switchView(activities) activates the tab and renders the search box + empty-state copy):',
+    (activitiesViewActive && /id="activities-search-input"/.test(activitiesBodyEmpty) && /Nothing logged yet/.test(activitiesBodyEmpty)) ? 'PASS' : 'FAIL');
 
-  // Test 3: importing straight from the Activity Feed's own Import Activity button (its own file
-  // input id) works via the same importActivityText()/confirmActivityImport() pipeline, and the
-  // feed refreshes immediately (refreshActivityFeedIfOpen) once it's actually saved, without
-  // needing to close and reopen the overlay.
+  // Test 3: importing an activity (now via the shared FAB rather than the Activities tab's own
+  // removed inline button -- see Test 5b below) still works via the same importActivityText()/
+  // confirmActivityImport() pipeline, and the tab refreshes immediately (refreshActivitiesIfOpen)
+  // once it's actually saved, without needing to leave and come back to the tab.
   const SAMPLE_TCX = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <TrainingCenterDatabase xmlns="http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2">
   <Activities><Activity Sport="Running"><Id>2027-05-01T06:00:00.000-04:00</Id>
@@ -85,30 +91,38 @@ function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
     document.getElementById('import-name-input').value='Feed Test Run';
     finalizeActivityImport();
   `);
-  const feedBodyAfter = win.eval(`document.getElementById('actfeed-sh-body').innerHTML`);
-  console.log('Test 3 (feed refreshes immediately after an import completes, while still open):',
-    /Feed Test Run/.test(feedBodyAfter) ? 'PASS' : 'FAIL');
+  const activitiesBodyAfter = win.eval(`document.getElementById('view-activities').innerHTML`);
+  console.log('Test 3 (tab refreshes immediately after an import completes, while still open):',
+    /Feed Test Run/.test(activitiesBodyAfter) ? 'PASS' : 'FAIL');
 
-  // Test 4: switching the feed's own filter pills actually filters -- selecting "Walk" hides the
+  // Test 4: switching the tab's own filter pills actually filters -- selecting "Walk" hides the
   // just-imported run.
-  win.eval(`selectActivityFeedFilter('walk');`);
-  const walkFilteredHTML = win.eval(`document.getElementById('actfeed-sh-body').innerHTML`);
-  console.log('Test 4 (Activity Feed filter pills actually filter the list):',
+  win.eval(`selectActivitiesFilter('walk');`);
+  const walkFilteredHTML = win.eval(`document.getElementById('view-activities').innerHTML`);
+  console.log('Test 4 (Activities tab filter pills actually filter the list):',
     !/Feed Test Run/.test(walkFilteredHTML) ? 'PASS' : 'FAIL');
-
-  win.eval(`closeOverlay('actfeed-overlay');`);
 
   // ==== Add-Activity FAB (48-ii) ====
 
-  // Test 5: the FAB is hidden on Progress/Recovery/Profile, and shown on Today and Schedule.
+  // Test 5: the FAB is hidden on Progress/Recovery/Profile, and shown on Today, Schedule, AND now
+  // Activities too -- Dylon: "remove the import activity botton on the activy feed and place the
+  // same fab we created on the screen."
   win.eval(`switchView('progress');`);
   const hiddenOnProgress = win.eval(`document.getElementById('activity-fab-wrap').classList.contains('show')`);
   win.eval(`switchView('today');`);
   const shownOnToday = win.eval(`document.getElementById('activity-fab-wrap').classList.contains('show')`);
   win.eval(`switchView('week');`);
   const shownOnWeek = win.eval(`document.getElementById('activity-fab-wrap').classList.contains('show')`);
-  console.log('Test 5 (FAB shown only on Today/Schedule, hidden on Progress):',
-    (!hiddenOnProgress && shownOnToday && shownOnWeek) ? 'PASS' : 'FAIL');
+  win.eval(`switchView('activities');`);
+  const shownOnActivities = win.eval(`document.getElementById('activity-fab-wrap').classList.contains('show')`);
+  console.log('Test 5 (FAB shown on Today/Schedule/Activities, hidden on Progress):',
+    (!hiddenOnProgress && shownOnToday && shownOnWeek && shownOnActivities) ? 'PASS' : 'FAIL');
+
+  // Test 5b: the Activities tab's own old inline "+ Import Activity" button/input is really gone --
+  // the FAB (just confirmed shown above) is the only way to import from this tab now.
+  const activitiesHTMLNow = win.eval(`document.getElementById('view-activities').innerHTML`);
+  console.log('Test 5b (Activities tab has no leftover inline Import Activity button/input):',
+    (!/activities-activity-import-input/.test(activitiesHTMLNow) && !/\+ Import Activity/.test(activitiesHTMLNow)) ? 'PASS' : 'FAIL');
 
   // Test 6: toggleActivityFab() opens and closes the expandable menu.
   win.eval(`switchView('today');`);

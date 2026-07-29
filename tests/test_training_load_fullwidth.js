@@ -112,7 +112,6 @@ function buildRunLogs(win, endISO, days, kmPerDay, prefix) {
     NOTES={};
     MILEAGE_PLAN={1:20};
     RACES_LIST=[];
-    PROGRESS_SUB='main';
     renderProgress();
   `);
   const chipEl = win.eval(`
