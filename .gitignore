@@ -1,0 +1,11 @@
+# Only halotraining-app/ (the deployed site) and tests/ (the regression suite) are tracked in this
+# repo -- everything else here is internal project documentation/working notes that stays in Google
+# Drive only, per Dylon: keep the personal coaching/training detail in those docs out of the public
+# GitHub repo. See Deploy_Notes.md (not tracked here) for the full reasoning behind the move off
+# Netlify.
+/*.md
+/.DS_Store
+/assets/
+/test-data/
+halotraining-app/.DS_Store
+.DS_Store

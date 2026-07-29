@@ -1,0 +1,36 @@
+name: Deploy HALO to GitHub Pages
+
+# Publishes only halotraining-app/ (the deployed site itself -- index.html, sw.js, manifest,
+# icons) to GitHub Pages, same "publish just this one folder" idea Netlify's own Publish
+# Directory setting already handled -- tests/ stays in the repo (for history/CI later) but is never
+# part of what actually gets served.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Upload halotraining-app/ as the Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: halotraining-app
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
