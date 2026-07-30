@@ -113,6 +113,22 @@ function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
   const t6 = /class="stat-card stat-card-streak" onclick="openStreakPage\(\)"/.test(progressHTML);
   console.log('Test 6 (the resized card still opens the Streak page on tap):', t6 ? 'PASS' : 'FAIL');
 
+  // ---- Test 8: v0.34.8 -- Dylon, testing locally: "the streak card still isnt designed properly the
+  // main streak can be larger to match the other cards and the weeks treak to match the sub text."
+  // v0.34.7's resize shrank the text well past the grid's own type scale. Confirm .streak-hero-days
+  // (the "N DAYS" number) uses the EXACT same font-size as .stat-num (the big number on every other
+  // stat card, e.g. "47.2" or "13/90"), and .streak-hero-weeks (the "N WEEKS" line) uses the exact same
+  // font-size as .stat-lbl (the small caption under every other stat card, e.g. "Sessions logged") --
+  // read directly from the stylesheet source so this can't silently regress to a smaller custom size
+  // again. ----
+  const statNumSize = html.match(/\.stat-num\{[^}]*font-size:([\d.]+px)/)?.[1];
+  const statLblSize = html.match(/\.stat-lbl\{[^}]*font-size:([\d.]+px)/)?.[1];
+  const heroDaysSize = html.match(/\.streak-hero-days\{[^}]*font-size:([\d.]+px)/)?.[1];
+  const heroWeeksSize = html.match(/\.streak-hero-weeks\{[^}]*font-size:([\d.]+px)/)?.[1];
+  const t8 = !!statNumSize && !!statLblSize && heroDaysSize === statNumSize && heroWeeksSize === statLblSize;
+  console.log('Test 8 (streak card\'s "N DAYS" number matches .stat-num\'s font-size, "N WEEKS" matches .stat-lbl\'s):',
+    t8 ? 'PASS' : 'FAIL', { statNumSize, statLblSize, heroDaysSize, heroWeeksSize });
+
   // ---- Test 7: the Streak page's own hero now shows the same Day streak / Week streak split (with
   // each one's own "Longest: N" line), not just a single day-streak number. ----
   win.eval(`openStreakPage();`);

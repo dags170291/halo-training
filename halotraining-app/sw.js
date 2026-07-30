@@ -1524,7 +1524,14 @@
 // git history/deploy notes: this and every prior fix back to v0.34.1 had never actually been pushed to
 // the live GitHub Pages site, which is the far more likely explanation for "still incorrect" reports
 // than a residual code bug.
-const CACHE_NAME = 'halo-0.34.7-alpha.1';
+// v0.34.8 -- testing locally (not the undeployed live site) confirmed the streak card's own layout, but
+// Dylon: "the streak card still isnt designed properly the main streak can be larger to match the other
+// cards and the weeks treak to match the sub text." Resizing the card down to grid-cell width in v0.34.7
+// had shrunk its text way past what the grid's own type scale uses. .streak-hero-days now matches
+// .stat-num exactly (22px/800, same as "13/90" or "47.2" on the neighboring cards), .streak-hero-weeks
+// now matches .stat-lbl (12.5px, same as "Sessions logged"/"km logged / planned"), and the badge/chevron
+// were sized back up in proportion so the card still reads as one cohesive design at the new type scale.
+const CACHE_NAME = 'halo-0.34.8-alpha.1';
 const APP_SHELL = [
   './index.html',
   './manifest.webmanifest',

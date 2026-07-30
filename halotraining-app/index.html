@@ -444,19 +444,23 @@ main{flex:1;padding:14px 14px 24px;max-width:560px;width:100%;margin:0 auto}
    sent the exact card he wants -- a colored icon badge, a big "N DAYS" number, a thin divider, "N WEEKS"
    underneath, and a chevron, on a soft amber gradient -- shipped as a full-width standalone card since
    that's how the mockup itself looked. Dylon: "the streak card is too wide it should be the same size as
-   the other grid items without changeing the design." v0.34.7 puts the exact same design back into a
-   normal .stat-grid cell (class="stat-card stat-card-streak") -- every element from the mockup is still
-   there, just scaled down to fit the grid's own card width instead of a full-width row. Uses the theme's
-   own --am/--am2/--am3 tokens for the gradient/badge/text either way, so it reads as the same warm
+   the other grid items without changeing the design." v0.34.7 put the exact same design back into a
+   normal .stat-grid cell (class="stat-card stat-card-streak"), but shrank the day/week text down too far
+   in the process -- Dylon, testing locally: "the streak card still isnt designed properly the main
+   streak can be larger to match the other cards and the weeks treak to match the sub text." v0.34.8:
+   .streak-hero-days now matches .stat-num exactly (22px/800), .streak-hero-weeks now matches .stat-lbl
+   (12.5px), and the badge/chevron were sized back up to stay proportional -- only the card's own overall
+   width changed between v0.34.6 and v0.34.7/8, never the type scale of its text. Uses the theme's own
+   --am/--am2/--am3 tokens for the gradient/badge/text either way, so it reads as the same warm
    cream-to-peach card in light theme and an equivalent dark-amber version in dark theme. ── */
-.stat-card-streak{display:flex;align-items:center;gap:8px;cursor:pointer;background:linear-gradient(135deg,var(--am3),var(--am2));border-color:var(--am2)}
-.streak-hero-badge{width:30px;height:30px;border-radius:50%;background:var(--am2);color:var(--am);display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.streak-hero-badge svg{width:17px!important;height:17px!important}
+.stat-card-streak{display:flex;align-items:center;gap:10px;cursor:pointer;background:linear-gradient(135deg,var(--am3),var(--am2));border-color:var(--am2)}
+.streak-hero-badge{width:38px;height:38px;border-radius:50%;background:var(--am2);color:var(--am);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.streak-hero-badge svg{width:21px!important;height:21px!important}
 .streak-hero-info{flex:1;min-width:0}
-.streak-hero-days{font-size:14px;font-weight:800;letter-spacing:.2px;color:var(--am);line-height:1.15;font-variant-numeric:tabular-nums;white-space:nowrap}
-.streak-hero-div{height:1px;width:32px;max-width:70%;background:var(--am2);margin:4px 0}
-.streak-hero-weeks{font-size:8.5px;font-weight:700;letter-spacing:.2px;color:var(--am);opacity:.8;white-space:nowrap}
-.streak-hero-chevron{width:14px;height:14px;color:var(--am);flex-shrink:0}
+.streak-hero-days{font-size:22px;font-weight:800;letter-spacing:.2px;color:var(--am);line-height:1.15;font-variant-numeric:tabular-nums}
+.streak-hero-div{height:1px;width:28px;max-width:70%;background:var(--am2);margin:3px 0}
+.streak-hero-weeks{font-size:12.5px;font-weight:600;letter-spacing:.1px;color:var(--am);opacity:.85;white-space:nowrap}
+.streak-hero-chevron{width:16px;height:16px;color:var(--am);flex-shrink:0}
 .streak-page-hero{display:flex;flex-direction:column;align-items:center;text-align:center;padding:6px 0 4px}
 .streak-page-flame{width:64px;height:64px;border-radius:50%;background:var(--am2);color:var(--am);display:flex;align-items:center;justify-content:center;margin-bottom:12px}
 .streak-page-flame svg{width:34px;height:34px}
@@ -1539,7 +1543,7 @@ main{flex:1;padding:14px 14px 24px;max-width:560px;width:100%;margin:0 auto}
    session-style restyle, race-target connection, iOS install fix, icon redesign, onboarding flow).
    APP_STAGE is 'alpha.N' pre-launch, bump N each time you hand a build to a real tester (Dylon's
    sister counts); once launched, APP_VERSION resets to 1.0.0 and APP_STAGE becomes ''. */
-const APP_VERSION='0.34.7';
+const APP_VERSION='0.34.8';
 const APP_STAGE='alpha.1';
 const APP_VERSION_DATE='2026-07-30';
 /* ═══════════════════════════ DATA ═══════════════════════════ */
