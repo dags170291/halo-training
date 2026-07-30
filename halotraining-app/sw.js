@@ -1585,7 +1585,16 @@
 // (same activityIsNativeToSession() guard the v0.34.9 fix already uses for totals) and, when one
 // exists, renderTrendDayRows()/renderTrendDurationDayRows() now show its own title and open its own
 // detail page instead of the plan session's.
-const CACHE_NAME = 'halo-0.34.13-alpha.1';
+// v0.34.14 -- Weekly Zone Time redesign. Dylon, with a screenshot of the old single-bar chart: "this
+// is useless as is there is nothing that says which colour is which zone it isnt interactive or
+// nothng ... find something else." The stacked-bar-per-week chart (one hover-only title="..." tooltip
+// per segment, no legend anywhere on the card) is replaced with a per-week donut -- reusing the exact
+// geometry/interaction the per-activity Effort card's HR zone donut already established -- plus an
+// always-visible legend underneath: every zone's color dot, name, bpm/pace range, and time shown at
+// once, not just the one you tap. Tapping a wedge or a legend row still highlights that zone in the
+// center readout (defaulting to the week's real total time, not a blank "Tap a zone" placeholder), and
+// a week picker now lets you flip between individual weeks instead of squinting at tiny stacked bars.
+const CACHE_NAME = 'halo-0.34.14-alpha.1';
 const APP_SHELL = [
   './index.html',
   './manifest.webmanifest',

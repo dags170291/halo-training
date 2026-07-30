@@ -315,6 +315,14 @@ main{flex:1;padding:14px 14px 24px;max-width:560px;width:100%;margin:0 auto}
 .hrzone-chiprow{display:flex;border-radius:10px;overflow:hidden}
 .hrzone-chip{flex:1;text-align:center;padding:8px 3px;font-size:10.5px;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;transition:background .15s ease,color .15s ease}
 .hrzone-chip:not(.selected):hover{background:var(--s3)}
+/* v0.34.14 -- Weekly Zone Time's persistent legend: unlike the per-activity donut's chip row (a
+   compact bpm-range-only strip, fine since that chart already had a caption spelling out the
+   selected zone's name), this card's whole complaint was "nothing says which colour is which zone" --
+   so every zone's color dot, name, range, and time show here always, not just after a tap. */
+.zonewk-legend{display:flex;flex-direction:column;gap:2px;margin-top:2px}
+.zonewk-legend-row{display:flex;align-items:center;gap:10px;padding:7px 6px;border-radius:8px;cursor:pointer;transition:background .15s ease}
+.zonewk-legend-row:hover,.zonewk-legend-row.selected{background:var(--s2)}
+.zonewk-legend-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
 
 /* ── quick add (ad-hoc run/walk/weight logging) ── */
 .qa-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:4px}
@@ -1547,7 +1555,7 @@ main{flex:1;padding:14px 14px 24px;max-width:560px;width:100%;margin:0 auto}
    session-style restyle, race-target connection, iOS install fix, icon redesign, onboarding flow).
    APP_STAGE is 'alpha.N' pre-launch, bump N each time you hand a build to a real tester (Dylon's
    sister counts); once launched, APP_VERSION resets to 1.0.0 and APP_STAGE becomes ''. */
-const APP_VERSION='0.34.13';
+const APP_VERSION='0.34.14';
 const APP_STAGE='alpha.1';
 const APP_VERSION_DATE='2026-07-30';
 /* ═══════════════════════════ DATA ═══════════════════════════ */
@@ -3618,8 +3626,8 @@ function weeklyPaceZoneTotals(wk){
 }
 // Trailing window of weeks (up to whichever week is currently elapsed, same racePredWeeksElapsed()
 // the Race Predictions/PB Progression trends already anchor to) that actually have zone data for the
-// stacked-bar chart -- skips weeks with no eligible activity rather than showing an empty bar for it,
-// the same "gap not zero" convention allWeeklyWeight()/allWeeklyPaceSpeed() already use.
+// chart -- skips weeks with no eligible activity rather than showing an empty entry for it, the same
+// "gap not zero" convention allWeeklyWeight()/allWeeklyPaceSpeed() already use.
 function zoneTimeTrendWeeks(type,weekCount){
   const weeksElapsed=racePredWeeksElapsed();
   if(!weeksElapsed) return [];
@@ -3635,34 +3643,120 @@ function zoneTimeTrendWeeks(type,weekCount){
 // HR_ZONE_BAR_COLORS/PACE_ZONE_BAR_COLORS bars already use, shared here since a week's zone count can
 // be either scheme's own length (5 for HR, 6 for Pace) and both index the same ramp by zone number.
 const ZONE_TREND_BAR_COLORS=['--dur','--gr','--gold','--am','--ign','--re'];
-// One stacked bar per week: each bar's total height is proportional to that week's total zone time
-// relative to the window's max (via flex-grow on a trailing spacer, so every bar shares one common
-// height unit rather than each being independently normalized to its own 100%), with zones stacked
-// bottom-up (easiest zone at the bottom) inside a flex-direction:column-reverse container -- the
-// spacer div is placed LAST in DOM order so it renders visually at the top, as empty space above a
-// shorter week's bar.
-function renderZoneTimeTrendChart(weeksData){
+// v0.34.14 -- the original stacked-bar-per-week chart had no legend anywhere on the card itself (only
+// a title="..." hover tooltip on each colored segment, useless on a touchscreen), and Dylon called it
+// out directly with a screenshot of a single flat bar: "this is useless as is there is nothing that
+// says which colour is which zone it isnt interactive or nothng ... find something else." Replaced
+// with a real per-week donut (reusing the exact geometry/interaction pattern the per-activity Effort
+// card's HR zone donut already established -- activityHRZonePieSlices/hrZoneAnnularPath/
+// hrZonePolarPoint below) plus a legend that's ALWAYS visible underneath it, not just on tap: every
+// zone's color dot, name, bpm/pace range, and time shown at once. Tapping a wedge or a legend row
+// still highlights that zone in the center readout, and a week picker lets you flip between weeks
+// instead of trying to compare several tiny stacked bars side by side.
+// Selection state, one slot per scheme so switching the Heart Rate/Pace toggle doesn't clobber the
+// other's in-progress selection -- same pattern CURR_ZONE_TREND_TYPE itself already established.
+let ZONE_TREND_WK={hr:null,pace:null};
+let ZONE_TREND_SELIDX={hr:null,pace:null};
+function selectZoneTrendWeek(type,wk){
+  ZONE_TREND_WK[type]=wk;
+  ZONE_TREND_SELIDX[type]=null;
+  renderProgress();
+}
+function selectZoneTrendSlice(type,idx){
+  ZONE_TREND_SELIDX[type]=(ZONE_TREND_SELIDX[type]===idx)?null:idx;
+  renderProgress();
+}
+// weeklyHRZoneTotals/weeklyPaceZoneTotals return {label,name,sec} with no pct -- unlike
+// activityHRZoneBreakdown, which computes pct against that one activity's own total. Derived locally
+// here instead of changing those two functions' return shape, since test_phase3_analytics_batch.js
+// already asserts their exact fields and other callers (zoneTimeTrendWeeks) don't need pct at all.
+function zonesWithPct(zones){
+  const total=zones.reduce((s,z)=>s+z.sec,0);
+  return zones.map(z=>({...z,pct:total>0?Math.round(z.sec/total*100):0}));
+}
+// Static reference range for one zone's legend row -- HR reads the same saved bpm bounds Profile's
+// own zone list and the per-activity chip row already show (currentHRZones()); Pace converts
+// PACE_ZONE_BANDS' %-of-threshold bounds into an actual min/km range via the same estimated threshold
+// pace estimatedThresholdPaceSecPerKm() already feeds activityPaceZoneBreakdown. Pace zones run
+// fastest-to-slowest as %-of-threshold climbs, so the open-ended ends (Zone 1's slow tail, Zone 6's
+// fast tail) read as "X+/km" / "Sub-X/km" rather than a dangling bound.
+function zoneTrendRangeLabel(type,i){
+  if(type==='pace'){
+    const thresh=estimatedThresholdPaceSecPerKm();
+    const band=PACE_ZONE_BANDS[i];
+    if(!thresh||!band) return '';
+    const fastSec=thresh*band.minPct/100, slowSec=thresh*band.maxPct/100;
+    if(band.maxPct===Infinity) return `${fmtPaceFromSecPerKm(fastSec)}+/km`;
+    if(band.minPct===0) return `Sub-${fmtPaceFromSecPerKm(slowSec)}/km`;
+    return `${fmtPaceFromSecPerKm(fastSec)}-${fmtPaceFromSecPerKm(slowSec)}/km`;
+  }
+  const hz=currentHRZones();
+  const method=(hz&&hz.method)||'karvonen';
+  if(!hz||!hz.zones||!hz.zones[i]) return '';
+  return `${hz.zones[i][method][0]}-${hz.zones[i][method][1]} bpm`;
+}
+// Donut + always-visible legend for one week's zone breakdown, plus a week picker when the trailing
+// window has more than one real week of data. Mirrors activityHRZoneChartHTML's donut/center/callout
+// assembly almost exactly (same SVG geometry helpers, same ZONE_TREND_BAR_COLORS ramp) but keyed by
+// scheme+week instead of by activity id, and with a persistent legend list standing in for the old
+// per-activity chip row (a legend is the right call here since there's no fixed "Effort card" caption
+// underneath to spell out the selected zone the way the per-activity version has).
+function renderZoneTrendDonut(type,weeksData,wk){
   if(!weeksData.length) return `<div style="font-size:11px;color:var(--t3);text-align:center;padding:20px 0">Not enough zone data yet — log HR or pace on a few more runs.</div>`;
-  const totals=weeksData.map(w=>w.zones.reduce((s,z)=>s+z.sec,0));
-  const maxTotal=Math.max(...totals,1);
-  const BAR_H=120;
-  const bars=weeksData.map((w,i)=>{
-    const total=totals[i];
-    const segs=w.zones.filter(z=>z.sec>0).map(z=>{
-      const zoneNum=parseInt((z.label||'').replace(/\D/g,''),10);
-      const color=ZONE_TREND_BAR_COLORS[(zoneNum||1)-1]||'--accent';
-      return `<div style="flex:${z.sec} 0 auto;background:var(${color})" title="${escAttr(z.label)} · ${escAttr(z.name)}: ${fmtDurationSec(z.sec)}"></div>`;
-    }).join('');
-    const spacerFlex=Math.max(maxTotal-total,0.0001);
-    return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0">
-      <div style="width:100%;max-width:28px;height:${BAR_H}px;display:flex;flex-direction:column-reverse;border-radius:3px;overflow:hidden;background:var(--s2)">
-        ${segs}
-        <div style="flex:${spacerFlex} 0 auto"></div>
+  const weekEntry=weeksData.find(w=>w.wk===wk)||weeksData[weeksData.length-1];
+  const zones=zonesWithPct(weekEntry.zones);
+  const selIdx=ZONE_TREND_SELIDX[type];
+  const weekPicker=weeksData.length>1?`<div class="trend-pills" style="margin-bottom:10px">${weeksData.map(w=>`<button class="trend-pill${w.wk===weekEntry.wk?' active':''}" onclick="selectZoneTrendWeek('${type}',${w.wk})">W${w.wk}</button>`).join('')}</div>`:'';
+  const size=ACT_HRZONE_DONUT_SIZE,cx=size/2,cy=size/2,rOuter=ACT_HRZONE_DONUT_R_OUTER,rInner=ACT_HRZONE_DONUT_R_INNER;
+  const slices=activityHRZonePieSlices(zones).filter(s=>s.sweepDeg>0.05);
+  const hasSel=selIdx!=null?' has-selection':'';
+  const paths=slices.map(s=>{
+    const d=hrZoneAnnularPath(cx,cy,rOuter,rInner,s.startAngle,s.endAngle);
+    const color=ZONE_TREND_BAR_COLORS[s.idx]||'--accent';
+    const z=s.zone;
+    const sel=selIdx===s.idx?' selected':'';
+    return `<path class="hrzone-slice${sel}" data-idx="${s.idx}" d="${d}" fill="var(${color})" stroke="var(--s1)" stroke-width="2" onclick="selectZoneTrendSlice('${type}',${s.idx})"><title>${escAttr(z.label)} · ${escAttr(z.name)}: ${fmtDurationSec(z.sec)} (${z.pct}%)</title></path>`;
+  }).join('');
+  const totalSec=zones.reduce((s,z)=>s+z.sec,0);
+  const hasSelZone=selIdx!=null&&zones[selIdx]&&zones[selIdx].sec>0;
+  const center=hasSelZone?`<div class="hrzone-donut-center">
+    <div class="hrzone-dc-sub">${escAttr(zones[selIdx].label)}</div>
+    <div class="hrzone-dc-main">${zones[selIdx].pct}%</div>
+    <div class="hrzone-dc-unit">${fmtDurationSec(zones[selIdx].sec)}</div>
+  </div>`:`<div class="hrzone-donut-center">
+    <div class="hrzone-dc-sub">Total Time</div>
+    <div class="hrzone-dc-main" style="font-size:15px">${fmtDurationSec(totalSec)}</div>
+    <div class="hrzone-dc-unit">Week ${weekEntry.wk}</div>
+  </div>`;
+  let callout='';
+  if(hasSelZone){
+    const s=slices.find(sl=>sl.idx===selIdx);
+    if(s){
+      const midAngle=(s.startAngle+s.endAngle)/2;
+      const pt=hrZonePolarPoint(cx,cy,rOuter+16,midAngle);
+      const x=Math.max(30,Math.min(size-30,pt.x));
+      const y=Math.max(12,Math.min(size-12,pt.y));
+      callout=`<div class="hrzone-callout" style="left:${x.toFixed(1)}px;top:${y.toFixed(1)}px">${escAttr(zones[selIdx].name)} ${fmtDurationSec(zones[selIdx].sec)}</div>`;
+    }
+  }
+  const donut=`<div class="hrzone-donut-wrap"><svg class="hrzone-pie${hasSel}" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">${paths}</svg>${center}${callout}</div>`;
+  const legend=zones.map((z,i)=>{
+    const color=ZONE_TREND_BAR_COLORS[i]||'--accent';
+    const sel=selIdx===i;
+    const range=zoneTrendRangeLabel(type,i);
+    return `<div class="zonewk-legend-row${sel?' selected':''}" onclick="selectZoneTrendSlice('${type}',${i})">
+      <span class="zonewk-legend-dot" style="background:var(${color})"></span>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12.5px;font-weight:700;color:var(--t1)">${escAttr(z.label)} · ${escAttr(z.name)}</div>
+        ${range?`<div style="font-size:10.5px;color:var(--t3)">${escAttr(range)}</div>`:''}
       </div>
-      <div style="font-size:9.5px;color:var(--t3)">W${w.wk}</div>
+      <div style="text-align:right;flex-shrink:0">
+        <div style="font-size:12.5px;font-weight:700;color:${z.sec>0?'var(--t1)':'var(--t3)'}">${z.sec>0?fmtDurationSec(z.sec):'—'}</div>
+        ${z.sec>0?`<div style="font-size:10.5px;color:var(--t3)">${z.pct}%</div>`:''}
+      </div>
     </div>`;
   }).join('');
-  return `<div style="display:flex;align-items:flex-end;gap:6px;padding:8px 4px 0;overflow-x:auto">${bars}</div>`;
+  return `${weekPicker}${donut}<div class="zonewk-legend">${legend}</div>`;
 }
 // Card wrapper for the Progress tab, its own section below Activity Trends -- HR/Pace toggle pills
 // only show when both schemes actually have at least one week of data, same gating pattern the Best
@@ -3675,14 +3769,15 @@ function zoneTimeTrendCardHTML(){
   const type=(CURR_ZONE_TREND_TYPE==='pace'&&paceWeeks.length)?'pace':(hrWeeks.length?'hr':'pace');
   const weeksData=type==='pace'?paceWeeks:hrWeeks;
   const showToggle=hrWeeks.length && paceWeeks.length;
+  const wk=(ZONE_TREND_WK[type]&&weeksData.some(w=>w.wk===ZONE_TREND_WK[type]))?ZONE_TREND_WK[type]:weeksData[weeksData.length-1].wk;
   return `<div class="section-lbl" style="margin-top:14px">Weekly Zone Time</div>
     <div class="card">
       ${showToggle?`<div class="trend-pills">
         <button class="trend-pill${type==='hr'?' active':''}" onclick="selectZoneTrendType('hr')">Heart Rate</button>
         <button class="trend-pill${type==='pace'?' active':''}" onclick="selectZoneTrendType('pace')">Pace</button>
       </div>`:''}
-      ${renderZoneTimeTrendChart(weeksData)}
-      <div style="font-size:10.5px;color:var(--t3);margin-top:8px;line-height:1.4">Time spent in each ${type==='pace'?'pace':'heart rate'} zone per week, across your last ${weeksData.length} logged week${weeksData.length===1?'':'s'}.</div>
+      ${renderZoneTrendDonut(type,weeksData,wk)}
+      <div style="font-size:10.5px;color:var(--t3);margin-top:8px;line-height:1.4">Time spent in each ${type==='pace'?'pace':'heart rate'} zone during Week ${wk}, out of your last ${weeksData.length} logged week${weeksData.length===1?'':'s'}. Tap a zone for its share of that week.</div>
     </div>`;
 }
 // A 0..1 "how hard/fast" fraction -> an interpolated color, across the same five-stop low-to-high
@@ -5851,7 +5946,7 @@ let CURR_RUN_SUBTAB='vol';
 // switching pills keeps whichever of Volume/Time you were already looking at.
 let CURR_TREND_METRIC='vol';
 // Weekly Zone Time Trends card (ANALYTICS_ROADMAP.md Phase 3) -- which zone scheme (HR or Pace) the
-// stacked-bar trend is currently showing. Defaults to HR since the HR Zone Calculator is the more
+// donut+legend is currently showing. Defaults to HR since the HR Zone Calculator is the more
 // commonly-set-up prerequisite of the two; selectZoneTrendType() flips it without touching CURR_TREND,
 // since this card is its own section below Activity Trends, not one of its pills.
 let CURR_ZONE_TREND_TYPE='hr';
