@@ -109,13 +109,15 @@ function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
     result: (logBodyRace.includes('Edit Race Details') && raceKeyInButton===testRace.key && !logBodyEasy.includes('Edit Race Details')) ? 'PASS' : 'FAIL'
   });
 
-  // ---- Test 7: tapping Edit Race Details (openRaceDetail) opens the Plans sheet directly in EDIT
+  // ---- Test 7: tapping Edit Race Details (openRaceDetail) opens the Races page directly in EDIT
   // mode for that exact race -- not just a read-only view -- regardless of having been reached from
-  // a session opened via Schedule/Today rather than the Races tab ----
-  win.eval(`document.getElementById('plans-overlay').classList.remove('open'); RACE_EDIT_KEY=null;`);
+  // a session opened via Schedule/Today rather than the Races page itself. Races moved out of the
+  // Plans popup sheet into its own page (#view-races, see test_races_page.js) -- openRaceDetail now
+  // calls switchView('races') instead of opening #plans-overlay. ----
+  win.eval(`CURR_VIEW='today'; RACE_EDIT_KEY=null;`);
   win.eval(`openRaceDetail('${testRace.key}')`);
-  console.log('Test 7 (Edit Race Details opens the Plans sheet directly in edit mode for that race):', {
-    result: (win.eval(`RACE_EDIT_KEY`)===testRace.key && win.eval(`document.getElementById('plans-overlay').classList.contains('open')`)) ? 'PASS' : 'FAIL'
+  console.log('Test 7 (Edit Race Details opens the Races page directly in edit mode for that race):', {
+    result: (win.eval(`RACE_EDIT_KEY`)===testRace.key && win.eval(`CURR_VIEW`)==='races' && win.eval(`document.getElementById('view-races').classList.contains('active')`)) ? 'PASS' : 'FAIL'
   });
 
   await wait(200);

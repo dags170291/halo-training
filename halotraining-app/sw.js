@@ -1375,7 +1375,156 @@
 // instead of the small uppercase .section-lbl eyebrow style, card padding was bumped up throughout,
 // and the per-metric chart is now headed by the metric actually showing (e.g. "Pace") instead of a
 // generic "Over the Activity" label, sitting inside a real card like every other section now does.
-const CACHE_NAME = 'halo-0.32.40-alpha.1';
+// v0.32.38 -- Activities-tab toolbar redesign: the inline "+ Import Activity" button is gone,
+// replaced by the same shared Add-Activity FAB Today/Schedule already had; a real search box now
+// filters the list by title, with the filter pills tucked behind a toggle icon instead of always
+// showing; and "Needs Review" moved from a filter pill to its own flag icon with a count badge,
+// opening a sheet that also lets a genuinely standalone activity be dismissed from review for good.
+// v0.32.39 -- two follow-up fixes: Today reverted from the center tab back to leading the nav (Dylon
+// didn't like the v0.32.38 move), and the FAB icon's color changed to white for contrast against its
+// accent-blue background; the Needs Review icon also changed from a hand-authored flag to a bookmark.
+// v0.32.40 -- every icon touched across v0.32.38/39 got replaced again with Dylon's own supplied SVGs:
+// the FAB now shows a real plus/X pair swapped by open state (not one static icon), the filter toggle
+// uses a proper filter-list glyph, Needs Review uses a dedicated review icon (not the bookmark), and
+// the Activities tab's own nav icon uses its own dedicated glyph instead of borrowing the FAB's.
+// v0.33.0 -- Dylon: "Turn races into an actual page instead of just a pop up. give it a search field
+// and filter similar to activities as well." Races moved out of the Plans sheet's old "Race Calendar"
+// tab into its own real page (#view-races, same architecture Profile already used -- reached via the
+// desktop sidebar's Races button and a new mobile Tools-sheet row, not a new bottom-nav tab), with a
+// search box (matches name + location) and the existing block/distance filter chips now tucked behind
+// a toggle icon, mirroring the Activities tab's own pattern. Plans is Season-Blocks-only now.
+// v0.33.1 -- three follow-up fixes/requests on the new Races page. (1) Fixed: "Manage Races" from a
+// block card or the block detail pane did nothing visible -- openRaces()/openRaceDetail() never
+// closed the still-open Plans sheet before switching views, so the Races page rendered underneath it,
+// invisible. (2) Dylon: "make the add race form a pop up" -- the add/edit form is a real overlay
+// (#race-form-overlay) now instead of rendering inline on the Races page. (3) Dylon: "add the ability
+// to add races from the FAB as well" -- the Add-Activity FAB has a new "Add Race" item that opens the
+// same popup from any page, no need to navigate to Races first.
+// v0.33.2 -- Dylon (with a screenshot): "plot points on graphs are blown up when in desktop mode."
+// The Weekly Volume, Race Predictions/PB Progression, and Block Comparison charts all stretch a
+// fixed-width SVG to the card's fluid width via preserveAspectRatio="none" -- correct for the lines/
+// area fill, but their point-marker <circle>s lived in that same coordinate space and got stretched
+// into wide ellipses once the real rendered width (desktop) grew well past the chart's 320-unit
+// viewBox. Moved the dots out of the SVG into real, absolutely-positioned HTML circles -- the same
+// fix already applied to these charts' own text labels in an earlier version, just missed for the
+// dots at the time.
+// v0.34.0 -- five follow-up requests from a single message, with screenshots of mismatched km-logged
+// numbers and Strava's own time/streak UI. (1) Fixed a real bug: loggedDist()/sessionDurationSec()
+// (driving the "km logged"/"Total time logged" stats) prioritized a session's own stale hand-typed
+// NOTES value over a linked fulfilling Activity's real one -- the opposite priority from
+// sessionMetric() (driving the weekly trend chart) -- so the two numbers could genuinely disagree for
+// a session that kept an old hand-typed figure after later getting a real Activity linked. Both now
+// defer to a fulfilling Activity first, matching sessionMetric()'s own priority. (2) Fixed a second,
+// distinct dot bug beyond v0.33.2's "blown up" fix: renderRacePredTrendChart's padding-right:32px
+// wrapper meant its dot overlay's 0%-100% coordinate space (measured against the padded box per the
+// CSS spec) didn't match the SVG's own narrower rendered width, drifting dots right of the line --
+// fixed by nesting an unpadded inner wrapper around just the SVG + dot overlay. (3) Added a Time view
+// to Activity Trends -- Dylon: "strava has time in activity I will like a graph that shows time per
+// activity (Run, walk, Strength, and Mobility)" -- Run gets a 4th subtab, Walk/Strength/Mobility get a
+// new Weekly Volume/Time toggle, both driven by the same renderTrendAreaChart used everywhere else in
+// this card. (4) Built a real Strava-style streak page (reached by tapping the existing streak stat
+// card in Progress): a big current-streak number, longest-streak/active-days stats, a month calendar
+// with a small activity-type icon on every logged day, month navigation capped at the real current
+// month, and a Share button -- built entirely on the app's existing, unmodified streak math. (5)
+// Verified, not built: editing an imported activity's type on the import confirmation screen was
+// already fully implemented and tested (importEditFieldsHTML's Type select) before this request.
+// v0.34.1 -- two follow-ups on v0.34.0. (1) Dylon: "in the activity trends i see my mobility that i
+// upload dont get included... activity trends is supposed to give data for all actities entering the
+// app whether it is part of the training block or not." Root cause: weekMetricTotal()/
+// weekDurationTotal() bucketed standalone EXTRALOGS/ACTIVITIES entries by weekForDate() -- which finds
+// the nearest PLANNED session by date-diff. A sparse plan week can nearest-match a standalone log
+// logged near a week boundary into the WRONG adjacent week -- not dropped, just silently miscounted
+// in a week you weren't looking at. New trendCalWeek() buckets these by pure Monday-anchored calendar
+// math off the block's own week-1 start instead, used only by Activity Trends (every other
+// weekForDate() consumer is untouched). (2) Dylon: "add a right chevron on the streak card that shows
+// if you click it that it has more data. I also want to track both daily and weekly streaks in the
+// same card... split that card into week and day. give it a new design." The Progress streak card
+// moved out of the 2-column stat-grid into its own full-width row showing a Day streak and a new Week
+// streak (currentWeekStreak()/longestWeekStreak() -- a week counts if any day inside it has activity)
+// side by side, with a right chevron to the Streak page, replacing the old "Current streak · Longest:
+// N days" line. The Streak page's own hero shows the same Day/Week split.
+// v0.34.2 -- two more follow-ups, right after v0.34.1. (1) Dylon: "the streak card is to remain the
+// same size as the other cards in the grid just split in 2 to fit both week and daily streaks" -- the
+// streak card moved back inside the 2-column .stat-grid as one normal-sized cell (same footprint as its
+// neighbors), with a compact Day/Week split and a small chevron instead of the short-lived full-width
+// card from v0.34.1. (2) Dylon: "i have 2 strength sessions marked off but 1 only recorded i also have
+// several post run mobility but those dont get loaded in... the point is with activity trends i get to
+// track how many activities and time in activity i have recorded." Root cause, confirmed with a direct
+// reproduction: a session used to bail out of Activity Trends entirely once ANY fulfilling Activity was
+// linked, trusting a separate loop to re-add its number by matching that Activity's own `.type` field --
+// fragile, since an imported/logged Activity's `.type` is often something generic like 'workout'
+// (inferActivityType()'s own fallback for a file with no GPS/sport-string match), silently dropping the
+// whole session. Fixed: a session's own contribution now always comes from sessionMetric()/
+// sessionDurationSec() (which already pull a linked Activity's real numbers regardless of its `.type`),
+// and the Activities loop only independently adds non-fulfillment (accessory/standalone) Activities, so
+// nothing is ever double-counted either.
+// v0.34.3 -- two more follow-ups on the same Progress screenshot. (1) Dylon: "there is enough room for
+// the icon, please put it back" -- the compact streak card's flame icon, dropped entirely in v0.34.2's
+// resize for space, is back at the card's leading edge (a small .streak-mini-flame wrapper), with the
+// Day/Week split's inner gap tightened from 8px to 6px to make room. (2) Dylon, still seeing wrong
+// running totals after v0.34.2's fix: "I don't know why we are getting the activity trends so wrong the
+// running km that is. why is it so hard to just add up individual running stats?" Root cause: a bug I
+// introduced myself while fixing the previous week's misattribution issue. v0.34.1's new trendCalWeek()
+// bucketed standalone activities into Monday-Sunday calendar weeks, but a block's real week boundaries
+// are NOT necessarily Monday-Sunday -- parsePlanJSON() (and every hand-authored block) assigns each
+// planned session's date as BLOCK_START + (week-1)*7 + day, anchored to whatever weekday BLOCK_START
+// itself falls on. Block 5's real seeded BLOCK_START (2026-07-19) is a Sunday, not a Monday, so forcing
+// Monday-anchored weeks shifted every standalone log's bucket away from the plan's own actual week
+// boundary. Fixed: trendCalWeek() now uses the same (days since BLOCK_START)/7 day-offset formula the
+// plan itself uses, so a standalone log always lands in exactly the same week a planned session on that
+// same real date would. mondayOfDate() is untouched and still used (correctly) by the week-streak
+// functions, which are a genuinely different, plan-independent concept.
+// v0.34.4 -- two corrections after the v0.34.3 round turned out to have partly chased the wrong
+// problem. Dylon, with a screenshot proving the Activity Trends weekly numbers were right all along
+// (matching what he saw on Strava): "how u were calculating the data wasnt incorrect infact that
+// version lined up perfectly to what i was seeing on strava. the issue is the total km logged (in the
+// activity grid) was giving incorrect figures 28 in week 1 and 20 in week 2 is 48km but the total km
+// logged was 53. that is incorrect." Real root cause: weekActualKm() (feeding the "km logged / planned"
+// stat, weeklyConsistency(), and Mileage by Week -- all explicitly "run-plan-specific" by design)
+// summed every session marked done in a week with no session-type filter at all, unlike the correct
+// Activity Trends weekly total, which only ever looks at run-type sessions. A non-run session (Strength,
+// Mobility) that happened to have a distance attached silently inflated "km logged" past the true
+// running total -- nothing to do with week-bucketing, which was already fixed and correct. Now filtered
+// to run-type sessions only. (2) Dylon on the streak card, after three rounds of progressively-shrunk
+// redesigns: "the streak card the icon is now too small and the you removed the colour. all that was
+// required was to add the week streaks in place of the sub text." Reverted to the original
+// single-hero-number layout -- a real colored icon badge next to the big day-streak number -- with only
+// the old "Longest: N days" subtext swapped for the week streak.
+// v0.34.5 -- the real fix for "when i imported mobility sessions i.e. post run stretch this data didnt
+// get loaded in the activity trends," found after asking Dylon directly what Type the affected activity
+// showed as (rather than guessing again): "It already says Mobility." That ruled out import
+// misclassification and pointed at the counting logic. Root cause, reproduced directly: a correctly
+// Type-confirmed 'mobility' Activity attached with role:'fulfillment' to a RUN session (e.g. a post-run
+// stretch imported as its own file and marked "Fulfills this" on that day's run, instead of "Attach as
+// extra") was completely invisible to the Mobility trend. Every Activities-loop in weekMetricTotal/
+// weekDurationTotal/renderTrendDayRows/renderTrendDurationDayRows skipped EVERY fulfillment-role
+// Activity outright, assuming its number is always already folded into its linked session's own
+// contribution -- true when a Strength Activity fulfills a Strength session, but the run session's own
+// sessionMetric('mob') is null (it's not a mobility session), so nothing ever counted this Activity's
+// real number. Fixed with activityFulfillmentAlreadyCounted(a,type): a fulfillment-role Activity is only
+// skipped now when its OWN linked session actually matches the trend type being computed.
+// v0.34.6 -- two corrections after Dylon laid out his exact real logged data by hand. (1) Activity
+// Trends week totals: "you may be counting mon-sun but the figures are actually incorrect you are
+// inflating the numbers in the weekly trend." v0.34.3's BLOCK_START-anchored trendCalWeek() (BLOCK_START
+// 2026-07-19, a Sunday) put week 1's boundary at Saturday, misattributing Sunday's Recovery Run into
+// "Week 2" -- inflating it by 2.7km relative to the real Monday-Sunday split Dylon's own data proved
+// correct (Mon 20 - Sun 26 = 28.2km exactly, Mon 27 onward = the next week). The block's own plan data
+// even says so directly: BLOCK_START is described as a prep day, "the block runs Monday to Sunday."
+// trendCalWeek() now anchors to the first real Monday on-or-after BLOCK_START instead of BLOCK_START's
+// own weekday. (2) Streak card: Dylon designed and sent his own exact mockup -- "here is the design you
+// are to use" -- a wide standalone hero card (icon badge, big "N DAYS", divider, "N WEEKS", chevron) on
+// a soft amber gradient, replacing the grid-cell version from every prior round.
+// v0.34.7 -- Dylon: "the streak card is too wide it should be the same size as the other grid items
+// without changeing the design." The exact v0.34.6 mockup (icon badge, N DAYS, divider, N WEEKS,
+// chevron, amber gradient) moved back into a normal .stat-grid cell, scaled down to fit -- no design
+// elements removed, just resized. He also reported still seeing wrong weekly run km and no mobility in
+// Activity Trends on the live site; both the trendCalWeek() Monday-anchor fix (v0.34.6) and the
+// fulfillment-type-mismatch fix (v0.34.5) were re-verified this round against his exact real logged
+// data and still hold (28.2km/14.5km weekly split, mobility-fulfilling-a-run-session counted) -- see
+// git history/deploy notes: this and every prior fix back to v0.34.1 had never actually been pushed to
+// the live GitHub Pages site, which is the far more likely explanation for "still incorrect" reports
+// than a residual code bug.
+const CACHE_NAME = 'halo-0.34.7-alpha.1';
 const APP_SHELL = [
   './index.html',
   './manifest.webmanifest',

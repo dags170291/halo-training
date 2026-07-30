@@ -433,11 +433,52 @@ main{flex:1;padding:14px 14px 24px;max-width:560px;width:100%;margin:0 auto}
 .streak-num{font-size:19px;font-weight:800}
 .streak-lbl{font-size:12.5px;color:var(--t3);margin-top:2px}
 .stat-card{background:var(--s1);border:1px solid var(--b1);border-radius:var(--r14);padding:14px}
-.stat-card-streak{display:flex;align-items:center;gap:10px}
-.stat-card-streak .streak-flame{width:34px;height:34px}
-.stat-card-streak .streak-num{font-size:16px}
 .stat-num{font-size:22px;font-weight:800;color:var(--accent);font-variant-numeric:tabular-nums}
 .stat-lbl{font-size:12.5px;color:var(--t3);margin-top:2px}
+/* ── Strava-style streak card + page (v0.33.3 → v0.34.7) — Dylon: "i think we should implement strava
+   streak ui as well please," with Strava screenshots showing a big streak number, a month calendar grid
+   with a small activity-type icon per logged day, and a Share action. v0.34.1-v0.34.4 chased "add a
+   right chevron... track both daily and weekly streaks in the same card" through four redesigns inside
+   the 2-column .stat-grid -- a full-width row (broke the grid), a chevron+mini-split cell, a bare 18px
+   flame with no background, then a reverted single-hero-number grid cell. v0.34.6: Dylon designed and
+   sent the exact card he wants -- a colored icon badge, a big "N DAYS" number, a thin divider, "N WEEKS"
+   underneath, and a chevron, on a soft amber gradient -- shipped as a full-width standalone card since
+   that's how the mockup itself looked. Dylon: "the streak card is too wide it should be the same size as
+   the other grid items without changeing the design." v0.34.7 puts the exact same design back into a
+   normal .stat-grid cell (class="stat-card stat-card-streak") -- every element from the mockup is still
+   there, just scaled down to fit the grid's own card width instead of a full-width row. Uses the theme's
+   own --am/--am2/--am3 tokens for the gradient/badge/text either way, so it reads as the same warm
+   cream-to-peach card in light theme and an equivalent dark-amber version in dark theme. ── */
+.stat-card-streak{display:flex;align-items:center;gap:8px;cursor:pointer;background:linear-gradient(135deg,var(--am3),var(--am2));border-color:var(--am2)}
+.streak-hero-badge{width:30px;height:30px;border-radius:50%;background:var(--am2);color:var(--am);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.streak-hero-badge svg{width:17px!important;height:17px!important}
+.streak-hero-info{flex:1;min-width:0}
+.streak-hero-days{font-size:14px;font-weight:800;letter-spacing:.2px;color:var(--am);line-height:1.15;font-variant-numeric:tabular-nums;white-space:nowrap}
+.streak-hero-div{height:1px;width:32px;max-width:70%;background:var(--am2);margin:4px 0}
+.streak-hero-weeks{font-size:8.5px;font-weight:700;letter-spacing:.2px;color:var(--am);opacity:.8;white-space:nowrap}
+.streak-hero-chevron{width:14px;height:14px;color:var(--am);flex-shrink:0}
+.streak-page-hero{display:flex;flex-direction:column;align-items:center;text-align:center;padding:6px 0 4px}
+.streak-page-flame{width:64px;height:64px;border-radius:50%;background:var(--am2);color:var(--am);display:flex;align-items:center;justify-content:center;margin-bottom:12px}
+.streak-page-flame svg{width:34px;height:34px}
+.streak-page-split{display:flex;align-items:center;gap:28px}
+.streak-page-split-col{text-align:center}
+.streak-page-num{font-size:34px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums}
+.streak-page-lbl{font-size:12.5px;color:var(--t3);margin-top:4px}
+.streak-page-sub-lbl{font-size:10.5px;color:var(--t3);margin-top:3px}
+.streak-page-split-sep{width:1px;height:44px;background:var(--b1)}
+.streak-page-active-days{font-size:11.5px;color:var(--t3);margin-top:16px}
+.streak-cal-nav{display:flex;align-items:center;justify-content:space-between;margin:20px 0 10px}
+.streak-cal-nav button{background:var(--s2);border:none;border-radius:50%;width:30px;height:30px;display:flex;align-items:center;justify-content:center;color:var(--t2);flex-shrink:0}
+.streak-cal-nav button svg{width:16px;height:16px}
+.streak-cal-nav button:disabled{opacity:.3}
+.streak-cal-month-lbl{font-size:14px;font-weight:800}
+.streak-day-cell{aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;border-radius:10px}
+.streak-day-cell.today{outline:2px solid var(--accent);outline-offset:-2px}
+.streak-day-cell.active{background:var(--s2)}
+.streak-day-num{font-size:10.5px;color:var(--t3);font-variant-numeric:tabular-nums}
+.streak-day-icos{display:flex;gap:1px}
+.streak-day-ico{width:15px;height:15px;border-radius:50%;display:flex;align-items:center;justify-content:center}
+.streak-day-ico svg{width:9px;height:9px}
 /* Race Predictions. v0.32.11 fully redesigned this per Dylon's own Strava-inspired mockup: a distance
    pill selector (reusing .trend-pill) replaces the old "every distance stacked as a row" table --
    .rpred-row/.rpred-table-hdr/.rpred-row-cur, .rpred-row-mid, .rpred-row-future variants from that table design
@@ -932,7 +973,7 @@ main{flex:1;padding:14px 14px 24px;max-width:560px;width:100%;margin:0 auto}
       <svg class="icon" viewBox="0 -960 960 960" style="fill:currentColor;stroke:none"><path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h168q13-36 43.5-58t68.5-22q38 0 68.5 22t43.5 58h168q33 0 56.5 23.5T840-760v560q0 33-23.5 56.5T760-120H200Zm0-80h560v-560H200v560Zm80-80h280v-80H280v80Zm0-160h400v-80H280v80Zm0-160h400v-80H280v80Zm221.5-198.5Q510-807 510-820t-8.5-21.5Q493-850 480-850t-21.5 8.5Q450-833 450-820t8.5 21.5Q467-790 480-790t21.5-8.5ZM200-200v-560 560Z"/></svg>
       <span>Plans</span>
     </button>
-    <button class="sidebar-btn" onclick="openPlans('races')">
+    <button class="sidebar-btn" data-view="races" onclick="openRaces()">
       <svg class="icon" viewBox="0 -960 960 960" style="fill:currentColor;stroke:none"><path d="M200-120v-680h360l16 80h224v400H520l-16-80H280v280h-80Zm300-440Zm86 160h134v-240H510l-16-80H280v240h290l16 80Z"/></svg>
       <span>Races</span>
     </button>
@@ -1022,6 +1063,13 @@ main{flex:1;padding:14px 14px 24px;max-width:560px;width:100%;margin:0 auto}
     <div class="view" id="view-profile"></div>
     <!-- RECOVERY -->
     <div class="view" id="view-recovery"></div>
+    <!-- RACES -- Dylon: "Turn races into an actual page instead of just a pop up." Same shape as
+         PROFILE above: not one of the 5 bottom-nav tabs, but a real .view switched via switchView()/
+         CURR_VIEW rather than an .overlay sheet -- reached via openRaces()/openRaceDetail() (desktop
+         sidebar "Races" button, mobile Tools sheet row, and every "Manage Races"/"View races" entry
+         point that used to open the Plans sheet's own "Race Calendar" tab, now removed -- see
+         renderRaces() below). -->
+    <div class="view" id="view-races"></div>
     <div class="footer-note" id="footer-note">HALO · 2026 Block 5 · Durability → Ignition · Jul 19 – Sep 27 · Dylon Smith Whiskey</div>
   </main>
 
@@ -1037,6 +1085,7 @@ main{flex:1;padding:14px 14px 24px;max-width:560px;width:100%;margin:0 auto}
       <button class="fab-item" onclick="fabQuickAdd('str')"><div class="sess-ico ico-str"><svg class="icon" viewBox="0 -960 960 960" style="fill:currentColor;stroke:none"><path d="m536-84-56-56 142-142-340-340-142 142-56-56 56-58-56-56 84-84-56-58 56-56 58 56 84-84 56 56 58-56 56 56-142 142 340 340 142-142 56 56-56 58 56 56-84 84 56 58-56 56-58-56-84 84-56-56-58 56Z"/></svg></div>Strength</button>
       <button class="fab-item" onclick="fabImportActivity()"><div class="sess-ico ico-mobility"><svg class="icon" viewBox="0 -960 960 960" style="fill:currentColor;stroke:none"><path d="m480-80-20-400-140-40H40v-80h240l280-200 52 61-166 119h114l312-180 48 56-340 264-20 400h-80ZM240-640q-33 0-56.5-23.5T160-720q0-33 23.5-56.5T240-800q33 0 56.5 23.5T320-720q0 33-23.5 56.5T240-640Z"/></svg></div>Import Activity</button>
       <button class="fab-item" onclick="fabUploadPlan()"><div class="sess-ico ico-checkin"><svg class="icon" viewBox="0 -960 960 960" style="fill:currentColor;stroke:none"><path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h168q13-36 43.5-58t68.5-22q38 0 68.5 22t43.5 58h168q33 0 56.5 23.5T840-760v268q-19-9-39-15.5t-41-9.5v-243H200v560h242q3 22 9.5 42t15.5 38H200Zm0-120v40-560 243-3 280Zm80-40h163q3-21 9.5-41t14.5-39H280v80Zm0-160h244q32-30 71.5-50t84.5-27v-3H280v80Zm0-160h400v-80H280v80Zm221.5-198.5Q510-807 510-820t-8.5-21.5Q493-850 480-850t-21.5 8.5Q450-833 450-820t8.5 21.5Q467-790 480-790t21.5-8.5ZM720-40q-83 0-141.5-58.5T520-240q0-83 58.5-141.5T720-440q83 0 141.5 58.5T920-240q0 83-58.5 141.5T720-40Zm-20-80h40v-100h100v-40H740v-100h-40v100H600v40h100v100Z"/></svg></div>Import Training Plan</button>
+      <button class="fab-item" onclick="fabAddRace()"><div class="sess-ico ico-checkin"><svg class="icon" viewBox="0 -960 960 960" style="fill:currentColor;stroke:none"><path d="M200-120v-680h360l16 80h224v400H520l-16-80H280v280h-80Zm300-440Zm86 160h134v-240H510l-16-80H280v240h290l16 80Z"/></svg></div>Add Race</button>
     </div>
     <button class="fab-main" onclick="toggleActivityFab()" aria-label="Add activity">
       <!-- Dylon supplied these two exact glyphs ("icon FAB add.svg"/"icon Fab close.svg") -- a real
@@ -1240,6 +1289,46 @@ main{flex:1;padding:14px 14px 24px;max-width:560px;width:100%;margin:0 auto}
       </button>
     </div>
     <div class="sheet-body" id="tools-sh-body"></div>
+  </div>
+</div>
+
+<!-- Add/Edit Race -- Dylon: "make the add race form a pop up." Used to render inline inside the Races
+     page itself (the RACE_ADDING/RACE_EDIT_KEY branch of renderRaceCalendarTabHTML/DesktopHTML) as of
+     v0.33.0; moved to a real overlay in v0.33.1 so it can also be opened straight from the
+     Add-Activity FAB (see fabAddRace()) without first navigating to the Races page. See
+     openRaceFormOverlay()/startAddRace()/startEditRace()/cancelRaceEdit()/saveRaceForm() near
+     renderRaces() below. Close (X) routes through cancelRaceEdit(), same as the Cancel button in the
+     form footer, so both paths reset RACE_ADDING/RACE_EDIT_KEY identically. -->
+<div class="overlay" id="race-form-overlay">
+  <div class="sheet">
+    <div class="sheet-hdr">
+      <div class="sh-ico" style="background:var(--s3);color:var(--t2)">
+        <svg class="icon" viewBox="0 -960 960 960" style="fill:currentColor;stroke:none"><path d="M200-120v-680h360l16 80h224v400H520l-16-80H280v280h-80Zm300-440Zm86 160h134v-240H510l-16-80H280v240h290l16 80Z"/></svg>
+      </div>
+      <h3 id="race-form-sh-title">Race</h3>
+      <button class="sheet-close" onclick="cancelRaceEdit()">
+        <svg class="icon icon-sm" viewBox="0 -960 960 960" style="fill:currentColor;stroke:none"><path d="m336-280-56-56 144-144-144-143 56-56 144 144 143-144 56 56-144 143 144 144-56 56-143-144-144 144Z"/></svg>
+      </button>
+    </div>
+    <div class="sheet-body" id="race-form-sh-body"></div>
+  </div>
+</div>
+
+<!-- Activity Streak: Strava-style streak page — big current-streak number, longest-streak/active-days
+     stats, and a month calendar with a small activity-type icon on every logged day. Opened via the
+     streak stat card in Progress (openStreakPage()); month navigation and the Share button both just
+     re-render this same sheet's body in place. -->
+<div class="overlay" id="streak-overlay">
+  <div class="sheet">
+    <div class="sheet-hdr">
+      <div class="sh-ico" style="background:var(--am2);color:var(--am)"><svg viewBox="0 -960 960 960" style="width:22px;height:22px;stroke:none;fill:currentColor"><path d="M240-400q0 52 21 98.5t60 81.5q-1-5-1-9v-9q0-32 12-60t35-51l113-111 113 111q23 23 35 51t12 60v9q0 4-1 9 39-35 60-81.5t21-98.5q0-50-18.5-94.5T648-574q-20 13-42 19.5t-45 6.5q-62 0-107.5-41T401-690q-39 33-69 68.5t-50.5 72Q261-513 250.5-475T240-400Zm240 52-57 56q-11 11-17 25t-6 29q0 32 23.5 55t56.5 23q33 0 56.5-23t23.5-55q0-16-6-29.5T537-292l-57-56Zm0-492v132q0 34 23.5 57t57.5 23q18 0 33.5-7.5T622-658l18-22q74 42 117 117t43 163q0 134-93 227T480-80q-134 0-227-93t-93-227q0-129 86.5-245T480-840Z"/></svg></div>
+      <h3>Activity Streak</h3>
+      <button class="sheet-close" onclick="shareStreak()" aria-label="Share streak" style="margin-right:4px"><svg class="icon icon-sm" viewBox="0 -960 960 960" style="fill:currentColor;stroke:none"><path d="M480-320q-17 0-28.5-11.5T440-360v-327l-64 64q-11 11-27.5 11.5T320-623q-11-11-11.5-27.5T320-679l137-137q6-6 13-8.5t15-2.5q8 0 15 2.5t13 8.5l137 137q11 11 11 27.5T650-624q-11 11-28 11t-28-11l-64-64v327q0 17-11.5 28.5T480-320ZM240-160q-33 0-56.5-23.5T160-240v-120q0-17 11.5-28.5T200-400q17 0 28.5 11.5T240-360v120h480v-120q0-17 11.5-28.5T760-400q17 0 28.5 11.5T800-360v120q0 33-23.5 56.5T720-160H240Z"/></svg></button>
+      <button class="sheet-close" onclick="closeOverlay('streak-overlay')">
+        <svg class="icon icon-sm" viewBox="0 -960 960 960" style="fill:currentColor;stroke:none"><path d="m336-280-56-56 144-144-144-143 56-56 144 144 143-144 56 56-144 143 144 144-56 56-143-144-144 144Z"/></svg>
+      </button>
+    </div>
+    <div class="sheet-body" id="streak-sh-body"></div>
   </div>
 </div>
 
@@ -1450,9 +1539,9 @@ main{flex:1;padding:14px 14px 24px;max-width:560px;width:100%;margin:0 auto}
    session-style restyle, race-target connection, iOS install fix, icon redesign, onboarding flow).
    APP_STAGE is 'alpha.N' pre-launch, bump N each time you hand a build to a real tester (Dylon's
    sister counts); once launched, APP_VERSION resets to 1.0.0 and APP_STAGE becomes ''. */
-const APP_VERSION='0.32.40';
+const APP_VERSION='0.34.7';
 const APP_STAGE='alpha.1';
-const APP_VERSION_DATE='2026-07-28';
+const APP_VERSION_DATE='2026-07-30';
 /* ═══════════════════════════ DATA ═══════════════════════════ */
 // Block 5's session list — now the seed content for its Block record rather than a global const.
 // The live, active-block-driven binding is `let DATA` further down (see SEASONS/BLOCKS section).
@@ -1936,7 +2025,7 @@ function tbdRaceNudgeHTML(){
     <div class="notice-banner-body">
       <div class="notice-banner-title">Check on unannounced races</div>
       <div class="notice-banner-msg">${msg}</div>
-      <div class="notice-banner-actions"><button class="primary" onclick="openPlans('races','unscheduled')">View races</button><button class="secondary" onclick="dismissTBDNudge()">Remind me later</button></div>
+      <div class="notice-banner-actions"><button class="primary" onclick="openRaces('unscheduled')">View races</button><button class="secondary" onclick="dismissTBDNudge()">Remind me later</button></div>
     </div>
   </div>`;
 }
@@ -5746,6 +5835,13 @@ let LOG_DETAILS_OPEN=null;
 let CURR_TREND='run';
 let CURR_TREND_WK=null;
 let CURR_RUN_SUBTAB='vol';
+// Weekly Volume vs Time toggle for Walk/Strength/Mobility -- Run gets its own richer subtab row
+// (CURR_RUN_SUBTAB, above) since it also has Pace vs HR/Pace by Distance; these three simpler types
+// just get the one Weekly Volume/Time choice. Dylon: "strava has time in activity I will like a graph
+// that shows time per activity (Run, walk, Strength, and Mobility)." Shared across all three rather
+// than one variable per type -- same as CURR_RUN_SUBTAB not resetting when picking a different pill,
+// switching pills keeps whichever of Volume/Time you were already looking at.
+let CURR_TREND_METRIC='vol';
 // Weekly Zone Time Trends card (ANALYTICS_ROADMAP.md Phase 3) -- which zone scheme (HR or Pace) the
 // stacked-bar trend is currently showing. Defaults to HR since the HR Zone Calculator is the more
 // commonly-set-up prerequisite of the two; selectZoneTrendType() flips it without touching CURR_TREND,
@@ -5949,6 +6045,48 @@ function weekForDate(t){
   return best;
 }
 function currentRealWeek(){ return weekForDate(todayISO()); }
+// The real week number a date falls in, for Activity Trends bucketing -- unlike weekForDate() above
+// (which finds the nearest PLANNED session by date-diff, built for "what week is today/this date in
+// relative to the plan"), this is pure date math with no dependency on DATA having a session anywhere
+// near the date at all. Dylon, after logging an unplanned mobility session on a day his plan had no
+// session scheduled: "in the activity trends i see my mobility that i upload dont get included..."
+// Root cause: weekForDate()'s "nearest session" fallback can genuinely misattribute a standalone log to
+// an ADJACENT week when the plan has a sparse/uneven session spread near a week boundary.
+//
+// v0.34.2's first version of this function anchored weeks to the calendar Monday of BLOCK_START's own
+// week, which turned out to be a DIFFERENT bug of the exact same shape: Dylon, still seeing wrong
+// running totals after that fix, with a screenshot of Week 2's total looking off. That led to v0.34.3,
+// which switched to matching parsePlanJSON()'s own `addDaysISO(BLOCK_START,(week-1)*7+day)` formula --
+// reasoning that a block's week boundaries follow BLOCK_START's own weekday, not the calendar Monday.
+// That reasoning was ITSELF wrong, and Dylon proved it with a full week's worth of real logged runs
+// laid out day by day: Monday 20th through Sunday 26th (28.2km total) as one real training week, Monday
+// 27th onward as the next -- exactly a normal Monday-Sunday split, and the BLOCK_START-anchored v0.34.3
+// version was misattributing Sunday 26th's Recovery Run into "Week 2" instead, inflating it by 2.7km.
+// The actual reason: Block 5's own plan data describes BLOCK_START (2026-07-19, a Sunday) as a
+// standalone PREP day, not the start of training -- its own session detail text literally reads "The
+// block runs Monday to Sunday, so today is prep, not training." Real Week 1 starts the FOLLOWING Monday
+// (2026-07-20), not BLOCK_START's own weekday. Fixed: this now anchors to the first real Monday ON OR
+// AFTER BLOCK_START (mondayOfDate() itself rounds DOWN to the Monday of BLOCK_START's own week, which is
+// wrong when BLOCK_START isn't already a Monday -- so a block whose BLOCK_START falls anywhere in a
+// Mon-Sun week other than Monday gets bumped forward to the next one instead). Genuine Monday-Sunday
+// weeks from there on, matching Strava's own week convention and any lead-in prep day before that first
+// Monday folds into week 1 via the same clamping as before.
+function trendCalWeek(t){
+  if(t<BLOCK_START) return 1;
+  if(t>BLOCK_END) return blockWeekCount();
+  const blockStartWd=new Date(BLOCK_START+'T12:00:00').getDay(); // 0=Sun..6=Sat, 1=Mon
+  const firstMonday=blockStartWd===1 ? mondayOfDate(BLOCK_START) : new Date(mondayOfDate(BLOCK_START).getTime()+7*86400000);
+  const wk=Math.floor((mondayOfDate(t)-firstMonday)/(7*86400000))+1;
+  return Math.max(1,Math.min(blockWeekCount()||1,wk));
+}
+// Monday of the real calendar week a date falls in, as a Date object -- used only by the week-streak
+// functions below (weekHasActivity/currentWeekStreak/longestWeekStreak), which are a genuinely
+// different, plan-independent concept ("how many real weeks in a row did I log anything at all") and
+// are deliberately Monday-anchored regardless of any block's own BLOCK_START weekday -- unlike
+// trendCalWeek() above, they have no plan week boundary to match in the first place.
+function mondayOfDate(iso){ const d=new Date(iso+'T12:00:00'); const wd=(d.getDay()+6)%7; d.setDate(d.getDate()-wd); return d; }
+function activitiesForTrendWeek(wk){ return ACTIVITIES.filter(a=>trendCalWeek(a.date)===wk); }
+function extraLogsForTrendWeek(wk){ return EXTRALOGS.filter(x=>trendCalWeek(x.date)===wk); }
 
 /* ── streaks: a day counts if any planned session was completed OR any ad-hoc activity was logged.
    Streaks are a continuous, cross-block thing (finishing Block 5 and starting Block 6 the next day
@@ -6007,6 +6145,37 @@ function longestStreak(){
   }
   return longest;
 }
+// Week streak -- a companion to the day streak above. Dylon: "I also want to track both daily and
+// weekly streaks in the same card." A week counts if ANY day inside it (Monday-Sunday) has activity,
+// same dayHasActivity() the day streak already uses -- so a week streak survives a rest day or two,
+// tracking "did I train at all this week, N weeks running" rather than "did I train every single day."
+function weekHasActivity(mondayIso){
+  let d=new Date(mondayIso+'T12:00:00');
+  for(let i=0;i<7;i++){ if(dayHasActivity(isoDate(d))) return true; d.setDate(d.getDate()+1); }
+  return false;
+}
+function currentWeekStreak(){
+  let count=0;
+  const boundaryMon=isoDate(mondayOfDate(historyStartDate()));
+  let mon=isoDate(mondayOfDate(todayISO()));
+  if(!weekHasActivity(mon)){ const d=new Date(mon+'T12:00:00'); d.setDate(d.getDate()-7); mon=isoDate(d); } // this week not logged yet doesn't break the streak, mirrors currentStreak()'s own "today" rule
+  while(true){
+    if(mon<boundaryMon) break;
+    if(weekHasActivity(mon)){ count++; const d=new Date(mon+'T12:00:00'); d.setDate(d.getDate()-7); mon=isoDate(d); }
+    else break;
+  }
+  return count;
+}
+function longestWeekStreak(){
+  let longest=0,run=0;
+  let mon=isoDate(mondayOfDate(historyStartDate()));
+  const endMon=isoDate(mondayOfDate(historyEndDate()));
+  while(mon<=endMon){
+    if(weekHasActivity(mon)){ run++; longest=Math.max(longest,run); } else { run=0; }
+    const d=new Date(mon+'T12:00:00'); d.setDate(d.getDate()+7); mon=isoDate(d);
+  }
+  return longest;
+}
 function countDone(){return DATA.filter(s=>!isCheckinSession(s) && STATUS[s.id]==='done').length;}
 function totalSessions(){return DATA.filter(s=>!isCheckinSession(s)).length;}
 // Parses a single stride rep's own Dist cell ("100m", "0.1km", or a bare number -- assumed meters,
@@ -6042,6 +6211,26 @@ function strideDurToSec(v){
 function strideRepsTotalDurationSec(reps){ return (reps||[]).reduce((sum,r)=>sum+strideDurToSec(r&&r.dur),0); }
 function loggedDist(id){
   const n=NOTES[id];
+  // A linked Activity's own real distance takes priority over anything hand-typed on the session --
+  // matching sessionMetric()'s own priority for the weekly Activity Trends chart (see its own
+  // 'fulfilled' check), which has always deferred to the activity once one is linked, ignoring the
+  // session's own NOTES entirely. This function used to check n.dist FIRST instead, which is the
+  // asymmetry behind a real reported bug: Dylon, with real numbers that didn't add up -- "week 1 my
+  // total run was 28.1 Km and week 2 is 20.3 but my total km logged is 53.1 doesnt seem correct."
+  // Whenever a session kept an old/stale hand-typed n.dist around from before it got a real fulfilling
+  // Activity linked (or the two were just never exactly equal), cumulativeActualKm() (this function's
+  // only caller chain) used the stale n.dist while the weekly trend chart used the activity's real,
+  // more-accurate distanceKm -- the two "km logged" figures diverging for a reason that had nothing to
+  // do with their intentionally different SCOPE (plan-linked-only vs. everything logged), just an
+  // inconsistent tie-breaker between two functions that were each supposed to answer the same question.
+  // SUMS every fulfillment-role Activity linked to this session, not just the first -- a single day
+  // can legitimately be fulfilled by more than one real recorded Activity (e.g. a watch export that
+  // came in as separate Easy Run + Strides files, or a long run whose warm-up got its own file), and
+  // each one's distance is real ground covered that belongs in this session's total. Using .find() here
+  // used to silently drop every fulfillment Activity past the first -- Dylon: "the total mileage (km
+  // logged) still doesnt doesn't calculate correctly" after importing a day as multiple files.
+  const fulfilling=ACTIVITIES.filter(a=>a.linkedSessionId===id && a.role==='fulfillment' && a.distanceKm);
+  if(fulfilling.length) return fulfilling.reduce((sum,a)=>sum+a.distanceKm,0);
   if(n && n.dist) return parseFloat(n.dist)||0;
   // The main Distance field above is normally the whole continuous GPS activity, which already
   // covers every stride tacked onto the end of an easy run -- so summing the Strides table's own
@@ -6054,23 +6243,23 @@ function loggedDist(id){
     const km=strideRepsTotalKm(n.strideReps);
     if(km>0) return km;
   }
-  // A linked Activity's own real distance stands in for a hand-typed one once it fulfills this session
-  // -- Dylon linked a GPS-recorded run/walk instead of ever typing a distance in for that day by hand.
-  // Only reached when n.dist is absent above, so this can never ADD to a manually-typed value -- one
-  // number represents the session, never both stacked together.
-  // SUMS every fulfillment-role Activity linked to this session, not just the first -- a single day
-  // can legitimately be fulfilled by more than one real recorded Activity (e.g. a watch export that
-  // came in as separate Easy Run + Strides files, or a long run whose warm-up got its own file), and
-  // each one's distance is real ground covered that belongs in this session's total. Using .find() here
-  // used to silently drop every fulfillment Activity past the first -- Dylon: "the total mileage (km
-  // logged) still doesnt doesn't calculate correctly" after importing a day as multiple files.
-  const fulfilling=ACTIVITIES.filter(a=>a.linkedSessionId===id && a.role==='fulfillment' && a.distanceKm);
-  if(fulfilling.length) return fulfilling.reduce((sum,a)=>sum+a.distanceKm,0);
   return null;
 }
 function weekActualKm(wk){
   let total=0,any=false;
   weekSessionsFull(wk).forEach(s=>{
+    // v0.34.4 -- this used to sum loggedDist() for EVERY session marked done in the week, regardless of
+    // session type. But this feeds cumulativeActualKm(), which is explicitly "run-plan-specific" (see its
+    // own comment chain, and compared directly against blockPlanTotal()/MILEAGE_PLAN -- a running mileage
+    // plan) in every one of its callers (the "km logged / planned" stat, weeklyConsistency(), Mileage by
+    // Week). If a non-run session in the week (a Walk day, a Strength/Mobility session that happened to
+    // pick up a distance from a linked GPS file) was marked done, its distance silently inflated this
+    // "run" total too -- Dylon, with a screenshot proving the Activity Trends weekly numbers were right
+    // (28.1km + 20.3km = 48.4km, matching what he saw on Strava) while "km logged" read 53.1: "the total
+    // km logged...was giving incorrect figures 28 in week 1 and 20 in week 2 is 48km but the total km
+    // logged was 53. that is incorrect." Now filtered to run-type sessions only, via the same
+    // sessionMatchesTrendType('run', s) check the (correct) Activity Trends weekly total already uses.
+    if(!sessionMatchesTrendType(s,'run')) return;
     if(STATUS[s.id]==='done'){
       const d=loggedDist(s.id);
       if(d!==null){total+=d;any=true;}
@@ -6863,7 +7052,9 @@ const TOOLS_LIST=[
   {icon:'M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h168q13-36 43.5-58t68.5-22q38 0 68.5 22t43.5 58h168q33 0 56.5 23.5T840-760v268q-19-9-39-15.5t-41-9.5v-243H200v560h242q3 22 9.5 42t15.5 38H200Zm0-120v40-560 243-3 280Zm80-40h163q3-21 9.5-41t14.5-39H280v80Zm0-160h244q32-30 71.5-50t84.5-27v-3H280v80Zm0-160h400v-80H280v80Zm221.5-198.5Q510-807 510-820t-8.5-21.5Q493-850 480-850t-21.5 8.5Q450-833 450-820t8.5 21.5Q467-790 480-790t21.5-8.5ZM720-40q-83 0-141.5-58.5T520-240q0-83 58.5-141.5T720-440q83 0 141.5 58.5T920-240q0 83-58.5 141.5T720-40Zm-20-80h40v-100h100v-40H740v-100h-40v100H600v40h100v100Z',
     viewBox:'0 -960 960 960',title:'Plan Generator',sub:'Build a periodized training plan from your race, experience, and schedule',onclick:"closeOverlay('tools-overlay');gpOpenWizard()"},
   {icon:'M222-79q-32 0-61.5-12T108-127l-7-7q-9-8-11.5-20t2.5-23l194-495q8-20 27.5-30.5T354-708l58 11q17 4 32.5-2.5T471-717q14-15 18.5-31.5T489-782l-5-15q-5-16-1.5-32.5T498-858l43-43q17-18 42.5-18t42.5 17l181 184q22 23 22.5 54.5T809-609l19 19q6 7 10.5 14.5T843-560q0 7-3 14t-11 15q-12 11-28.5 11.5T772-531l-18-19-28 29 18 18q11 11 11 28t-11 28q-12 11-28.5 11.5T687-447l-18-17-112 114 17 16q12 12 12 28.5T574-277q-12 11-28.5 11.5T517-277l-16-17-28 29 16 16q11 11 11 28t-11 28q-12 11-28.5 11.5T432-193l-16-15-28 28 16 15q11 12 11 28.5T404-108q-12 11-28.5 11.5T347-108l-16-16q-23 23-50.5 34T222-79Zm-57-283q5-11 8-19.5l3-8.5-22 56 3.5-8.5Q161-351 165-362Zm39-100q5-11 8-19.5l3-8.5-22 56 3.5-8.5Q200-451 204-462Zm39-100q5-11 8-19l3-8-22 55 3.5-8.5Q239-551 243-562Zm-21 402q17 0 31.5-6t25.5-18l471-478-166-169-20 20q12 40 4.5 78T528-662q-26 26-60 38.5t-71 4.5l-41-8-25 61 23 8q11 5 16 16t1 22q-4 12-15 18t-23 1l-24-9-17 44 19 7q11 5 16.5 16t1.5 22q-4 12-15.5 17.5t-23.5.5l-20-7-17 44 16 6q11 5 16 15.5t1 21.5q-4 12-15.5 18t-23.5 1l-16-6-54 136q10 7 21.5 10.5T222-160Zm242-336Z',
-    viewBox:'0 -960 960 960',title:'Shoes',sub:'Track mileage, rotation, and replacement alerts for each pair',onclick:"closeOverlay('tools-overlay');openShoes()"}
+    viewBox:'0 -960 960 960',title:'Shoes',sub:'Track mileage, rotation, and replacement alerts for each pair',onclick:"closeOverlay('tools-overlay');openShoes()"},
+  {icon:'M200-120v-680h360l16 80h224v400H520l-16-80H280v280h-80Zm300-440Zm86 160h134v-240H510l-16-80H280v240h290l16 80Z',
+    viewBox:'0 -960 960 960',title:'Races',sub:'Every race you\'ve registered for or run — search, filter, edit, and race-day strategy',onclick:"closeOverlay('tools-overlay');openRaces()"}
 ];
 function toolsBodyHTML(){
   const rows=TOOLS_LIST.map(t=>`<button class="card" style="display:flex;align-items:center;gap:12px;width:100%;border:none;text-align:left;cursor:pointer;font-family:var(--font)" onclick="${t.onclick}">
@@ -7863,11 +8054,18 @@ function toggleRetireShoe(key){
   renderAll();
 }
 
-/* ═══════════════════════════ RACE CALENDAR (Plans sheet tab) ═══════════════════════════
-   Lives inside the Plans sheet as its own tab so every race — block-linked or unscheduled — shows up
-   in one place. RACE_FILTER narrows the list to 'all', 'unscheduled', or a specific block id; the
-   inline add/edit form (RACE_ADDING / RACE_EDIT_KEY) includes a "Link to Block" field so a race's
-   blockId can be set or changed in place, without deleting and re-adding it. */
+/* ═══════════════════════════ RACES (own page) ═══════════════════════════
+   Dylon: "Turn races into an actual page instead of just a pop up. give it a search field and filter
+   similar to activities as well." Used to live inside the Plans sheet as its own tab; now a real
+   .view (#view-races, see renderRaces() near the bottom of this section and switchView()) reached via
+   openRaces()/openRaceDetail() rather than a "Race Calendar" tab inside #plans-overlay. RACE_FILTER
+   narrows the list to 'all', 'unscheduled', or a specific block id; the add/edit form (RACE_ADDING /
+   RACE_EDIT_KEY, opened via openRaceFormOverlay() into #race-form-overlay as of v0.33.1 — a popup, not
+   inline on the page, per Dylon: "make the add race form a pop up") includes a "Link to Block" field
+   so a race's blockId can be set or changed in place, without deleting and re-adding it.
+   RACES_SEARCH/RACES_FILTERS_OPEN are new as of v0.33.0 — same search-box-plus-filter-toggle pattern
+   the Activities tab already established (see ACTIVITIES_SEARCH/ACTIVITIES_FILTERS_OPEN), with the
+   existing block/distance chip rows now tucked behind the toggle instead of always shown. */
 let RACE_FILTER='all';
 let RACE_ADDING=false, RACE_EDIT_KEY=null;
 // The race a race-card tap opens in read-only "Race Day Strategy" view — separate from
@@ -7880,7 +8078,39 @@ let RACE_STRATEGY_KEY=null;
 // (both apply together). Buckets a race's free-text distance field into a standard road-race
 // distance; anything that doesn't match a standard bucket only shows up under "All".
 let RACE_DIST_FILTER='all';
-function setRaceDistFilter(f){ RACE_DIST_FILTER=f; renderPlansBody(); }
+// Search box text (matched against name + location, see raceListFilteredHTML) and whether the
+// block/distance filter chip rows are currently expanded -- mirrors ACTIVITIES_SEARCH/
+// ACTIVITIES_FILTERS_OPEN exactly. A non-default RACE_FILTER or RACE_DIST_FILTER also forces the
+// chip rows visible even while this is false, same "don't hide an active filter" rule Activities uses.
+let RACES_SEARCH='';
+let RACES_FILTERS_OPEN=false;
+function racesFiltersActive(){ return RACES_FILTERS_OPEN||RACE_FILTER!=='all'||RACE_DIST_FILTER!=='all'; }
+function toggleRacesFilters(){ RACES_FILTERS_OPEN=!RACES_FILTERS_OPEN; renderRaces(true); }
+// Full re-render on every keystroke, same as setActivitiesSearch -- innerHTML replacement drops DOM
+// focus, so caret position is captured and manually restored afterward.
+function setRacesSearch(v){
+  const el=document.getElementById('races-search-input');
+  const pos=el?el.selectionStart:null;
+  RACES_SEARCH=v;
+  renderRaces();
+  const el2=document.getElementById('races-search-input');
+  if(el2){ el2.focus(); if(pos!=null) el2.setSelectionRange(pos,pos); }
+}
+function racesToolbarHTML(){
+  const active=racesFiltersActive();
+  return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+    <div style="flex:1;position:relative;display:flex;align-items:center;min-width:0">
+      <span style="position:absolute;left:11px;color:var(--t3);display:flex;pointer-events:none">
+        <svg class="icon-sm" viewBox="0 -960 960 960" style="fill:currentColor;stroke:none"><path d="M784-120 532-372q-30 24-69 38t-83 14q-109 0-184.5-75.5T120-580q0-109 75.5-184.5T380-840q109 0 184.5 75.5T640-580q0 44-14 83t-38 69l252 252-56 56ZM380-400q75 0 127.5-52.5T560-580q0-75-52.5-127.5T380-760q-75 0-127.5 52.5T200-580q0 75 52.5 127.5T380-400Z"/></svg>
+      </span>
+      <input type="text" id="races-search-input" value="${escAttr(RACES_SEARCH)}" placeholder="Search races" oninput="setRacesSearch(this.value)" style="width:100%;box-sizing:border-box;padding:9px 12px 9px 36px;border-radius:10px;border:1px solid var(--b1);background:var(--s2);color:var(--t1);font-family:var(--font);font-size:13.5px">
+    </div>
+    <button class="sheet-close" onclick="toggleRacesFilters()" aria-label="Filters" title="Filters" style="${active?'background:var(--accent3);color:var(--accent)':''}">
+      <svg class="icon-sm" viewBox="0 -960 960 960" style="fill:currentColor;stroke:none"><path d="M400-240v-80h160v80H400ZM240-440v-80h480v80H240ZM120-640v-80h720v80H120Z"/></svg>
+    </button>
+  </div>`;
+}
+function setRaceDistFilter(f){ RACE_DIST_FILTER=f; renderRaces(); }
 function raceDistBucket(distText){
   const d=(distText||'').trim().toLowerCase();
   if(!d) return null;
@@ -7920,17 +8150,30 @@ function blocksMatchingFilter(){
     return true;
   });
 }
-function setRaceFilter(f){ RACE_FILTER=f; RACE_EDIT_KEY=null; RACE_ADDING=false; RACE_STRATEGY_KEY=null; renderPlansBody(); }
-function startAddRace(){ RACE_ADDING=true; RACE_EDIT_KEY=null; RACE_STRATEGY_KEY=null; renderPlansBody(true); }
+function setRaceFilter(f){ RACE_FILTER=f; RACE_EDIT_KEY=null; RACE_ADDING=false; RACE_STRATEGY_KEY=null; renderRaces(); }
+// Fills #race-form-sh-body with the add/edit form + its Save/Cancel/Delete footer and opens the
+// overlay -- the one place that actually renders the form now that it's a popup rather than an inline
+// branch of the Races page. Called with null for a fresh Add Race, or a RACES_LIST record for Edit.
+function openRaceFormOverlay(editRace){
+  document.getElementById('race-form-sh-title').textContent=editRace?'Edit Race':'Add a Race';
+  document.getElementById('race-form-sh-body').innerHTML=renderRaceFormHTML(editRace)+raceFormFooterHTML(editRace);
+  document.getElementById('race-form-overlay').classList.add('open');
+}
+// Works from anywhere, not just the Races page -- this is also what the Add-Activity FAB's "Add Race"
+// item calls (see fabAddRace()) so a race can be logged without first navigating to the Races page.
+// If the Races page happens to already be the current view, re-render it too so whatever's behind the
+// popup (list selection state, an open Race Day Strategy) is consistent once the popup closes.
+function startAddRace(){ RACE_ADDING=true; RACE_EDIT_KEY=null; RACE_STRATEGY_KEY=null; openRaceFormOverlay(null); if(CURR_VIEW==='races') renderRaces(true); }
 // Deliberately does NOT touch RACE_STRATEGY_KEY — when this is called from the strategy view's
 // "Edit Details" button, leaving it set means Cancel/Save (below) fall back to re-showing the
 // strategy view instead of closing to the empty state. When called directly from a race card
 // (non-active-block races, via openRaceCard below) RACE_STRATEGY_KEY is already null, so this is
 // a no-op either way in that path.
-function startEditRace(key){ RACE_EDIT_KEY=key; RACE_ADDING=false; renderPlansBody(true); }
+function startEditRace(key){ RACE_EDIT_KEY=key; RACE_ADDING=false; openRaceFormOverlay(RACES_LIST.find(r=>r.key===key)); if(CURR_VIEW==='races') renderRaces(true); }
 // Also deliberately leaves RACE_STRATEGY_KEY alone, for the same reason as startEditRace above —
-// canceling an edit that was opened from the strategy view returns you to that strategy view.
-function cancelRaceEdit(){ RACE_ADDING=false; RACE_EDIT_KEY=null; renderPlansBody(true); }
+// canceling an edit that was opened from the strategy view returns you to that strategy view (once
+// the popup closes and, if the Races page is current, it re-renders below).
+function cancelRaceEdit(){ RACE_ADDING=false; RACE_EDIT_KEY=null; closeOverlay('race-form-overlay'); if(CURR_VIEW==='races') renderRaces(true); }
 // Race-card tap: races in the block you're currently training through open the read-only Race Day
 // Strategy view (see renderRaceStrategyHTML) instead of jumping straight to the edit form — the
 // strategy is what you actually want to glance at day-to-day. Everything else (unscheduled races,
@@ -7941,8 +8184,8 @@ function openRaceCard(key){
   if(r && r.blockId && r.blockId===ACTIVE_BLOCK_ID) openRaceStrategy(key);
   else startEditRace(key);
 }
-function openRaceStrategy(key){ RACE_STRATEGY_KEY=key; RACE_EDIT_KEY=null; RACE_ADDING=false; renderPlansBody(true); }
-function closeRaceStrategy(){ RACE_STRATEGY_KEY=null; renderPlansBody(true); }
+function openRaceStrategy(key){ RACE_STRATEGY_KEY=key; RACE_EDIT_KEY=null; RACE_ADDING=false; renderRaces(true); }
+function closeRaceStrategy(){ RACE_STRATEGY_KEY=null; renderRaces(true); }
 function toggleRaceDoneFields(){
   const sel=document.getElementById('race-status');
   const box=document.getElementById('race-done-fields');
@@ -8152,10 +8395,9 @@ function renderRaceFormHTML(editRace){
     </div>
   `;
 }
-// Save/Cancel/Delete for the race form live in the Plans sheet's sticky footer (see
-// renderPlansBody) instead of at the bottom of the scrollable form — they used to be the very
-// last thing in the form, which meant scrolling all the way down past every field just to save,
-// cancel, or delete.
+// Save/Cancel/Delete, rendered right after the form fields — both live together inside the
+// #race-form-overlay popup's own #race-form-sh-body (see openRaceFormOverlay above), which scrolls
+// as one unit, so there's no separate sticky-footer plumbing to keep in sync.
 function raceFormFooterHTML(editRace){
   const isEdit=!!editRace;
   let html=`<div class="data-row">
@@ -8600,7 +8842,12 @@ function raceListFilteredHTML(){
   if(RACE_FILTER==='unscheduled') list=list.filter(r=>!r.blockId);
   else if(RACE_FILTER!=='all') list=list.filter(r=>r.blockId===RACE_FILTER);
   if(RACE_DIST_FILTER!=='all') list=list.filter(r=>raceDistBucket(r.distance)===RACE_DIST_FILTER);
+  // Search matches name + location (a race's own two free-text identifiers), case-insensitive
+  // substring -- same matching rule historyItemSearchLabel/setActivitiesSearch already use.
+  const query=(RACES_SEARCH||'').trim().toLowerCase();
+  if(query) list=list.filter(r=>((r.name||'')+' '+(r.location||'')).toLowerCase().includes(query));
   if(!list.length){
+    if(query) return `<div style="font-size:12px;color:var(--t3);text-align:center;padding:20px 4px">No races match your search.</div>`;
     if(RACE_DIST_FILTER!=='all'){
       return `<div style="font-size:12px;color:var(--t3);text-align:center;padding:20px 4px">No ${escAttr(RACE_DIST_FILTER)} races here.</div>`;
     }
@@ -8631,14 +8878,17 @@ function raceListFilteredHTML(){
   }
   return html;
 }
+// Mobile single-column layout for the Races page. Toolbar (search + filter toggle) leads, then the
+// block/distance chip rows -- hidden by default, forced open by racesFiltersActive() the same way
+// Activities' own filtersActive works -- then Add Race, then the open Race Day Strategy view (if any)
+// inline, then the list itself. The add/edit form is a popup as of v0.33.1 (see
+// #race-form-overlay/openRaceFormOverlay), so it no longer renders as a branch here.
 function renderRaceCalendarTabHTML(){
-  let html=raceFilterChipsHTML();
-  html+=raceDistFilterChipsHTML();
+  const filtersActive=racesFiltersActive();
+  let html=racesToolbarHTML();
+  if(filtersActive){ html+=raceFilterChipsHTML(); html+=raceDistFilterChipsHTML(); }
   html+=`<button class="btn btn-primary btn-block" style="margin-top:0;padding:12px 14px;font-size:13.5px" onclick="startAddRace()">+ Add Race</button>`;
-  if(RACE_ADDING||RACE_EDIT_KEY){
-    const editRace=RACE_EDIT_KEY?RACES_LIST.find(r=>r.key===RACE_EDIT_KEY):null;
-    html+=`<div style="height:1px;background:var(--b1);margin:14px 0"></div>`+renderRaceFormHTML(editRace);
-  } else if(RACE_STRATEGY_KEY){
+  if(RACE_STRATEGY_KEY){
     const strategyRace=RACES_LIST.find(r=>r.key===RACE_STRATEGY_KEY);
     if(strategyRace) html+=`<div style="height:1px;background:var(--b1);margin:14px 0"></div>`+renderRaceStrategyHTML(strategyRace);
     else RACE_STRATEGY_KEY=null;
@@ -8647,26 +8897,46 @@ function renderRaceCalendarTabHTML(){
   html+=raceListFilteredHTML();
   return html;
 }
-// Desktop-only: list on the left (chips + Add Race + race cards), the add/edit form (or an empty
-// state) docked in a pane on the right — the "Race Calendar" half of the Plans list+detail view.
+// Desktop-only: list on the left (toolbar + chips + Add Race + race cards), Race Day Strategy (or an
+// empty state) docked in a pane on the right — the same list+detail split the old Plans "Race
+// Calendar" tab used, now the Races page's own desktop layout. The add/edit form is a popup as of
+// v0.33.1, so the detail pane only ever shows a strategy view or the empty state now, never a form.
 function renderRaceCalendarDesktopHTML(){
-  const editRace=RACE_EDIT_KEY?RACES_LIST.find(r=>r.key===RACE_EDIT_KEY):null;
-  const strategyRace=(!RACE_ADDING&&!RACE_EDIT_KEY&&RACE_STRATEGY_KEY)?RACES_LIST.find(r=>r.key===RACE_STRATEGY_KEY):null;
-  const detailHTML=(RACE_ADDING||RACE_EDIT_KEY)
-    ? renderRaceFormHTML(editRace)+raceFormFooterHTML(editRace)
-    : strategyRace
-      ? renderRaceStrategyHTML(strategyRace)
-      : `<div class="plans-empty-detail">Select a race from the list to view or edit it, or add a new one.</div>`;
-  return `<div class="plans-split">
+  const filtersActive=racesFiltersActive();
+  const strategyRace=RACE_STRATEGY_KEY?RACES_LIST.find(r=>r.key===RACE_STRATEGY_KEY):null;
+  const detailHTML=strategyRace
+    ? renderRaceStrategyHTML(strategyRace)
+    : `<div class="plans-empty-detail">Select a race from the list to view its Race Day Strategy, or add a new one.</div>`;
+  return `${racesToolbarHTML()}
+  <div class="plans-split">
     <div class="plans-col-list">
-      ${raceFilterChipsHTML()}
-      ${raceDistFilterChipsHTML()}
+      ${filtersActive?raceFilterChipsHTML()+raceDistFilterChipsHTML():''}
       <button class="btn btn-primary btn-block" style="margin-top:0;padding:12px 14px;font-size:13.5px" onclick="startAddRace()">+ Add Race</button>
       <div style="height:1px;background:var(--b1);margin:14px 0"></div>
       ${raceListFilteredHTML()}
     </div>
     <div class="plans-col-detail">${detailHTML}</div>
   </div>`;
+}
+// Top-level render for the Races page (#view-races) — picks mobile vs. desktop layout the same way
+// every other page's own render function does. preserveScroll mirrors the old renderPlansBody(true)
+// convention: true for anything that's still "the same list, different selection/panel" (opening a
+// race, canceling, saving, deleting, toggling the filter panel), false/omitted for anything that's
+// genuinely a new list (changing a filter, or a fresh entry into the page via openRaces/openRaceDetail)
+// -- see test_races_jank.js for the scroll-jank bug this preserves the fix for. Only the desktop split
+// layout has an independently-scrolling column (.plans-col-list, capped at max-height in CSS); mobile
+// is the page's own normal document scroll, which innerHTML-replacing a sub-container never disturbs,
+// so there's nothing to preserve there.
+function renderRaces(preserveScroll){
+  const el=document.getElementById('view-races');
+  if(!el) return;
+  const scrollEl=preserveScroll?el.querySelector('.plans-col-list'):null;
+  const prevScrollTop=scrollEl?scrollEl.scrollTop:0;
+  el.innerHTML=isDesktop()?renderRaceCalendarDesktopHTML():renderRaceCalendarTabHTML();
+  if(preserveScroll){
+    const newScrollEl=el.querySelector('.plans-col-list');
+    if(newScrollEl) newScrollEl.scrollTop=prevScrollTop;
+  }
 }
 function saveRaceForm(){
   const name=(document.getElementById('race-name').value||'').trim();
@@ -8714,10 +8984,14 @@ function saveRaceForm(){
   saveRacesList();
   if(ACTIVE_BLOCK_ID) RACES=racesAsObject(racesForBlock(ACTIVE_BLOCK_ID));
   if(status==='done' && blockId) maybeAutoCompleteBlock(blockId);
-  renderPlansBody(true);
+  closeOverlay('race-form-overlay');
+  if(CURR_VIEW==='races') renderRaces(true);
   renderAll();
   showToast('Race saved');
 }
+// showConfirm's own confirm-overlay (z-index 260) renders on top of the still-open race-form-overlay
+// (z-index 200) without any extra plumbing -- same layering every other "delete this thing while its
+// own edit form is open" flow in the app already relies on.
 function confirmDeleteRace(key){
   const r=RACES_LIST.find(x=>x.key===key);
   if(!r) return;
@@ -8728,7 +9002,8 @@ function confirmDeleteRace(key){
       RACE_EDIT_KEY=null; RACE_ADDING=false; RACE_STRATEGY_KEY=null;
       saveRacesList();
       if(ACTIVE_BLOCK_ID) RACES=racesAsObject(racesForBlock(ACTIVE_BLOCK_ID));
-      renderPlansBody(true);
+      closeOverlay('race-form-overlay');
+      if(CURR_VIEW==='races') renderRaces(true);
       renderAll();
       showToast('Race deleted');
     }},
@@ -8754,15 +9029,29 @@ function sessionMetric(s,type){
   if(!s) return null;
   const n=NOTES[s.id];
   const done=STATUS[s.id]==='done';
-  // Once a real Activity is linked as this session's 'fulfillment', that Activity's own numbers
-  // already count once via activitiesForWeek() (see weekMetricTotal) -- so the session's own hand-typed
-  // metric must stop contributing here, or the same real-world session gets counted twice. Dylon: "when
-  // you attach an activity it combines the total volume so it gets doubled." Doesn't apply to 'walk'
-  // (prewalk/postwalk are separate warm-up/cool-down data, not a second copy of the main session).
-  const fulfilled=sessionHasFulfillingActivity(s.id);
+  // v0.34.2 rewrite -- Dylon: "i have 2 strength sessions marked off but 1 only recorded i also have
+  // several post run mobility but those dont get loaded in." Root cause, confirmed with a direct
+  // reproduction: the OLD design had a session bail out entirely once ANY fulfilling Activity was
+  // linked (the 'fulfilled' check below used to gate every branch), trusting a SEPARATE loop in
+  // weekMetricTotal to re-add that same session's number by matching the fulfilling Activity's own
+  // `.type` field against the trend type being computed. That second match is fragile: an imported/
+  // logged Activity's `.type` often isn't 'strength' or 'mobility' at all -- inferActivityType()'s own
+  // generic 'workout' fallback (no GPS, no recognizable sport string -- exactly what a manually-entered
+  // or ambiguous strength/mobility file looks like) doesn't match ANY trend type, so a session with a
+  // real fulfilling Activity attached could silently drop out of Activity Trends entirely: not double-
+  // counted, not undercounted by half -- just gone, regardless of the fact that `loggedDist()`/
+  // `sessionDurationSec()` (used elsewhere, and now here too) already correctly pull that Activity's
+  // real numbers with zero dependency on its own `.type` field. Fix: a session's own contribution now
+  // ALWAYS comes from here (via loggedDist() for run, which itself already prefers a fulfilling
+  // Activity's real, possibly-multi-Activity-summed distance) -- no more bailing out just because a
+  // fulfilling Activity exists. weekMetricTotal()'s own Activities loop was correspondingly changed to
+  // only add non-fulfillment (accessory/standalone) Activities, so a fulfilling Activity's number is
+  // never counted twice regardless of what its own `.type` says.
   if(type==='run'){
-    if(fulfilled) return null;
-    if((s.ty==='easy'||s.ty==='long'||s.ty==='qual'||s.ty==='race') && done && n && n.dist) return parseFloat(n.dist)||0;
+    if((s.ty==='easy'||s.ty==='long'||s.ty==='qual'||s.ty==='race') && done){
+      const d=loggedDist(s.id);
+      return d?d:null;
+    }
     return null;
   }
   if(type==='walk'){
@@ -8777,11 +9066,14 @@ function sessionMetric(s,type){
     if(n.postwalk){w+=parseFloat(n.postwalk)||0;any=true;}
     return any?w:null;
   }
-  if(type==='str'){ return (s.ty==='str' && done && !fulfilled)?1:null; }
+  // Strength/Mobility are a plain COUNT of sessions done, not a number borrowed from a linked Activity
+  // -- so unlike 'run' above, whether a real Activity happens to be linked (or what it's typed as)
+  // doesn't change the answer at all. A done Strength/Mobility session is always worth 1.
+  if(type==='str'){ return (s.ty==='str' && done)?1:null; }
   // 'rest' is kept alongside 'mobility' for older blocks that pre-date the dedicated mobility
   // session type, where a rest day's title carried the mobility content instead (see
   // planMobilitySessions() above, which uses this exact same OR for the Prehab tab).
-  if(type==='mob'){ return ((s.ty==='mobility' || (s.ty==='rest' && /mobility/i.test(s.ti||''))) && done && !fulfilled)?1:null; }
+  if(type==='mob'){ return ((s.ty==='mobility' || (s.ty==='rest' && /mobility/i.test(s.ti||''))) && done)?1:null; }
   if(type==='hang'){
     if(!n||!n.hangsets||!n.hangsec) return null;
     const sets=parseFloat(n.hangsets)||0, sec=parseFloat(n.hangsec)||0;
@@ -8800,33 +9092,133 @@ function weekMetricTotal(wk,type){
     const v=sessionMetric(s,type);
     if(v!==null){total+=v;any=true;}
   });
+  // Standalone EXTRALOGS/ACTIVITIES entries are bucketed by trendCalWeek() (pure calendar-week math),
+  // not weekForDate() -- see trendCalWeek()'s own comment. A planned session logged with real GPS data
+  // still lands correctly since its date IS that week's session date; this only changes attribution for
+  // dates with no nearby planned session to nearest-match against.
   if(type==='run'||type==='walk'){
-    extraLogsForWeek(wk).forEach(x=>{
+    extraLogsForTrendWeek(wk).forEach(x=>{
       if(x.kind===type && x.dist){ total+=parseFloat(x.dist)||0; any=true; }
     });
   }
   if(type==='str'){
-    extraLogsForWeek(wk).forEach(x=>{ if(x.kind==='str'){ total+=1; any=true; } });
+    extraLogsForTrendWeek(wk).forEach(x=>{ if(x.kind==='str'){ total+=1; any=true; } });
   }
   if(type==='mob'){
-    extraLogsForWeek(wk).forEach(x=>{ if(x.kind==='mobility'||x.kind==='yoga'){ total+=1; any=true; } });
+    extraLogsForTrendWeek(wk).forEach(x=>{ if(x.kind==='mobility'||x.kind==='yoga'){ total+=1; any=true; } });
   }
-  // Imported/logged Activities feed the same weekly trend chart, regardless of role (Phase 1b --
-  // this used to be the real gap: an imported run showed up in History but not here).
-  if(type==='run'||type==='walk'){
-    activitiesForWeek(wk).forEach(a=>{ if(a.type===type && a.distanceKm){ total+=a.distanceKm; any=true; } });
+  // Imported/logged Activities feed the same weekly trend chart too -- but NOT a 'fulfillment'-role
+  // one for 'run'/'str'/'mob' anymore (v0.34.2): that Activity's real number is now already folded
+  // into its linked session's own contribution above via sessionMetric() -> loggedDist()/a flat count
+  // of 1, which (unlike this loop) doesn't care what the Activity's own `.type` field says. Counting it
+  // AGAIN here, filtered by `.type`, would either double-count it (when the type happens to match) or
+  // -- the actual reported bug -- silently drop the whole session's number (when it doesn't, e.g.
+  // inferActivityType()'s generic 'workout' fallback for a strength/mobility file with no GPS data).
+  // v0.34.5 -- that "already folded into its session" assumption only holds when the LINKED SESSION
+  // itself matches this trend type (see activityFulfillmentAlreadyCounted()'s own comment) -- a
+  // correctly-typed Mobility Activity that fulfills a RUN session isn't folded in anywhere, so it must
+  // still be counted here. Only a fulfillment-role Activity whose own session genuinely matches gets
+  // skipped now; accessory and unplanned/standalone Activities were always counted here regardless.
+  // 'walk' is unaffected -- there's no planned "walk" session type at all (see sessionMatchesTrendType),
+  // so a walk Activity is never a session's own 'fulfillment' in the first place; every walk Activity,
+  // any role, has only ever had this one path into the chart.
+  if(type==='run'){
+    activitiesForTrendWeek(wk).forEach(a=>{ if(a.type===type && !activityFulfillmentAlreadyCounted(a,type) && a.distanceKm){ total+=a.distanceKm; any=true; } });
+  }
+  if(type==='walk'){
+    activitiesForTrendWeek(wk).forEach(a=>{ if(a.type===type && a.distanceKm){ total+=a.distanceKm; any=true; } });
   }
   if(type==='str'){
-    activitiesForWeek(wk).forEach(a=>{ if(a.type==='strength'){ total+=1; any=true; } });
+    activitiesForTrendWeek(wk).forEach(a=>{ if(a.type==='strength' && !activityFulfillmentAlreadyCounted(a,type)){ total+=1; any=true; } });
   }
   if(type==='mob'){
-    activitiesForWeek(wk).forEach(a=>{ if(a.type==='mobility'||a.type==='yoga'){ total+=1; any=true; } });
+    activitiesForTrendWeek(wk).forEach(a=>{ if((a.type==='mobility'||a.type==='yoga') && !activityFulfillmentAlreadyCounted(a,type)){ total+=1; any=true; } });
   }
   return {total,any};
 }
 function allWeeklyTotals(type){
   const out=[];
   for(let w=1;w<=blockWeekCount();w++) out.push(weekMetricTotal(w,type).total);
+  return out;
+}
+// Time-per-activity-type trend -- Dylon: "strava has time in activity I will like a graph that shows
+// time per activity (Run, walk, Strength, and Mobility)." Same session-type matching sessionMetric()
+// already uses per trend type (kept as its own named helper here since it's needed in three separate
+// places below, not embedded inline three times), but reads real logged duration
+// (sessionDurationSec() -- which itself now prefers a linked Activity's real time over anything hand-
+// typed, see its own comment) instead of a type-specific numeric field like distance or a session
+// count. 'walk' has no real matching session type -- see sessionMetric's own note that prewalk/postwalk
+// are legacy-only -- so a standalone walk's time only ever comes from EXTRALOGS/Activities below, same
+// as its distance already does in weekMetricTotal.
+function sessionMatchesTrendType(s,type){
+  if(type==='run') return s.ty==='easy'||s.ty==='long'||s.ty==='qual'||s.ty==='race';
+  if(type==='walk') return false;
+  if(type==='str') return s.ty==='str';
+  if(type==='mob') return s.ty==='mobility' || (s.ty==='rest' && /mobility/i.test(s.ti||''));
+  return false;
+}
+// v0.34.5 -- a fulfillment-role Activity's own number is only "already folded into its linked session's
+// contribution" (and therefore safe to skip in the Activities loops below) when that linked session
+// itself actually matches the trend type being computed. Every one of those loops used to skip EVERY
+// fulfillment-role Activity outright, on the assumption that its number always comes through via its
+// session -- true when a Strength Activity fulfills a Strength session, but not when a correctly-typed
+// Mobility Activity fulfills a RUN session instead (e.g. a post-run stretch imported as its own file and
+// marked "Fulfills this" on that day's run, rather than "Attach as extra"). In that case the run
+// session's own sessionMetric('mob')/sessionDurationSec('mob') check is null -- it's not a mobility
+// session -- so the Activity's real Mobility number was folded into NOTHING and just silently vanished.
+// Reproduced directly: a Type-confirmed 'mobility' Activity, role:'fulfillment', linked to a 'run'-type
+// session -- weekMetricTotal(wk,'mob') and weekDurationTotal(wk,'mob') both returned {total:0,any:false}
+// even though the exact same Activity attached as 'accessory' instead counted correctly. Dylon: "when i
+// imported mobility sessions i.e. post run stretch this data didnt get logged in the activity trends" --
+// this is the actual root cause, distinct from (and found after) the v0.34.2 fulfillment-type-mismatch
+// fix, which only covered a session's OWN contribution, not a mismatched fulfilling Activity's.
+function activityFulfillmentAlreadyCounted(a,type){
+  if(a.role!=='fulfillment'||!a.linkedSessionId) return false;
+  const linkedSession=findSess(a.linkedSessionId);
+  return !!(linkedSession && sessionMatchesTrendType(linkedSession,type));
+}
+function weekDurationTotal(wk,type){
+  let total=0,any=false;
+  // v0.34.2 -- same fix as sessionMetric()/weekMetricTotal() above: a session's own duration always
+  // comes from sessionDurationSec() now (which already prefers a linked Activity's real time,
+  // regardless of that Activity's own `.type`), instead of bailing out here and trusting the Activities
+  // loop below to independently re-find it by type. See sessionMetric()'s own comment for the full bug
+  // this fixes -- Dylon: "i have 2 strength sessions marked off but 1 only recorded."
+  weekSessionsFull(wk).forEach(s=>{
+    if(!sessionMatchesTrendType(s,type)) return;
+    if(STATUS[s.id]!=='done') return;
+    const sec=sessionDurationSec(s.id);
+    if(sec){ total+=sec; any=true; }
+  });
+  // Same trendCalWeek()-based bucketing as weekMetricTotal() above, not weekForDate() -- keeps the
+  // Time view's weekly totals and day breakdown consistent with the distance/volume view.
+  extraLogsForTrendWeek(wk).forEach(x=>{
+    const kindMatches=type==='mob'?(x.kind==='mobility'||x.kind==='yoga'):(x.kind===type);
+    if(!kindMatches) return;
+    const sec=extraLogDurationSec(x);
+    if(sec){ total+=sec; any=true; }
+  });
+  // Only a non-fulfillment (accessory, e.g. a post-run mobility session -- or fully standalone)
+  // Activity is counted here for 'run'/'str'/'mob' -- a fulfillment-role one is already folded into
+  // its linked session's own duration above, PROVIDED that linked session actually matches this trend
+  // type (v0.34.5 -- see activityFulfillmentAlreadyCounted()'s own comment: a Mobility Activity that
+  // fulfills a RUN session isn't folded into anything, so its duration must still count here). 'walk'
+  // keeps every role, same reasoning as weekMetricTotal()'s own walk branch: there's no planned "walk"
+  // session type for a walk Activity to ever fulfill in the first place.
+  activitiesForTrendWeek(wk).forEach(a=>{
+    if(type!=='walk' && activityFulfillmentAlreadyCounted(a,type)) return;
+    const activityTypeMatches=type==='str'?a.type==='strength':(type==='mob'?(a.type==='mobility'||a.type==='yoga'):a.type===type);
+    if(activityTypeMatches && a.durationSec){ total+=a.durationSec; any=true; }
+  });
+  return {total,any};
+}
+// Hours (not raw seconds) -- every other Activity Trends number is already a small human-scale figure
+// (km, a session count, kg), and weekly totals here always default to 0 for a genuinely empty week
+// (not null/a gap) to match allWeeklyTotals()'s own convention -- a gap is reserved for Weight, where
+// "no weigh-in logged" is a real, different state than "weighed in at 0kg."
+function allWeeklyDurationHours(type){
+  const out=[];
+  for(let w=1;w<=blockWeekCount();w++) out.push(weekDurationTotal(w,type).total/3600);
   return out;
 }
 // Weight isn't summed like distance — a week with no weigh-in should show as a gap, not zero,
@@ -8837,7 +9229,7 @@ function weekWeight(wk){
     const n=NOTES[s.id];
     if(STATUS[s.id]==='done' && n && n.weight) candidates.push({date:s.date,weight:parseFloat(n.weight)});
   });
-  extraLogsForWeek(wk).forEach(x=>{
+  extraLogsForTrendWeek(wk).forEach(x=>{
     if(x.kind==='weight' && x.weight) candidates.push({date:x.date,weight:parseFloat(x.weight)});
   });
   if(!candidates.length) return null;
@@ -9007,6 +9399,124 @@ function fmtTrendVal(v,unit){ return (v===null||v===undefined)?'—':(v.toFixed(
 function selectTrend(type){ CURR_TREND=type; CURR_TREND_WK=null; renderProgress(); }
 function toggleTrendWeek(wk){ CURR_TREND_WK=(CURR_TREND_WK===wk)?null:wk; renderProgress(); }
 function selectRunSubtab(tab){ CURR_RUN_SUBTAB=tab; CURR_TREND_WK=null; renderProgress(); }
+function selectTrendMetric(m){ CURR_TREND_METRIC=m; CURR_TREND_WK=null; renderProgress(); }
+
+/* ═══════════════════════════ STREAK PAGE ═══════════════════════════
+   Dylon: "i think we should implement strava streak ui as well please," alongside Strava screenshots
+   of a big streak number and a month calendar with a small icon on every logged day. Reuses the
+   existing currentStreak()/longestStreak()/dayHasActivity() streak math untouched -- this is purely a
+   new view onto numbers the app already computed correctly, not a new streak-counting rule. */
+let STREAK_CAL_Y=null, STREAK_CAL_M=null;
+function openStreakPage(){
+  const now=new Date();
+  STREAK_CAL_Y=now.getFullYear();
+  STREAK_CAL_M=now.getMonth();
+  renderStreakPage();
+  document.getElementById('streak-overlay').classList.add('open');
+}
+function streakCalPrevMonth(){
+  STREAK_CAL_M--;
+  if(STREAK_CAL_M<0){ STREAK_CAL_M=11; STREAK_CAL_Y--; }
+  renderStreakPage();
+}
+function streakCalNextMonth(){
+  const now=new Date();
+  if(STREAK_CAL_Y===now.getFullYear() && STREAK_CAL_M===now.getMonth()) return; // can't browse into the future
+  STREAK_CAL_M++;
+  if(STREAK_CAL_M>11){ STREAK_CAL_M=0; STREAK_CAL_Y++; }
+  renderStreakPage();
+}
+// Which activity-type icon(s) to show on a given calendar day. Deliberately scoped to the exact same
+// two sources dayHasActivity() itself checks (a done, non-check-in plan session; a standalone
+// EXTRALOGS quick add) -- NOT every ACTIVITIES record dated that day -- so a day's icon(s) can never
+// show "something was logged here" while the streak count right above it disagrees about whether that
+// day actually counts. A fulfilling Activity still shows up via its linked session already being
+// marked done, same as everywhere else in the app.
+function streakDayTypes(iso){
+  const raw=[];
+  allBlockSessions().forEach(s=>{
+    if(!isCheckinSession(s) && s.date===iso && STATUS[s.id]==='done') raw.push(s.ty);
+  });
+  EXTRALOGS.forEach(x=>{
+    if(x.date!==iso) return;
+    if(x.kind==='run') raw.push('easy');
+    else if(x.kind==='prehab') raw.push(x.subtype||'yoga');
+    else raw.push(x.kind); // walk/str/yoga/mobility/weight
+  });
+  // De-dupe, drop anything without a known icon, and cap at 3 -- a day stacking run+strength+mobility
+  // is already plenty for a small calendar cell without it turning into a wall of dots.
+  return [...new Set(raw)].filter(t=>ICONS[t]).slice(0,3);
+}
+function renderStreakPage(){
+  const body=document.getElementById('streak-sh-body');
+  if(!body) return;
+  const curStreak=currentStreak(), longStreak=longestStreak();
+  const curWeekStreak=currentWeekStreak(), longWeekStreak=longestWeekStreak();
+  const y=STREAK_CAL_Y, m=STREAK_CAL_M;
+  const monthLabel=new Date(y,m,1).toLocaleDateString('en-US',{month:'long',year:'numeric'});
+  const monthShort=new Date(y,m,1).toLocaleDateString('en-US',{month:'short'});
+  const daysInMonth=new Date(y,m+1,0).getDate();
+  const firstWd=(new Date(y,m,1).getDay()+6)%7; // Monday-based, matching the rest of the app's calendars
+  const todayIso=todayISO();
+  const now=new Date();
+  const isCurrentRealMonth=(y===now.getFullYear() && m===now.getMonth());
+  let activeDaysThisMonth=0;
+  let cellsHTML='';
+  for(let i=0;i<firstWd;i++) cellsHTML+='<div></div>';
+  for(let d=1;d<=daysInMonth;d++){
+    const iso=isoDate(new Date(y,m,d));
+    const isToday=iso===todayIso;
+    if(iso>todayIso){
+      cellsHTML+=`<div class="streak-day-cell${isToday?' today':''}"><div class="streak-day-num">${d}</div></div>`;
+      continue;
+    }
+    const active=dayHasActivity(iso);
+    if(active) activeDaysThisMonth++;
+    const types=streakDayTypes(iso);
+    cellsHTML+=`<div class="streak-day-cell${isToday?' today':''}${active?' active':''}">
+      <div class="streak-day-num">${d}</div>
+      <div class="streak-day-icos">${types.map(t=>`<span class="streak-day-ico ${ICOCLS[t]}">${ICONS[t]}</span>`).join('')}</div>
+    </div>`;
+  }
+  body.innerHTML=`
+    <div class="streak-page-hero">
+      <div class="streak-page-flame">${STREAK_ICON}</div>
+      <div class="streak-page-split">
+        <div class="streak-page-split-col">
+          <div class="streak-page-num">${curStreak}</div>
+          <div class="streak-page-lbl">Day streak</div>
+          <div class="streak-page-sub-lbl">Longest: ${longStreak}</div>
+        </div>
+        <div class="streak-page-split-sep"></div>
+        <div class="streak-page-split-col">
+          <div class="streak-page-num">${curWeekStreak}</div>
+          <div class="streak-page-lbl">Week streak</div>
+          <div class="streak-page-sub-lbl">Longest: ${longWeekStreak}</div>
+        </div>
+      </div>
+      <div class="streak-page-active-days">${activeDaysThisMonth} active day${activeDaysThisMonth===1?'':'s'} this month · ${monthShort}</div>
+    </div>
+    <div class="streak-cal-nav">
+      <button onclick="streakCalPrevMonth()" aria-label="Previous month"><svg viewBox="0 -960 960 960" style="fill:currentColor;stroke:none"><path d="M560-240 320-480l240-240 56 56-184 184 184 184-56 56Z"/></svg></button>
+      <div class="streak-cal-month-lbl">${monthLabel}</div>
+      <button onclick="streakCalNextMonth()" ${isCurrentRealMonth?'disabled':''} aria-label="Next month"><svg viewBox="0 -960 960 960" style="fill:currentColor;stroke:none"><path d="M504-480 320-664l56-56 240 240-240 240-56-56 184-184Z"/></svg></button>
+    </div>
+    <div class="cal-wd-row">${TB_WD_LABELS.map(w=>`<div class="cal-wd">${w}</div>`).join('')}</div>
+    <div class="cal-grid">${cellsHTML}</div>
+  `;
+}
+function shareStreak(){
+  const curStreak=currentStreak(), longStreak=longestStreak();
+  const curWeekStreak=currentWeekStreak(), longWeekStreak=longestWeekStreak();
+  const dayTxt=`🔥 ${curStreak} day${curStreak===1?'':'s'} in a row on HALO${longStreak>curStreak?` (longest: ${longStreak} days)`:''}!`;
+  const weekTxt=curWeekStreak>0?`\n📅 ${curWeekStreak} week${curWeekStreak===1?'':'s'} in a row${longWeekStreak>curWeekStreak?` (longest: ${longWeekStreak} weeks)`:''}!`:'';
+  const txt=`${dayTxt}${weekTxt}\n\n— shared from the HALO app`;
+  if(navigator.share){
+    navigator.share({title:'My HALO streak',text:txt}).catch(e=>{ if(!e||e.name!=='AbortError') copyToClipboard(txt); });
+  } else {
+    copyToClipboard(txt);
+  }
+}
 
 // Efficiency Factor (EF) = speed (m/min) ÷ avg heart rate. A rising EF across the block means the athlete
 // is covering more ground per heartbeat — i.e. heart rate is dropping relative to pace as fitness improves.
@@ -9060,6 +9570,17 @@ function fmtDurationSec(sec){
 // day at all (same "never silently zero" reasoning as loggedDist()'s strides fallback above).
 function sessionDurationSec(id){
   const n=NOTES[id];
+  // Same priority fix as loggedDist() above, for the exact same reason: a linked fulfilling
+  // Activity's own real duration now wins over anything hand-typed on the session, matching
+  // sessionMetric()'s own priority for the weekly trend charts. This used to check NOTES.duration/
+  // pace×dist/strides FIRST, only falling back to the activity if all three were empty -- so a
+  // session with a stale hand-typed duration left over from before it got a real fulfilling Activity
+  // linked would silently keep reporting that stale number in Total time logged forever, never
+  // picking up the activity's actual, more-accurate duration. Same "sum every fulfillment Activity,
+  // not just the first" fix as loggedDist() above -- see its comment for why a single day can have
+  // more than one.
+  const fulfilling=ACTIVITIES.filter(a=>a.linkedSessionId===id && a.role==='fulfillment' && a.durationSec);
+  if(fulfilling.length) return fulfilling.reduce((sum,a)=>sum+a.durationSec,0);
   if(n){
     if(n.duration){ const d=parseDurationSec(n.duration); if(d) return d; }
     if(n.pace && n.dist){
@@ -9071,14 +9592,6 @@ function sessionDurationSec(id){
       if(sec>0) return sec;
     }
   }
-  // Same fallback loggedDist() already has for distance -- a linked Activity's own real duration
-  // stands in for a hand-typed one once it fulfills this session, so a session fulfilled purely by
-  // an uploaded/imported activity (no NOTES.duration ever typed by hand) still counts its real time
-  // instead of silently contributing nothing to Total time logged.
-  // Same "sum every fulfillment Activity, not just the first" fix as loggedDist() above -- see its
-  // comment for why a single day can have more than one.
-  const fulfilling=ACTIVITIES.filter(a=>a.linkedSessionId===id && a.role==='fulfillment' && a.durationSec);
-  if(fulfilling.length) return fulfilling.reduce((sum,a)=>sum+a.durationSec,0);
   return null;
 }
 function extraLogDurationSec(x){
@@ -9482,14 +9995,39 @@ function renderRacePredTrendChart(points){
   }
   let labelsHTML='';
   const labelEvery=n>7?Math.ceil(n/6):1;
+  // Point markers moved out of the SVG into this same absolutely-positioned HTML layer -- Dylon:
+  // "plot points on graphs are blown up when in desktop mode." An SVG <circle> with a fixed radius
+  // in this 320-unit viewBox gets stretched horizontally (not vertically) by preserveAspectRatio=
+  // "none" once the chart's actual rendered width — fluid on desktop — is several times the
+  // viewBox's 320 units, turning every dot into a wide ellipse blob instead of a small circle. A
+  // real HTML circle (equal width/height, positioned by percent) sits outside the SVG's coordinate
+  // space entirely, so it can't be stretched non-uniformly. Same fix already applied to this
+  // function's date labels below; the dots were the one thing still living inside the SVG.
   pts.forEach((p,i)=>{
-    svg+=`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3.5" fill="${p.projected?bgCol:lineCol}" stroke="${lineCol}" stroke-width="1.5"/>`;
+    labelsHTML+=`<span style="position:absolute;left:${(p.x/W*100).toFixed(2)}%;top:${(p.y/H*100).toFixed(2)}%;width:7px;height:7px;border-radius:50%;background:${p.projected?bgCol:lineCol};border:1.5px solid ${lineCol};box-sizing:border-box;transform:translate(-50%,-50%)"></span>`;
     if(i%labelEvery===0 || i===n-1){
       labelsHTML+=`<span style="position:absolute;left:${(p.x/W*100).toFixed(2)}%;bottom:0;transform:translateX(-50%);font-size:8px;color:${labelCol};text-transform:uppercase;white-space:nowrap">${fmtDate(p.date)}</span>`;
     }
   });
   svg+='</svg>';
-  return `<div style="position:relative;padding-right:32px">${svg}<div style="position:absolute;inset:0;pointer-events:none">${labelsHTML}${gridLabelsHTML}</div></div>`;
+  // Dylon: "the plot points on the graphs in progress is misaligned." Root cause: the outer wrapper
+  // below has padding-right:32px (reserved space for the right-side axis value labels in
+  // gridLabelsHTML), but the dot/date-label overlay used to share that SAME padded box via
+  // position:absolute;inset:0 -- and per the CSS spec, inset:0 on an absolutely positioned element is
+  // measured against its containing block's PADDING box (the full width, including that 32px), not
+  // its content box. The SVG itself, an ordinary in-flow child, only ever occupied the narrower
+  // CONTENT box (full width minus 32px). So the dot overlay's 0%-100% coordinate space was 32px wider
+  // than the SVG actually rendered at, and a dot positioned at, say, x=90% of that wider box landed
+  // measurably to the right of where the line actually sat at 90% of the SVG's own real width -- worse
+  // the further right (later) a point was, exactly the growing rightward drift the screenshots showed.
+  // Fix: nest an unpadded inner wrapper around just the SVG + dot/date-label overlay (so both
+  // reference the exact same box, with no padding to disagree about) and give gridLabelsHTML its own
+  // separate overlay on the padded OUTER wrapper instead, where its own right:0 rule still correctly
+  // means "the true right edge of the reserved 32px margin," same as before.
+  return `<div style="position:relative;padding-right:32px">
+    <div style="position:relative">${svg}<div style="position:absolute;inset:0;pointer-events:none">${labelsHTML}</div></div>
+    <div style="position:absolute;inset:0;pointer-events:none">${gridLabelsHTML}</div>
+  </div>`;
 }
 // v0.32.11 -- full redesign per Dylon's own Strava-inspired mockup: "there is a new selector option
 // that changes based on distance prediction click it and the hero changes and reveals the current
@@ -9847,26 +10385,36 @@ function renderTrendDayRows(wk,type){
   const byDate={};
   const add=(date,v)=>{ if(v===null||v===undefined||isNaN(v)) return; byDate[date]=(byDate[date]||0)+v; };
   sessions.forEach(s=>{ add(s.date,sessionMetric(s,type)); });
+  // Standalone EXTRALOGS/ACTIVITIES entries bucket by trendCalWeek() here too, matching
+  // weekMetricTotal() -- see trendCalWeek()'s own comment on why (a plan-sparse week could otherwise
+  // nearest-match a standalone log into the wrong week's breakdown).
   if(type==='run'||type==='walk'||type==='weight'||type==='str'){
-    extraLogsForWeek(wk).filter(x=>x.kind===type).forEach(x=>{
+    extraLogsForTrendWeek(wk).filter(x=>x.kind===type).forEach(x=>{
       add(x.date, type==='weight'?parseFloat(x.weight):type==='str'?1:parseFloat(x.dist));
     });
   }
   if(type==='mob'){
-    extraLogsForWeek(wk).forEach(x=>{ if(x.kind==='mobility'||x.kind==='yoga') add(x.date,1); });
+    extraLogsForTrendWeek(wk).forEach(x=>{ if(x.kind==='mobility'||x.kind==='yoga') add(x.date,1); });
   }
   // Imported/uploaded Activities feed the same weekly TOTAL via weekMetricTotal() (Phase 1b) but this
   // per-day breakdown never picked them up -- Dylon: "uploaded data isnt added to the activity trends
   // breakdown," visible as the top number showing a real total for the week while the breakdown below
-  // it said "Nothing logged this week." Mirrors weekMetricTotal()'s own Activities handling exactly.
-  if(type==='run'||type==='walk'){
-    activitiesForWeek(wk).forEach(a=>{ if(a.type===type && a.distanceKm) add(a.date,a.distanceKm); });
+  // it said "Nothing logged this week." Mirrors weekMetricTotal()'s own Activities handling exactly --
+  // including its v0.34.5 activityFulfillmentAlreadyCounted() check for run/str/mob (walk excepted),
+  // which only skips a fulfillment-role Activity when its OWN linked session actually matches this
+  // trend type -- see that function's own comment for why (a correctly-typed Mobility Activity that
+  // fulfills a RUN session isn't folded into anything and must still show up here).
+  if(type==='run'){
+    activitiesForTrendWeek(wk).forEach(a=>{ if(a.type===type && !activityFulfillmentAlreadyCounted(a,type) && a.distanceKm) add(a.date,a.distanceKm); });
+  }
+  if(type==='walk'){
+    activitiesForTrendWeek(wk).forEach(a=>{ if(a.type===type && a.distanceKm) add(a.date,a.distanceKm); });
   }
   if(type==='str'){
-    activitiesForWeek(wk).forEach(a=>{ if(a.type==='strength') add(a.date,1); });
+    activitiesForTrendWeek(wk).forEach(a=>{ if(a.type==='strength' && !activityFulfillmentAlreadyCounted(a,type)) add(a.date,1); });
   }
   if(type==='mob'){
-    activitiesForWeek(wk).forEach(a=>{ if(a.type==='mobility'||a.type==='yoga') add(a.date,1); });
+    activitiesForTrendWeek(wk).forEach(a=>{ if((a.type==='mobility'||a.type==='yoga') && !activityFulfillmentAlreadyCounted(a,type)) add(a.date,1); });
   }
   const dates=Object.keys(byDate).sort();
   let h=`<div class="trend-days">`;
@@ -9876,6 +10424,41 @@ function renderTrendDayRows(wk,type){
     // only has Quick Add extras logged against it, no matching session.
     const wd=(sessions.find(s=>s.date===date)||{}).wd||PLAN_WD[new Date(date+'T12:00:00').getDay()];
     h+=`<div class="trend-day-row"><span>${wd} · ${fmtDate(date)}</span><span style="font-weight:700">${fmtTrendVal(byDate[date],tt.unit)}</span></div>`;
+  });
+  if(!dates.length) h+=`<div style="font-size:12.5px;color:var(--t3);padding:4px 0">Nothing logged this week.</div>`;
+  h+='</div>';
+  return h;
+}
+// Same per-day grouping as renderTrendDayRows() above, but for the Time view -- real logged duration
+// per day instead of distance/session-count, via the same sessionMatchesTrendType()/
+// sessionDurationSec()/extraLogDurationSec() sources weekDurationTotal() itself sums.
+function renderTrendDurationDayRows(wk,type){
+  const sessions=weekSessionsFull(wk);
+  const byDate={};
+  const add=(date,sec)=>{ if(!sec) return; byDate[date]=(byDate[date]||0)+sec; };
+  // v0.34.2 -- no more bailing out just because a fulfilling Activity exists; see sessionMetric()'s own
+  // comment for the full bug this fixes.
+  sessions.forEach(s=>{
+    if(!sessionMatchesTrendType(s,type)) return;
+    if(STATUS[s.id]!=='done') return;
+    add(s.date,sessionDurationSec(s.id));
+  });
+  extraLogsForTrendWeek(wk).forEach(x=>{
+    const kindMatches=type==='mob'?(x.kind==='mobility'||x.kind==='yoga'):(x.kind===type);
+    if(kindMatches) add(x.date,extraLogDurationSec(x));
+  });
+  // v0.34.5 -- mirrors weekDurationTotal()'s own activityFulfillmentAlreadyCounted() check; see that
+  // function's comment for why a plain a.role==='fulfillment' check isn't enough on its own.
+  activitiesForTrendWeek(wk).forEach(a=>{
+    if(type!=='walk' && activityFulfillmentAlreadyCounted(a,type)) return;
+    const activityTypeMatches=type==='str'?a.type==='strength':(type==='mob'?(a.type==='mobility'||a.type==='yoga'):a.type===type);
+    if(activityTypeMatches) add(a.date,a.durationSec);
+  });
+  const dates=Object.keys(byDate).sort();
+  let h=`<div class="trend-days">`;
+  dates.forEach(date=>{
+    const wd=(sessions.find(s=>s.date===date)||{}).wd||PLAN_WD[new Date(date+'T12:00:00').getDay()];
+    h+=`<div class="trend-day-row"><span>${wd} · ${fmtDate(date)}</span><span style="font-weight:700">${fmtHoursMin(byDate[date])}</span></div>`;
   });
   if(!dates.length) h+=`<div style="font-size:12.5px;color:var(--t3);padding:4px 0">Nothing logged this week.</div>`;
   h+='</div>';
@@ -9920,6 +10503,13 @@ function renderTrendAreaChart(values){
   // correct regardless of stretch since it's a ratio) instead of a raw viewBox coordinate, read
   // crisp at any width. Height isn't stretched (the box's pixel height matches H exactly), so pixel
   // y-offsets for the label row are still safe to use as-is.
+  // Dylon: "plot points on graphs are blown up when in desktop mode." Same root cause as the text
+  // fix above, just never applied to the point markers — an SVG <circle> with a fixed r in
+  // 320-unit viewBox space gets stretched horizontally by preserveAspectRatio="none" too, so once
+  // the chart's actual rendered width on a wide desktop card is several times the 320-unit viewBox,
+  // every "circle" renders as a wide ellipse blob instead of a small dot. Moved out of the SVG into
+  // the same absolutely-positioned HTML layer as the week labels — a real circle (equal width/
+  // height) can't be stretched non-uniformly since it's outside the SVG's own coordinate system.
   let svg=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:${H}px;display:block;overflow:visible" preserveAspectRatio="none">`;
   [0.33,0.66,1].forEach(f=>{
     const gy=baseline-innerH*f;
@@ -9936,7 +10526,10 @@ function renderTrendAreaChart(values){
   pts.forEach(p=>{
     const color=colorForPhase(p.ph);
     const isOpen=CURR_TREND_WK===p.wk;
-    if(p.y!==null) svg+=`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${isOpen?5:3}" fill="${color}" stroke="${bgCol}" stroke-width="1.5"/>`;
+    if(p.y!==null){
+      const dotSize=isOpen?10:6;
+      labelsHTML+=`<span style="position:absolute;left:${(p.x/W*100).toFixed(2)}%;top:${(p.y/H*100).toFixed(2)}%;width:${dotSize}px;height:${dotSize}px;border-radius:50%;background:${color};border:1.5px solid ${bgCol};box-sizing:border-box;transform:translate(-50%,-50%)"></span>`;
+    }
     svg+=`<rect x="${(p.x-colW/2).toFixed(1)}" y="${padT}" width="${colW.toFixed(1)}" height="${innerH}" fill="transparent" style="cursor:pointer" onclick="toggleTrendWeek(${p.wk})"/>`;
     labelsHTML+=`<span style="position:absolute;left:${(p.x/W*100).toFixed(2)}%;bottom:0;transform:translateX(-50%);font-size:8px;color:${labelCol}">W${p.wk}</span>`;
   });
@@ -10011,7 +10604,10 @@ function renderBlockComparisonChart(blocks){
   // Same fix as renderTrendAreaChart: axis-percent and block-name labels moved out of the SVG (was
   // <text> baked into a 320-unit viewBox stretched to width:100%, which warped the glyphs
   // horizontally at any width much beyond 320px) into real HTML, absolutely positioned by percent
-  // of width so they still land in the right spot at any rendered size.
+  // of width so they still land in the right spot at any rendered size. Point markers get the same
+  // treatment below -- Dylon: "plot points on graphs are blown up when in desktop mode" -- an SVG
+  // <circle> in this same viewBox stretches into a wide ellipse for the same reason the old <text>
+  // labels warped.
   let svg=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:${H}px;display:block;overflow:visible" preserveAspectRatio="none">`;
   let labelsHTML='';
   [0,0.25,0.5,0.75,1].forEach(f=>{
@@ -10028,7 +10624,11 @@ function renderBlockComparisonChart(blocks){
       svg+=`<path d="${lineD}" fill="none" stroke="${s.color}" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>`;
     }
     pts.forEach(p=>{
-      svg+=`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3.5" fill="${s.color}" stroke="${bgCol}" stroke-width="1.5"><title>${escAttr(s.label)}: ${escAttr(s.fmt(p.r))} (${escAttr(p.r.b.name)})</title></circle>`;
+      // A plain HTML title="" attribute gives the same native hover tooltip the old SVG <title>
+      // child did -- pointer-events:auto overrides the wrapping labels layer's own
+      // pointer-events:none (see this function's return statement) so the tooltip still triggers,
+      // even though these dots are just absolutely-positioned <span>s now, not SVG shapes.
+      labelsHTML+=`<span title="${escAttr(s.label)}: ${escAttr(s.fmt(p.r))} (${escAttr(p.r.b.name)})" style="position:absolute;left:${(p.x/W*100).toFixed(2)}%;top:${(p.y/H*100).toFixed(2)}%;width:7px;height:7px;border-radius:50%;background:${s.color};border:1.5px solid ${bgCol};box-sizing:border-box;transform:translate(-50%,-50%);pointer-events:auto"></span>`;
     });
   });
   rows.forEach((r,i)=>{
@@ -11674,7 +12274,7 @@ function coachNoteFor(s){
 // the page you're actually on (like "Your Plan") rather than a static app wordmark taking up that
 // space on every screen. The app's own name still shows plenty of other places (tab title, home
 // screen icon, desktop sidebar) so nothing's lost by giving this slot to something more useful.
-const TB_BRAND_LABELS={today:'Today',week:'Schedule',activities:'Activities',progress:'Progress',recovery:'Recovery',profile:'Profile'};
+const TB_BRAND_LABELS={today:'Today',week:'Schedule',activities:'Activities',progress:'Progress',recovery:'Recovery',profile:'Profile',races:'Races'};
 // Small ring-shaped progress indicator (Runna-style — a compact donut rather than a full bar),
 // built from two stacked SVG circles: a static track and a foreground arc whose stroke-dashoffset
 // is trimmed to the percentage complete. Rotated -90deg so the arc starts at 12 o'clock like a
@@ -12045,28 +12645,52 @@ function selectDayDesktop(iso){
   if(sess) openLog(sess.id); else logPanePlaceholder();
 }
 
-/* ═══════════════════════════ PLANS SHEET (Seasons/Blocks browser + upload) ═══════════════════════════ */
-// tab: 'blocks' (default) or 'races'. filterVal: when opening straight into 'races', which
-// filter chip to preselect — a block id, 'unscheduled', or 'all'.
-let PLANS_TAB='blocks';
-function openPlans(tab,filterVal){
-  PLANS_TAB=tab||'blocks';
-  if(PLANS_TAB==='races'){ RACE_FILTER=filterVal!=null?filterVal:'all'; RACE_DIST_FILTER='all'; RACE_EDIT_KEY=null; RACE_ADDING=false; RACE_STRATEGY_KEY=null; }
+/* ═══════════════════════════ PLANS SHEET (Season Blocks browser + upload) ═══════════════════════════
+   Used to also host a "Race Calendar" tab (PLANS_TAB==='blocks'|'races') — that tab is gone now that
+   Races is its own page (see openRaces()/openRaceDetail() and renderRaces() above), so this sheet is
+   Season Blocks only, same as its Upload/Generate Plan header always was. */
+function openPlans(){
   renderPlansBody();
   document.getElementById('plans-overlay').classList.add('open');
 }
-// Opens a race's own entry in the Race Calendar tab (edit/view mode) — used when you actually
-// want to change the race's details (target time, status, shoe, etc.), not just look at the day.
+// Every entry point into the Races page funnels through here (or openRaceDetail below) rather than
+// calling switchView('races') directly, so filter/search state is always reset to something sane
+// BEFORE switchView renders the page — switchView() itself deliberately does NOT reset this state
+// (see its own comment), since two different callers need two different starting states.
+// filterVal: a block id, 'unscheduled', or 'all'/omitted for no filter — same three shapes the old
+// openPlans('races', filterVal) accepted.
+// closeOverlay('plans-overlay') here is a real bug fix, not defensive boilerplate: both "Manage
+// Races" buttons on a block card/the block detail pane (planBlockCardHTML/blockDetailHTML) live
+// inside #plans-overlay and call openRaces(b.id) directly. switchView() only toggles which .view is
+// active -- it never closes an already-open .overlay -- so without this, clicking Manage Races from
+// there switched CURR_VIEW to 'races' behind the scenes while the Plans sheet stayed visibly open on
+// top of it (z-index 200), making the button look like it did nothing. closeOverlay() is a safe no-op
+// when the overlay isn't open, so this doesn't affect any of openRaces()'s other call sites.
+function openRaces(filterVal){
+  closeOverlay('plans-overlay');
+  RACE_FILTER=filterVal!=null?filterVal:'all';
+  RACE_DIST_FILTER='all';
+  RACE_EDIT_KEY=null; RACE_ADDING=false; RACE_STRATEGY_KEY=null;
+  RACES_SEARCH=''; RACES_FILTERS_OPEN=false;
+  switchView('races');
+}
+// Opens a specific race's own entry in the Add/Edit Race popup — used when you actually want to
+// change the race's details (target time, status, shoe, etc.), not just browse the list. Also jumps
+// to the Races page itself underneath the popup (unlike openRaceFormOverlay's other two callers,
+// startAddRace/startEditRace, which leave you wherever you already were) since this is reached from
+// far-flung places like a race-day session's "Edit Race Details" button, and landing back on the
+// Races page once the popup closes is the more useful place to be than wherever that button was.
 function openRaceDetail(key){
+  closeOverlay('plans-overlay'); // same reasoning as openRaces() above
   const r=RACES_LIST.find(x=>x.key===key);
-  PLANS_TAB='races';
   RACE_FILTER=r?(r.blockId||'unscheduled'):'all';
   RACE_DIST_FILTER='all';
   RACE_EDIT_KEY=key;
   RACE_ADDING=false;
   RACE_STRATEGY_KEY=null;
-  renderPlansBody();
-  document.getElementById('plans-overlay').classList.add('open');
+  RACES_SEARCH=''; RACES_FILTERS_OPEN=false;
+  switchView('races');
+  openRaceFormOverlay(r||null);
 }
 // Jumps from a Today countdown card straight to the actual race-day session — the plan entry
 // with pacing/splits, not the Race Calendar's edit form. Selects that date in the day-strip so
@@ -12085,11 +12709,6 @@ function goToRaceSession(key){
   const sameDaySessions=DATA.filter(s=>s.date===r.date);
   const sess=sameDaySessions.find(s=>s.ty==='race')||sameDaySessions[0];
   if(sess) openLog(sess.id);
-}
-function switchPlansTab(tab){
-  PLANS_TAB=tab;
-  if(tab==='races'){ RACE_FILTER='all'; RACE_DIST_FILTER='all'; RACE_EDIT_KEY=null; RACE_ADDING=false; RACE_STRATEGY_KEY=null; }
-  renderPlansBody();
 }
 function planBlockCardHTML(b){
   const isActive=b.id===ACTIVE_BLOCK_ID;
@@ -12133,7 +12752,7 @@ function planBlockCardHTML(b){
     <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
       <button class="btn btn-ghost btn-sm"${ghostBtnStyle} onclick="viewBlockHistory('${b.id}')">View History</button>
       <button class="btn btn-ghost btn-sm"${ghostBtnStyle} onclick="promptRenameBlock('${b.id}')">Edit Name</button>
-      <button class="btn btn-ghost btn-sm"${ghostBtnStyle} onclick="openPlans('races','${b.id}')">Manage Races${racesForBlock(b.id).length?' ('+racesForBlock(b.id).length+')':''}</button>
+      <button class="btn btn-ghost btn-sm"${ghostBtnStyle} onclick="openRaces('${b.id}')">Manage Races${racesForBlock(b.id).length?' ('+racesForBlock(b.id).length+')':''}</button>
       ${isActive?`<button class="btn btn-ghost btn-sm"${ghostBtnStyle} onclick="openBlockAdjust('${b.id}')">Adjust Plan</button>`:''}
       ${!isActive?`<button class="btn btn-ghost btn-sm"${ghostBtnStyle} onclick="confirmSwitchActiveBlock('${b.id}')">Make Active</button>`:''}
       ${b.status!=='complete'?`<button class="btn btn-ghost btn-sm"${ghostBtnStyle} onclick="confirmMarkBlockComplete('${b.id}')">Mark Complete</button>`:''}
@@ -13466,7 +14085,7 @@ function blockDetailHTML(id){
     <div class="field"><label>Tags <span style="text-transform:none;font-weight:400">(comma-separated)</span></label><input type="text" id="bd-tags" value="${escAttr(tagsStr)}" maxlength="120" placeholder="e.g. 5K, Base, Recovery"></div>
     <div class="data-row"><button class="btn btn-primary btn-sm" onclick="saveBlockDetail('${b.id}')">Save</button>
       <button class="btn btn-ghost btn-sm" style="border-radius:var(--rp)" onclick="viewBlockHistory('${b.id}')">View History</button>
-      <button class="btn btn-ghost btn-sm" style="border-radius:var(--rp)" onclick="openPlans('races','${b.id}')">Manage Races${racesForBlock(b.id).length?' ('+racesForBlock(b.id).length+')':''}</button>
+      <button class="btn btn-ghost btn-sm" style="border-radius:var(--rp)" onclick="openRaces('${b.id}')">Manage Races${racesForBlock(b.id).length?' ('+racesForBlock(b.id).length+')':''}</button>
       ${isActive?`<button class="btn btn-ghost btn-sm" style="border-radius:var(--rp)" onclick="openBlockAdjust('${b.id}')">Adjust Plan</button>`:''}
     </div>
     <div class="data-row" style="margin-top:8px">
@@ -13731,37 +14350,18 @@ function renderSeasonBlocksDesktopHTML(){
 // long list snapped the view straight back to the top on every single click — real, reported jank.
 // Left false (the default) for the cases where a genuinely new list is being shown — switching tabs,
 // changing a filter, or freshly opening the whole sheet — where jumping to the top is the right call.
+// Season Blocks only now — the "Race Calendar" tab that used to live here moved out to its own page
+// (see openRaces()/renderRaces() above). No more internal tab bar since there's only ever one thing
+// to show; plans-sh-footer (the pinned mobile footer the race form used to use) is unused dead
+// markup now, left in place at display:none since nothing else references it.
 function renderPlansBody(preserveScroll){
   const prevScrollEl=preserveScroll?plansScrollEl():null;
   const prevScrollTop=prevScrollEl?prevScrollEl.scrollTop:0;
-  let html=`<div class="tabs">
-    <button class="tab${PLANS_TAB==='blocks'?' active':''}" onclick="switchPlansTab('blocks')">Season Blocks</button>
-    <button class="tab${PLANS_TAB==='races'?' active':''}" onclick="switchPlansTab('races')">Race Calendar</button>
-  </div>`;
-  const desk=isDesktop();
-  if(desk){
-    html+=PLANS_TAB==='races'?renderRaceCalendarDesktopHTML():renderSeasonBlocksDesktopHTML();
-  } else {
-    html+=PLANS_TAB==='races'?renderRaceCalendarTabHTML():renderSeasonBlocksTabHTML();
-  }
+  const html=isDesktop()?renderSeasonBlocksDesktopHTML():renderSeasonBlocksTabHTML();
   document.getElementById('plans-sh-body').innerHTML=html;
   if(preserveScroll){
     const newScrollEl=plansScrollEl();
     if(newScrollEl) newScrollEl.scrollTop=prevScrollTop;
-  }
-  // Save/Cancel/Delete for the race form live here, pinned below the scrollable body, only while
-  // the form is actually open — mobile only; the desktop list+detail split embeds the same
-  // buttons directly under the form in the detail pane instead (see renderRaceCalendarDesktopHTML).
-  const footerEl=document.getElementById('plans-sh-footer');
-  if(footerEl){
-    if(!desk && PLANS_TAB==='races'&&(RACE_ADDING||RACE_EDIT_KEY)){
-      const editRace=RACE_EDIT_KEY?RACES_LIST.find(r=>r.key===RACE_EDIT_KEY):null;
-      footerEl.innerHTML=raceFormFooterHTML(editRace);
-      footerEl.style.display='block';
-    } else {
-      footerEl.innerHTML='';
-      footerEl.style.display='none';
-    }
   }
   wirePlansScrollButton();
 }
@@ -13939,6 +14539,12 @@ function switchView(v){
   if(v==='progress') renderProgress();
   if(v==='profile') renderProfile();
   if(v==='recovery') renderRecovery();
+  // Deliberately doesn't reset RACE_FILTER/RACE_DIST_FILTER/RACES_SEARCH here the way 'activities'
+  // resets its own filter state above -- openRaces(filterVal)/openRaceDetail(key) (the only two ways
+  // into this view) already set exactly the state they want BEFORE calling switchView('races'), so
+  // resetting here would just clobber it right back out. Same reasoning as 'profile' just above,
+  // which also renders with whatever state is already current rather than resetting anything.
+  if(v==='races') renderRaces();
   updateDeskShellVisibility();
   renderAvatars();
   renderDayStrip();
@@ -13990,6 +14596,11 @@ function closeActivityFab(){
 function fabQuickAdd(kind,subtype){ closeActivityFab(); openQuickAdd(kind,subtype); }
 function fabImportActivity(){ closeActivityFab(); triggerActivityImport('fab-activity-import-input'); }
 function fabUploadPlan(){ closeActivityFab(); triggerPlanUpload('fab-plan-upload-input'); }
+// Dylon: "add the ability to add races from the FAB as well." Races aren't an activity, but the FAB
+// is the app's one shared "quick add" entry point, so this just opens the same Add Race popup
+// startAddRace() already drives everywhere else -- works from Today/Schedule/Activities without
+// first navigating to the Races page, same as fabImportActivity()/fabUploadPlan() work in place too.
+function fabAddRace(){ closeActivityFab(); startAddRace(); }
 
 /* ═══════════════════════════ SESSION CARD HTML ═══════════════════════════ */
 function sessCardHTML(s){
@@ -14123,7 +14734,7 @@ function renderToday(){
     // Matches the accent-colored bold "Manage →" / "View all →" text-link convention used everywhere
     // else in the app (Race Goals, Shoe Rotation, Recent Logs) instead of a flat gray ghost button —
     // and sized up from that convention's usual 11.5px so it still reads as a clear standalone action.
-    html+=`<div style="text-align:center;margin-top:2px"><button class="see-more-btn" style="display:inline-block;padding:8px 0;font-size:13.5px" onclick="openPlans('races','all')">View All Races →</button></div>`;
+    html+=`<div style="text-align:center;margin-top:2px"><button class="see-more-btn" style="display:inline-block;padding:8px 0;font-size:13.5px" onclick="openRaces('all')">View All Races →</button></div>`;
   }
 
   if(viewDate<BLOCK_START){
@@ -14859,11 +15470,8 @@ function renderProgress(){
 
   left+=backupNudgeHTML();
 
-  // Stat grid: the streak card used to be its own separate row below this grid, leaving an empty
-  // 6th cell whenever the grid only had 5 stat cards to show. It's now the 6th cell instead of
-  // dead space, keeping the flame icon but sized to match its neighbors.
   const totalTimeSec=totalLoggedTimeSec();
-  const curStreak=currentStreak(), longStreak=longestStreak();
+  const curStreak=currentStreak(), curWeekStreak=currentWeekStreak();
   // Runs+Walks sits as a small secondary line under the same "logged/planned" label rather than its
   // own stat-card -- Dylon: "display runs as the large number as it currently is but only runs and
   // walks as a minor number in the same card so it wont change the card size." Only shown when it
@@ -14871,18 +15479,26 @@ function renderProgress(){
   // no point cluttering the card with a redundant duplicate number when there's nothing extra to show.
   const runsWalksKm=totalLoggedKmRunsWalks();
   const runsWalksLine=runsWalksKm>cum+0.01?`<div style="font-size:10.5px;color:var(--t3);margin-top:2px">${fmtDistNum(runsWalksKm)} ${distUnit()} incl. walks</div>`:'';
+  // Stat grid -- v0.34.6 first shipped the streak card as a full-width standalone hero card, matching
+  // the visual design (icon badge, "N DAYS", divider, "N WEEKS", chevron) Dylon sent as a mockup. Dylon:
+  // "the streak card is too wide it should be the same size as the other grid items without changeing
+  // the design." v0.34.7 puts it back as the grid's 8th cell -- same footprint as every other stat-card
+  // -- while keeping every element of that design (badge, gradient, divider, chevron), just scaled down
+  // to fit (see .stat-card-streak's own CSS comment for the exact sizing).
   left+=`<div class="stat-grid">
     <div class="stat-card"><div class="stat-num">${done}/${tot}</div><div class="stat-lbl">Sessions logged</div></div>
     <div class="stat-card"><div class="stat-num">${missed}</div><div class="stat-lbl">Missed</div></div>
     <div class="stat-card"><div class="stat-num">${fmtDistNum(cum)}</div><div class="stat-lbl">${distUnit()} logged / ${fmtDistNum(planTotal,0)} planned</div>${runsWalksLine}</div>
     <div class="stat-card"><div class="stat-num">${Math.round(cum/planTotal*100)||0}%</div><div class="stat-lbl">Block mileage complete</div></div>
     <div class="stat-card"><div class="stat-num">${totalTimeSec?fmtHoursMin(totalTimeSec):'—'}</div><div class="stat-lbl">Total time logged</div></div>
-    <div class="stat-card stat-card-streak">
-      <div class="streak-flame">${STREAK_ICON}</div>
-      <div>
-        <div class="streak-num">${curStreak} day${curStreak===1?'':'s'}</div>
-        <div class="streak-lbl">Current streak${longStreak>curStreak?' · Longest: '+longStreak+' days':''}</div>
+    <div class="stat-card stat-card-streak" onclick="openStreakPage()">
+      <div class="streak-hero-badge">${STREAK_ICON}</div>
+      <div class="streak-hero-info">
+        <div class="streak-hero-days">${curStreak} ${curStreak===1?'DAY':'DAYS'}</div>
+        <div class="streak-hero-div"></div>
+        <div class="streak-hero-weeks">${curWeekStreak} ${curWeekStreak===1?'WEEK':'WEEKS'}</div>
       </div>
+      <svg class="streak-hero-chevron" viewBox="0 -960 960 960" style="fill:currentColor;stroke:none"><path d="M504-480 320-664l56-56 240 240-240 240-56-56 184-184Z"/></svg>
     </div>
     ${fitnessTrendStatChipHTML()}
     ${consistencyStatChipHTML()}
@@ -14917,6 +15533,16 @@ function renderProgress(){
       <button class="trend-subtab${CURR_RUN_SUBTAB==='vol'?' active':''}" onclick="selectRunSubtab('vol')">Weekly Volume</button>
       <button class="trend-subtab${CURR_RUN_SUBTAB==='eff'?' active':''}" onclick="selectRunSubtab('eff')">Pace vs HR</button>
       <button class="trend-subtab${CURR_RUN_SUBTAB==='pace'?' active':''}" onclick="selectRunSubtab('pace')">Pace by Distance</button>
+      <button class="trend-subtab${CURR_RUN_SUBTAB==='time'?' active':''}" onclick="selectRunSubtab('time')">Time</button>
+    </div>`;
+  } else if(CURR_TREND==='walk'||CURR_TREND==='str'||CURR_TREND==='mob'){
+    // Dylon: "strava has time in activity I will like a graph that shows time per activity (Run,
+    // walk, Strength, and Mobility)." Walk/Strength/Mobility don't have Run's own pace-based subtabs,
+    // so they just get this one Weekly Volume/Time choice -- Run gets "Time" as a 4th tab on its own
+    // richer subtab row above instead of a second, separate toggle.
+    left+=`<div class="run-subtabs">
+      <button class="trend-subtab${CURR_TREND_METRIC==='vol'?' active':''}" onclick="selectTrendMetric('vol')">Weekly Volume</button>
+      <button class="trend-subtab${CURR_TREND_METRIC==='time'?' active':''}" onclick="selectTrendMetric('time')">Time</button>
     </div>`;
   }
 
@@ -14962,6 +15588,25 @@ function renderProgress(){
     left+=phaseLegendHTML();
     if(CURR_TREND_WK){
       left+=`<div class="section-lbl" style="margin-top:14px">Week ${CURR_TREND_WK} breakdown</div>${renderTrendDayRows(CURR_TREND_WK,CURR_TREND)}`;
+    } else {
+      left+=`<div style="font-size:11px;color:var(--t3);text-align:center;margin-top:8px">Tap a week on the chart for the day-by-day breakdown</div>`;
+    }
+  } else if((CURR_TREND==='run' && CURR_RUN_SUBTAB==='time') || CURR_TREND_METRIC==='time'){
+    // Time view -- Dylon: "strava has time in activity I will like a graph that shows time per
+    // activity (Run, walk, Strength, and Mobility)." Weight has no meaningful duration, so it's
+    // excluded (that branch above never falls through here). Shares the same renderTrendAreaChart
+    // used everywhere else in this card -- values are already in hours (allWeeklyDurationHours), not
+    // some new chart type, so the "blown up"/misalignment fixes above cover this view for free too.
+    const durWeekly=allWeeklyDurationHours(CURR_TREND);
+    const curDurSec=(durWeekly[twk-1]||0)*3600;
+    left+=`<div style="display:flex;align-items:baseline;gap:6px;margin:12px 0 10px">
+      <div style="font-size:26px;font-weight:800;color:var(--accent)">${curDurSec?fmtHoursMin(curDurSec):'—'}</div>
+      <div style="font-size:12px;color:var(--t2)">Week ${twk} (currently viewing)</div>
+    </div>`;
+    left+=renderTrendAreaChart(durWeekly);
+    left+=phaseLegendHTML();
+    if(CURR_TREND_WK){
+      left+=`<div class="section-lbl" style="margin-top:14px">Week ${CURR_TREND_WK} breakdown</div>${renderTrendDurationDayRows(CURR_TREND_WK,CURR_TREND)}`;
     } else {
       left+=`<div style="font-size:11px;color:var(--t3);text-align:center;margin-top:8px">Tap a week on the chart for the day-by-day breakdown</div>`;
     }
@@ -15113,7 +15758,7 @@ function renderProfile(){
   html+=personalBestsSectionHTML();
   html+=`<div class="section-lbl" style="display:flex;justify-content:space-between;align-items:center">Best Efforts<button class="see-more-btn" style="padding:0" onclick="openBestEffortsFromProfile()">View →</button></div><div class="card"><div style="font-size:12px;color:var(--t3);text-align:center;padding:10px 4px">Your fastest times by distance — 400m up to Marathon, whatever you've actually logged.</div></div>`;
 
-  html+=`<div class="section-lbl" style="display:flex;justify-content:space-between;align-items:center">Race Goals<button class="see-more-btn" style="padding:0" onclick="openPlans('races','all')">Manage →</button></div><div class="card">`;
+  html+=`<div class="section-lbl" style="display:flex;justify-content:space-between;align-items:center">Race Goals<button class="see-more-btn" style="padding:0" onclick="openRaces('all')">Manage →</button></div><div class="card">`;
   const activeBlockRaces=RACES_LIST.filter(r=>!r.blockId||r.blockId===ACTIVE_BLOCK_ID)
     .slice().sort((a,c)=>a.date.localeCompare(c.date));
   if(activeBlockRaces.length){
@@ -16287,6 +16932,7 @@ function renderAll(){
   else if(CURR_VIEW==='progress') renderProgress();
   else if(CURR_VIEW==='profile') renderProfile();
   else if(CURR_VIEW==='recovery') renderRecovery();
+  else if(CURR_VIEW==='races') renderRaces();
 }
 document.addEventListener('DOMContentLoaded',()=>{
   scheduleReminderCheck();
@@ -16321,7 +16967,7 @@ function handleShortcutAction(){
   if(!action) return;
   history.replaceState(null,'',location.pathname+location.hash);
   if(action==='logrun') openQuickAdd('run','easy');
-  else if(action==='races') openPlans('races');
+  else if(action==='races') openRaces();
   else if(action==='recovery') switchView('recovery');
 }
 // overlay backdrop close

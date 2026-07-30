@@ -7,6 +7,12 @@
 // (2) every click (or any other action) that called renderPlansBody() replaced the whole sheet body's
 // innerHTML, which recreates the scrollable .plans-col-list element from scratch and silently resets
 // its scrollTop to 0 — visible jank when scrolling partway down a long list and clicking anything.
+//
+// Races later moved out of the Plans sheet into its own page (#view-races, opened via openRaces()/
+// switchView('races') instead of openPlans('races',...)/renderPlansBody() -- see renderRaces() and
+// test_races_page.js) -- both bugs and their fixes carried over unchanged, since renderRaces(true)
+// preserves .plans-col-list's scrollTop the exact same way renderPlansBody(true) used to. Season
+// Blocks (Test 7 below) stayed in the Plans sheet and is unaffected by that move.
 const fs = require('fs');
 const path = require('path');
 const { JSDOM } = require('/tmp/node_modules/jsdom');
@@ -50,7 +56,7 @@ function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
       {key:'r3',name:'Race Three',date:'2026-10-25',dateTBD:false,time:'',regOpenDate:'',distance:'10K',priority:'A',shoeKey:'',status:'registered',goal:'',targetMin:'',targetMax:'',isPB:false,location:'',routeUrl:'',blockId:null,resultPace:'',resultHR:'',resultPos:'',resultGPos:'',resultAPos:'',resultNotes:''}
     ];
     ACTIVE_BLOCK_ID=null; BLOCKS=[];
-    openPlans('races','all');
+    openRaces('all');
   `);
 
   // ---- Test 1: no race selected yet — no card should carry the "selected" ring ----
@@ -109,7 +115,7 @@ function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
       {id:'b1',name:'Block One',seasonId:'s2025',status:'complete',startDate:'2025-01-01',endDate:'2025-03-01',mileagePlan:{},sessions:[]},
       {id:'b2',name:'Block Two',seasonId:'s2025',status:'complete',startDate:'2025-04-01',endDate:'2025-06-01',mileagePlan:{},sessions:[]}
     ];
-    switchPlansTab('blocks');
+    openPlans();
     selectPlansBlock('b1');
   `);
   const blockSelectedCount = win.eval(`document.querySelectorAll('.plans-col-list .plan-list-card.selected').length`);

@@ -175,15 +175,19 @@ function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
   console.log('Test 11 (loggedRunKmInRange counts the fulfilling Activity once, not stacked with the sessions own hand-typed distance):',
     Math.abs(t11 - 2.63) < 0.001 ? 'PASS' : 'FAIL', { total: t11 });
 
-  // Test 12: loggedDist() (feeds "Block mileage complete") still prefers a hand-typed NOTES.dist when
-  // one exists (never stacks it with the Activity), but now falls back to the fulfilling Activity's own
-  // distance when NOTES.dist was left blank entirely -- so linking alone is never silently worth zero
-  // km for that stat either.
+  // Test 12: loggedDist() (feeds "km logged"/"Block mileage complete") now prefers the fulfilling
+  // Activity's real distance over a hand-typed NOTES.dist too, matching weekMetricTotal's own priority
+  // in Tests 10-11 above -- this used to be the one place that still preferred the (possibly stale)
+  // hand-typed number, which was itself a real reported bug: Dylon, with real numbers that didn't
+  // reconcile -- "week 1 my total run was 28.1 Km and week 2 is 20.3 but my total km logged is 53.1
+  // doesnt seem correct." A session that kept an old hand-typed NOTES.dist around from before it got a
+  // real fulfilling Activity linked reported a different number here than the weekly trend chart did
+  // for that exact same session, for no reason other than this function's own stale priority order.
   const t12WithNotes = win.eval(`loggedDist('sEasy')`);
   win.eval(`NOTES={sEasy:{}};`);
   const t12FallbackOnly = win.eval(`loggedDist('sEasy')`);
-  console.log('Test 12 (loggedDist prefers hand-typed NOTES.dist when present, falls back to the fulfilling Activitys distance when blank):',
-    (t12WithNotes === 3 && Math.abs(t12FallbackOnly - 2.63) < 0.001) ? 'PASS' : 'FAIL', { t12WithNotes, t12FallbackOnly });
+  console.log('Test 12 (loggedDist prefers the fulfilling Activitys real distance over hand-typed NOTES.dist, with or without NOTES.dist present):',
+    (Math.abs(t12WithNotes - 2.63) < 0.001 && Math.abs(t12FallbackOnly - 2.63) < 0.001) ? 'PASS' : 'FAIL', { t12WithNotes, t12FallbackOnly });
 
   // Test 13: an 'accessory' link must NOT suppress the session's own hand-typed metric -- only
   // 'fulfillment' means "this Activity IS this session," so only that role should stop the session's

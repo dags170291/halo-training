@@ -39,7 +39,7 @@ function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
       {key:'r2',name:'Race Two',date:'2026-09-27',dateTBD:false,time:'',regOpenDate:'',distance:'5K',priority:'A',shoeKey:'',status:'registered',goal:'',targetMin:'',targetMax:'',isPB:false,location:'',routeUrl:'',blockId:null,resultPace:'',resultHR:'',resultPos:'',resultGPos:'',resultAPos:'',resultNotes:''}
     ];
     ACTIVE_BLOCK_ID=null; BLOCKS=[];
-    openPlans('races','all');
+    openRaces('all');
   `);
 
   // ---- Test 1: the next-race card (r1, isNext=true), with nothing selected, uses the muted

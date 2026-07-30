@@ -159,14 +159,14 @@ function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
   // different feature and keeps its own entry point, never routed through Tools) ----
   win.eval(`document.getElementById('tools-sh-body').innerHTML = toolsBodyHTML();`);
   const toolsTitlesInOrder = win.eval(`JSON.stringify(TOOLS_LIST.map(t=>t.title))`);
-  const expectedToolsTitles = JSON.stringify(['Pace Calculator','Heart Rate Zones','Guide Hub','Plan Generator','Shoes']);
+  const expectedToolsTitles = JSON.stringify(['Pace Calculator','Heart Rate Zones','Guide Hub','Plan Generator','Shoes','Races']);
   const toolsListsGuideHub = win.eval(`TOOLS_LIST.some(t => t.title === 'Guide Hub' && t.onclick.includes('openGuideHub()'))`);
   const toolsListsPlanGenerator = win.eval(`TOOLS_LIST.some(t => t.title === 'Plan Generator' && t.onclick.includes('gpOpenWizard()'))`);
   const toolsListsShoes = win.eval(`TOOLS_LIST.some(t => t.title === 'Shoes' && t.onclick.includes('openShoes()'))`);
   win.eval(`document.getElementById('settings-sh-body').innerHTML = renderSettingsBody();`);
   const settingsHTML = win.eval(`document.getElementById('settings-sh-body').innerHTML`);
   const settingsNoLongerHasGuideHub = !settingsHTML.includes('openGuideHub()');
-  console.log('Test 9 (Tools sheet lists 5 tools in order incl. Guide Hub + Plan Generator + Shoes; Settings > About unaffected):', {
+  console.log('Test 9 (Tools sheet lists 6 tools in order incl. Guide Hub + Plan Generator + Shoes + Races; Settings > About unaffected):', {
     toolsTitlesInOrder,
     result: (toolsTitlesInOrder === expectedToolsTitles && toolsListsGuideHub && toolsListsPlanGenerator && toolsListsShoes &&
       settingsNoLongerHasGuideHub && settingsHTML.includes('How your plan is built')) ? 'PASS' : 'FAIL'

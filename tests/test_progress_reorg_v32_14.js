@@ -107,7 +107,11 @@ function buildBlock(win, startISO, weeks) {
   // right after the stat-grid closes ----
   win.eval(`openWeekDetail(1); renderProgress();`); // reset PLAN_VIEW noise, re-render progress
   const progressHTML2 = win.eval(`document.getElementById('view-progress').innerHTML`);
-  const gridEndIdx = progressHTML2.indexOf('Current streak');
+  // 'stat-card-streak' is the streak card's own unique marker class (v0.34.7: back inside .stat-grid
+  // as its last cell, same design as Dylon's mockup just sized to the grid) -- still a reliable
+  // "at the tail end of the grid, before Activity Trends" landmark, since nothing else renders between
+  // the grid closing and Activity Trends.
+  const gridEndIdx = progressHTML2.indexOf('stat-card-streak');
   const trendsIdx = progressHTML2.indexOf('Activity Trends');
   const currentBlockIdx = progressHTML2.indexOf('Current Block');
   console.log('Test 5 (Activity Trends renders right after the stat-grid, before Current Block):', {
