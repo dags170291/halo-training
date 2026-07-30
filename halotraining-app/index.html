@@ -1555,7 +1555,7 @@ main{flex:1;padding:14px 14px 24px;max-width:560px;width:100%;margin:0 auto}
    session-style restyle, race-target connection, iOS install fix, icon redesign, onboarding flow).
    APP_STAGE is 'alpha.N' pre-launch, bump N each time you hand a build to a real tester (Dylon's
    sister counts); once launched, APP_VERSION resets to 1.0.0 and APP_STAGE becomes ''. */
-const APP_VERSION='0.34.14';
+const APP_VERSION='0.34.15';
 const APP_STAGE='alpha.1';
 const APP_VERSION_DATE='2026-07-30';
 /* ═══════════════════════════ DATA ═══════════════════════════ */
@@ -3597,13 +3597,18 @@ function renderActivityPaceZoneBreakdown(a){
 // week, so the trend across weeks is visible rather than only per-activity. Returns null for a week
 // with no HR-stream (or, for pace, no threshold-pace-eligible run) data that week, rather than a
 // misleading all-zero row.
-function weeklyHRZoneTotals(wk){
+// v0.34.15 -- optional `actType` ('all'/'run'/'walk', default 'all') added so the card can split
+// Total from Runs-only/Walks-only per Dylon: "can you also separate it by total, runs and walks?"
+// Purely an extra filter on which Activities get summed -- Total still folds in every other type
+// (Strength/Mobility HR streams included) exactly like before, just like "all" always did.
+function weeklyHRZoneTotals(wk,actType){
+  actType=actType||'all';
   const hz=currentHRZones();
   if(!hz||!hz.zones||!hz.zones.length) return null;
   const zones=hz.zones;
   const totals=zones.map(()=>0);
   let any=false;
-  activitiesForWeek(wk).forEach(a=>{
+  activitiesForWeek(wk).filter(a=>actType==='all'||a.type===actType).forEach(a=>{
     const bd=activityHRZoneBreakdown(a);
     if(!bd) return;
     any=true;
@@ -3612,10 +3617,11 @@ function weeklyHRZoneTotals(wk){
   if(!any) return null;
   return zones.map((z,i)=>({label:z.label,name:z.name,sec:totals[i]}));
 }
-function weeklyPaceZoneTotals(wk){
+function weeklyPaceZoneTotals(wk,actType){
+  actType=actType||'all';
   const totals=PACE_ZONE_BANDS.map(()=>0);
   let any=false;
-  activitiesForWeek(wk).forEach(a=>{
+  activitiesForWeek(wk).filter(a=>actType==='all'||a.type===actType).forEach(a=>{
     const bd=activityPaceZoneBreakdown(a);
     if(!bd) return;
     any=true;
@@ -3627,14 +3633,15 @@ function weeklyPaceZoneTotals(wk){
 // Trailing window of weeks (up to whichever week is currently elapsed, same racePredWeeksElapsed()
 // the Race Predictions/PB Progression trends already anchor to) that actually have zone data for the
 // chart -- skips weeks with no eligible activity rather than showing an empty entry for it, the same
-// "gap not zero" convention allWeeklyWeight()/allWeeklyPaceSpeed() already use.
-function zoneTimeTrendWeeks(type,weekCount){
+// "gap not zero" convention allWeeklyWeight()/allWeeklyPaceSpeed() already use. `actType` passed
+// straight through to weeklyHRZoneTotals/weeklyPaceZoneTotals (see their own v0.34.15 comment).
+function zoneTimeTrendWeeks(type,weekCount,actType){
   const weeksElapsed=racePredWeeksElapsed();
   if(!weeksElapsed) return [];
   const startWk=Math.max(1,weeksElapsed-weekCount+1);
   const out=[];
   for(let w=startWk;w<=weeksElapsed;w++){
-    const zones=type==='pace'?weeklyPaceZoneTotals(w):weeklyHRZoneTotals(w);
+    const zones=type==='pace'?weeklyPaceZoneTotals(w,actType):weeklyHRZoneTotals(w,actType);
     if(zones) out.push({wk:w,zones});
   }
   return out;
@@ -3762,22 +3769,36 @@ function renderZoneTrendDonut(type,weeksData,wk){
 // only show when both schemes actually have at least one week of data, same gating pattern the Best
 // Efforts distance tabs use (no point offering a toggle to an empty view). The whole card stays
 // hidden if neither scheme has any data yet, rather than showing an empty chart with nothing to say.
+// v0.34.15 -- Dylon, right after the donut redesign shipped: "can you also separate it by total, runs
+// and walks?" Added a second toggle row (Total/Runs/Walks, CURR_ZONE_TREND_ACTTYPE) above the existing
+// Heart Rate/Pace one, filtering which Activities feed the totals via the new actType param on
+// zoneTimeTrendWeeks(). Only shown once there's real Walk zone data to actually split out -- otherwise
+// "Runs" would just be a redundant copy of "Total" for anyone who's never logged a walk with HR data,
+// same "don't offer a toggle to an empty view" reasoning the HR/Pace toggle itself already uses.
 function zoneTimeTrendCardHTML(){
-  const hrWeeks=zoneTimeTrendWeeks('hr',8);
-  const paceWeeks=zoneTimeTrendWeeks('pace',8);
+  const actType=CURR_ZONE_TREND_ACTTYPE;
+  const hrWeeks=zoneTimeTrendWeeks('hr',8,actType);
+  const paceWeeks=zoneTimeTrendWeeks('pace',8,actType);
   if(!hrWeeks.length && !paceWeeks.length) return '';
   const type=(CURR_ZONE_TREND_TYPE==='pace'&&paceWeeks.length)?'pace':(hrWeeks.length?'hr':'pace');
   const weeksData=type==='pace'?paceWeeks:hrWeeks;
   const showToggle=hrWeeks.length && paceWeeks.length;
   const wk=(ZONE_TREND_WK[type]&&weeksData.some(w=>w.wk===ZONE_TREND_WK[type]))?ZONE_TREND_WK[type]:weeksData[weeksData.length-1].wk;
+  const hasWalkData=zoneTimeTrendWeeks('hr',8,'walk').length>0||zoneTimeTrendWeeks('pace',8,'walk').length>0;
+  const actLabel=actType==='run'?'Runs':actType==='walk'?'Walks':'Total';
   return `<div class="section-lbl" style="margin-top:14px">Weekly Zone Time</div>
     <div class="card">
+      ${hasWalkData?`<div class="trend-pills" style="margin-bottom:8px">
+        <button class="trend-pill${actType==='all'?' active':''}" onclick="selectZoneTrendActType('all')">Total</button>
+        <button class="trend-pill${actType==='run'?' active':''}" onclick="selectZoneTrendActType('run')">Runs</button>
+        <button class="trend-pill${actType==='walk'?' active':''}" onclick="selectZoneTrendActType('walk')">Walks</button>
+      </div>`:''}
       ${showToggle?`<div class="trend-pills">
         <button class="trend-pill${type==='hr'?' active':''}" onclick="selectZoneTrendType('hr')">Heart Rate</button>
         <button class="trend-pill${type==='pace'?' active':''}" onclick="selectZoneTrendType('pace')">Pace</button>
       </div>`:''}
       ${renderZoneTrendDonut(type,weeksData,wk)}
-      <div style="font-size:10.5px;color:var(--t3);margin-top:8px;line-height:1.4">Time spent in each ${type==='pace'?'pace':'heart rate'} zone during Week ${wk}, out of your last ${weeksData.length} logged week${weeksData.length===1?'':'s'}. Tap a zone for its share of that week.</div>
+      <div style="font-size:10.5px;color:var(--t3);margin-top:8px;line-height:1.4">Time spent in each ${type==='pace'?'pace':'heart rate'} zone during Week ${wk}${hasWalkData?` (${actLabel})`:''}, out of your last ${weeksData.length} logged week${weeksData.length===1?'':'s'}. Tap a zone for its share of that week.</div>
     </div>`;
 }
 // A 0..1 "how hard/fast" fraction -> an interpolated color, across the same five-stop low-to-high
@@ -5951,6 +5972,18 @@ let CURR_TREND_METRIC='vol';
 // since this card is its own section below Activity Trends, not one of its pills.
 let CURR_ZONE_TREND_TYPE='hr';
 function selectZoneTrendType(type){ CURR_ZONE_TREND_TYPE=type; renderProgress(); }
+// v0.34.15 -- which activity-type filter (Total/'run'/'walk') the card is scoped to, per Dylon: "can
+// you also separate it by total, runs and walks?" Independent of CURR_ZONE_TREND_TYPE (that's the
+// HR/Pace scheme, this is which Activities feed it). Switching it clears ZONE_TREND_WK/ZONE_TREND_SELIDX
+// (defined next to renderZoneTrendDonut) since a previously-selected week or zone may not exist at all
+// once the underlying Activities are filtered down to just Runs or just Walks.
+let CURR_ZONE_TREND_ACTTYPE='all';
+function selectZoneTrendActType(t){
+  CURR_ZONE_TREND_ACTTYPE=t;
+  ZONE_TREND_WK={hr:null,pace:null};
+  ZONE_TREND_SELIDX={hr:null,pace:null};
+  renderProgress();
+}
 // Best Efforts by Distance card: which distance tab is selected (a bestEffortsByDistance() group
 // label, e.g. '5K' or '~6km') -- Strava-style tab row per Dylon: "this screen have tabs with top 3
 // efforts per distance." Reset to null so renderBestEffortsByDistance() picks a sensible default

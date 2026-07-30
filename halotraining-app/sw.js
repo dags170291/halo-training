@@ -1594,7 +1594,12 @@
 // once, not just the one you tap. Tapping a wedge or a legend row still highlights that zone in the
 // center readout (defaulting to the week's real total time, not a blank "Tap a zone" placeholder), and
 // a week picker now lets you flip between individual weeks instead of squinting at tiny stacked bars.
-const CACHE_NAME = 'halo-0.34.14-alpha.1';
+// v0.34.15 -- Dylon, right after that redesign shipped: "great redesign but can you also separate it
+// by total, runs and walks?" weeklyHRZoneTotals()/weeklyPaceZoneTotals()/zoneTimeTrendWeeks() gained an
+// optional actType ('all'/'run'/'walk') filter, and the card gained a Total/Runs/Walks pill row above
+// the existing Heart Rate/Pace toggle -- shown only once there's real Walk zone data to actually split
+// out, so it never shows a redundant "Runs" tab for someone who's never logged a walk with HR data.
+const CACHE_NAME = 'halo-0.34.15-alpha.1';
 const APP_SHELL = [
   './index.html',
   './manifest.webmanifest',
