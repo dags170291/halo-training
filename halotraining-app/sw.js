@@ -1576,7 +1576,16 @@
 // never had a path into this tab at all. New prehabActivities()/prehabActivityItemHTML() close that
 // gap, tagged "Post-run" when linked to a real run session, "Imported" otherwise; weekPrehabActual()
 // (the Consistency % denominator) was updated the same way with a double-count guard.
-const CACHE_NAME = 'halo-0.34.12-alpha.1';
+// v0.34.13 -- Dylon corrected v0.34.12's day-row title: "you did it correct but the name used. i want
+// to use the workout title. what we use for strava. these are the actual workout names." The row was
+// showing the plan's own generic session title (s.ti, e.g. "Easy Run") even when a real Strava/watch
+// import is linked to that session -- but the actual, specific name a device gave the recorded workout
+// lives on the linked Activity itself (activityDisplayName(a)), not the plan. New
+// sessionFulfillingActivity(s) finds the real fulfilling Activity whose type is native to the session
+// (same activityIsNativeToSession() guard the v0.34.9 fix already uses for totals) and, when one
+// exists, renderTrendDayRows()/renderTrendDurationDayRows() now show its own title and open its own
+// detail page instead of the plan session's.
+const CACHE_NAME = 'halo-0.34.13-alpha.1';
 const APP_SHELL = [
   './index.html',
   './manifest.webmanifest',

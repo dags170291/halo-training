@@ -1547,7 +1547,7 @@ main{flex:1;padding:14px 14px 24px;max-width:560px;width:100%;margin:0 auto}
    session-style restyle, race-target connection, iOS install fix, icon redesign, onboarding flow).
    APP_STAGE is 'alpha.N' pre-launch, bump N each time you hand a build to a real tester (Dylon's
    sister counts); once launched, APP_VERSION resets to 1.0.0 and APP_STAGE becomes ''. */
-const APP_VERSION='0.34.12';
+const APP_VERSION='0.34.13';
 const APP_STAGE='alpha.1';
 const APP_VERSION_DATE='2026-07-30';
 /* ═══════════════════════════ DATA ═══════════════════════════ */
@@ -9246,6 +9246,19 @@ function activityIsNativeToSession(a,s){
   if(sessionMatchesTrendType(s,'mob')) return a.type==='mobility'||a.type==='yoga';
   return true;
 }
+// v0.34.13 -- the day-row title added in v0.34.12 defaulted to a session's own generic plan title
+// (s.ti, e.g. "Easy Run") even when a real Strava/watch-imported Activity is linked to it. Dylon: "you
+// did it correct but the name used. i want to use the workout title. what we use for strava. these are
+// the actual workout names." The real, specific title a device/Strava gave the actual recorded workout
+// lives on the fulfilling Activity (activityDisplayName(a)), not the plan's own generic session title --
+// same "once a real Activity is linked, IT is the identity of that day's entry" principle historyItems()
+// already applies to the main Activities feed (see its own comment: "once planned data gets a linked
+// upload or linked activity it becomes 1 activity"). Returns the first fulfilling Activity whose type is
+// actually native to this session (mirrors the exact filter loggedDist()/sessionDurationSec() already
+// use for the session's own numeric total), or null if nothing real is linked yet.
+function sessionFulfillingActivity(s){
+  return ACTIVITIES.find(a=>a.linkedSessionId===s.id && a.role==='fulfillment' && activityIsNativeToSession(a,s)) || null;
+}
 // v0.34.5 -- a fulfillment-role Activity's own number is only "already folded into its linked session's
 // contribution" (and therefore safe to skip in the Activities loops below) when that linked session
 // itself actually matches the trend type being computed. Every one of those loops used to skip EVERY
@@ -10490,7 +10503,14 @@ function renderTrendDayRows(wk,type){
     byDate[date]=(byDate[date]||0)+v;
     if(!byDateSrc[date] && src) byDateSrc[date]=src;
   };
-  sessions.forEach(s=>{ add(s.date,sessionMetric(s,type),{title:s.ti,onclick:`openLog('${s.id}')`}); });
+  // v0.34.13 -- a session with a real fulfilling Activity linked shows THAT Activity's own title (the
+  // real Strava/watch workout name) instead of the plan's generic session title -- see
+  // sessionFulfillingActivity()'s own comment.
+  sessions.forEach(s=>{
+    const fulfilling=sessionFulfillingActivity(s);
+    const src=fulfilling?{title:activityDisplayName(fulfilling),onclick:`openActivityDetail('${fulfilling.id}')`}:{title:s.ti,onclick:`openLog('${s.id}')`};
+    add(s.date,sessionMetric(s,type),src);
+  });
   // Standalone EXTRALOGS/ACTIVITIES entries bucket by trendCalWeek() here too, matching
   // weekMetricTotal() -- see trendCalWeek()'s own comment on why (a plan-sparse week could otherwise
   // nearest-match a standalone log into the wrong week's breakdown).
@@ -10558,11 +10578,14 @@ function renderTrendDurationDayRows(wk,type){
     if(!byDateSrc[date] && src) byDateSrc[date]=src;
   };
   // v0.34.2 -- no more bailing out just because a fulfilling Activity exists; see sessionMetric()'s own
-  // comment for the full bug this fixes.
+  // comment for the full bug this fixes. v0.34.13 -- same real-Activity-title preference as
+  // renderTrendDayRows() above; see sessionFulfillingActivity()'s own comment.
   sessions.forEach(s=>{
     if(!sessionMatchesTrendType(s,type)) return;
     if(STATUS[s.id]!=='done') return;
-    add(s.date,sessionDurationSec(s.id),{title:s.ti,onclick:`openLog('${s.id}')`});
+    const fulfilling=sessionFulfillingActivity(s);
+    const src=fulfilling?{title:activityDisplayName(fulfilling),onclick:`openActivityDetail('${fulfilling.id}')`}:{title:s.ti,onclick:`openLog('${s.id}')`};
+    add(s.date,sessionDurationSec(s.id),src);
   });
   extraLogsForTrendWeek(wk).forEach(x=>{
     const kindMatches=type==='mob'?(x.kind==='mobility'||x.kind==='yoga'):(x.kind===type);

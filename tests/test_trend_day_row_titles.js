@@ -95,6 +95,44 @@ function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
   console.log("Test 5 (when a session and a standalone Activity share a date, the session's own title wins):",
     t5SessionWins ? 'PASS' : 'FAIL', { mergedRows });
 
+  // ---- Test 6 (v0.34.13): when a session HAS a real linked/fulfilling Activity (role:'fulfillment',
+  // type native to the session -- e.g. a Strava-synced run), the day row must show THAT Activity's own
+  // real workout title, not the plan's generic session title. Dylon's correction: "you did it correct
+  // but the name used. i want to use the workout title. what we use for strava. these are the actual
+  // workout names." It must also open the Activity's own detail page, not the plan session. ----
+  win.eval(`
+    ACTIVITIES=[{id:'act3',type:'run',role:'fulfillment',linkedSessionId:'w1d1',date:'2026-07-20',distanceKm:6.2,durationSec:1920,title:'Morning Run w/ Sam'}];
+  `);
+  const fulfilledVolRows = win.eval(`renderTrendDayRows(1,'run')`);
+  const t6HasRealTitle = /Morning Run w\/ Sam/.test(fulfilledVolRows);
+  const t6NoGenericTitle = !/Easy Run/.test(fulfilledVolRows);
+  const t6ClickableToActivity = /onclick="openActivityDetail\('act3'\)"/.test(fulfilledVolRows);
+  console.log('Test 6 (a session with a real linked Activity shows the Strava workout title, not the plan title, and opens the Activity):',
+    (t6HasRealTitle && t6NoGenericTitle && t6ClickableToActivity) ? 'PASS' : 'FAIL',
+    { t6HasRealTitle, t6NoGenericTitle, t6ClickableToActivity });
+
+  // ---- Test 7 (v0.34.13): same fix applies to the Time view (renderTrendDurationDayRows). ----
+  const fulfilledDurRows = win.eval(`renderTrendDurationDayRows(1,'run')`);
+  const t7HasRealTitle = /Morning Run w\/ Sam/.test(fulfilledDurRows);
+  const t7NoGenericTitle = !/Easy Run/.test(fulfilledDurRows);
+  const t7ClickableToActivity = /onclick="openActivityDetail\('act3'\)"/.test(fulfilledDurRows);
+  console.log('Test 7 (the Time view day row also prefers the real Activity title over the plan title):',
+    (t7HasRealTitle && t7NoGenericTitle && t7ClickableToActivity) ? 'PASS' : 'FAIL',
+    { t7HasRealTitle, t7NoGenericTitle, t7ClickableToActivity });
+
+  // ---- Test 8 (v0.34.13): a fulfilling Activity whose own type is NOT native to the session (e.g. a
+  // warm-up walk linked to a Run session) must NOT override the title -- same activityIsNativeToSession
+  // guard already used to keep such Activities out of the session's own distance/duration totals. The
+  // plan session's own title should still show. ----
+  win.eval(`
+    ACTIVITIES=[{id:'act4',type:'walk',role:'fulfillment',linkedSessionId:'w1d1',date:'2026-07-20',distanceKm:1.1,durationSec:600,title:'Warm-up Walk'}];
+  `);
+  const nonNativeRows = win.eval(`renderTrendDayRows(1,'run')`);
+  const t8StillPlanTitle = /Easy Run/.test(nonNativeRows) && !/Warm-up Walk/.test(nonNativeRows);
+  const t8StillOpensSession = /onclick="openLog\('w1d1'\)"/.test(nonNativeRows);
+  console.log('Test 8 (a non-native fulfilling Activity, e.g. a warm-up walk, does not override the plan title):',
+    (t8StillPlanTitle && t8StillOpensSession) ? 'PASS' : 'FAIL', { t8StillPlanTitle, t8StillOpensSession });
+
   await wait(200);
   win.close();
 })();
