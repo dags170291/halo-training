@@ -1564,7 +1564,19 @@
 // tiny warm-up/cool-down legend dot). Mobility (--mob, soft rose) and Weight (--wt, soft khaki-gold) are
 // brand new token families, defined in both the dark and light theme blocks. Rest stays neutral grey on
 // purpose -- it's not a loggable activity type with its own filter chip on this tab.
-const CACHE_NAME = 'halo-0.34.11-alpha.1';
+// v0.34.12 -- two fixes. (1) Activity Trends day-by-day breakdown rows (Volume and Time views) had a
+// wide empty gap next to the number -- Dylon, with a screenshot: "put the name of the planned workout
+// session... make it clickable, so when I click it, it can go directly to the session that it is linked
+// to." renderTrendDayRows()/renderTrendDurationDayRows() now remember the FIRST real contributor to
+// each date (a planned session, a Quick Add extra, or an imported Activity, in that priority order) and
+// show/link its own name. (2) The Prehab tab was missing a whole source of entries -- Dylon: "the
+// prehab tab is missing the post-run mobility sessions that I do." recoveryPrehabHTML() only ever
+// merged EXTRALOGS quick-adds and plan-sourced sessions, with zero reference to ACTIVITIES anywhere --
+// a post-run mobility/stretch file imported and linked to that day's run (fulfillment or accessory)
+// never had a path into this tab at all. New prehabActivities()/prehabActivityItemHTML() close that
+// gap, tagged "Post-run" when linked to a real run session, "Imported" otherwise; weekPrehabActual()
+// (the Consistency % denominator) was updated the same way with a double-count guard.
+const CACHE_NAME = 'halo-0.34.12-alpha.1';
 const APP_SHELL = [
   './index.html',
   './manifest.webmanifest',

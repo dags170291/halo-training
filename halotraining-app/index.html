@@ -709,7 +709,7 @@ main{flex:1;padding:14px 14px 24px;max-width:560px;width:100%;margin:0 auto}
 .trend-subtab{flex:1;background:var(--s3);border:none;color:var(--t2);padding:8px 10px;border-radius:var(--r10);font-family:var(--font);font-size:13px;font-weight:700}
 .trend-subtab.active{background:var(--accent);color:#0B0D12}
 .trend-days{background:var(--s2);border-radius:var(--r10);padding:8px 10px;margin-top:2px}
-.trend-day-row{display:flex;justify-content:space-between;font-size:13px;padding:4px 0}
+.trend-day-row{display:flex;justify-content:space-between;align-items:center;font-size:13px;padding:6px 0}
 .chart-legend{display:flex;gap:16px;justify-content:center;margin-top:4px}
 .chart-legend span{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--t3)}
 .chart-legend i{width:8px;height:8px;border-radius:2px;display:inline-block}
@@ -1547,7 +1547,7 @@ main{flex:1;padding:14px 14px 24px;max-width:560px;width:100%;margin:0 auto}
    session-style restyle, race-target connection, iOS install fix, icon redesign, onboarding flow).
    APP_STAGE is 'alpha.N' pre-launch, bump N each time you hand a build to a real tester (Dylon's
    sister counts); once launched, APP_VERSION resets to 1.0.0 and APP_STAGE becomes ''. */
-const APP_VERSION='0.34.11';
+const APP_VERSION='0.34.12';
 const APP_STAGE='alpha.1';
 const APP_VERSION_DATE='2026-07-30';
 /* ═══════════════════════════ DATA ═══════════════════════════ */
@@ -7690,12 +7690,14 @@ function recoveryDurabilityHTML(){
   });
   return html;
 }
-// Prehab merges two sources into one chronological list: entries you log yourself (Yoga/Mobility,
+// Prehab merges THREE sources into one chronological list: entries you log yourself (Yoga/Mobility,
 // same shape as before — duration + the YouTube video referenced, since these are recorded on a
-// Pixel watch and synced to Strava, plus notes) and entries the training plan already accounts for
-// — any scheduled session whose title mentions "Mobility" (every rest day, plus combo days like
-// Thursday's dedicated Stretch & Mobility session) once it's marked done. That combo-day case is why
-// this reads STATUS/title rather than a dedicated session type: the mobility component of a run day
+// Pixel watch and synced to Strava, plus notes), entries the training plan already accounts for —
+// any scheduled session whose title mentions "Mobility" (every rest day, plus combo days like
+// Thursday's dedicated Stretch & Mobility session) once it's marked done — and (v0.34.12) imported/
+// uploaded Activities typed 'mobility' or 'yoga', regardless of role — see prehabActivities()'s own
+// comment for why this third source was missing entirely before. That combo-day case is why the plan
+// source reads STATUS/title rather than a dedicated session type: the mobility component of a run day
 // isn't a separate scheduled session to complete twice, it rides along with the run, so marking the
 // run done is what surfaces it here — nothing to double-log, and nothing double-counted against the
 // run itself in Progress/streaks, since this tab is purely a read-only merged view.
@@ -7736,6 +7738,34 @@ function prehabPlanItemHTML(s){
     </div>
   </div>`;
 }
+// v0.34.12 -- a third real source Prehab was missing entirely: imported/uploaded Activities typed
+// 'mobility' or 'yoga'. Dylon: "the prehab tab is missing the post-run mobility sessions that I do, so
+// that should be included in the prehab tab as well." recoveryPrehabHTML() only ever merged
+// EXTRALOGS quick-adds and plan-sourced sessions -- an Activity imported from a watch file (the exact
+// shape a real "post-run stretch" takes once it's its own file linked to that day's run, either as
+// role:'fulfillment' or 'accessory') never had a path into this tab at all, regardless of role. Every
+// role is included here (not just standalone/unplanned) since Prehab is a read-only log view, not a
+// metric total -- there's no double-counting risk to guard against the way weekMetricTotal()'s own
+// activityFulfillmentAlreadyCounted() check has to for the Mobility trend total.
+function prehabActivities(){
+  return ACTIVITIES.filter(a=>a.type==='mobility'||a.type==='yoga');
+}
+function prehabActivityItemHTML(a){
+  const icoCls=a.type==='yoga'?ICOCLS.yoga:ICOCLS.mobility;
+  const icon=a.type==='yoga'?ICONS.yoga:ICONS.mobility;
+  // "Post-run" when this Activity is actually linked to a real RUN session (fulfillment or accessory --
+  // the "attached to today's run" shape a real post-run stretch/mobility file takes) -- falls back to
+  // a plain "Imported" tag for a standalone mobility/yoga file with nothing to attribute it to.
+  const linkedSession=a.linkedSessionId?findSess(a.linkedSessionId):null;
+  const tag=(linkedSession && sessionMatchesTrendType(linkedSession,'run'))?'Post-run':'Imported';
+  return `<div class="log-feed-item" style="cursor:pointer;display:flex;gap:10px;align-items:flex-start" onclick="openActivityDetail('${a.id}')">
+    <div class="sess-ico ${icoCls}">${icon}</div>
+    <div style="flex:1;min-width:0">
+      <div class="t">${fmtDate(a.date)}${a.durationSec?' · '+fmtHoursMin(a.durationSec):''} <span style="font-size:10.5px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.3px">${tag}</span></div>
+      <div class="m">${escAttr(activityDisplayName(a))}</div>
+    </div>
+  </div>`;
+}
 // Prehab Consistency — mirrors the Progress tab's mileage Consistency Score: of every fully-elapsed
 // week so far, what % actually hit that week's planned mobility/yoga count. "Target" for a week is
 // however many mobility-type sessions the active plan actually scheduled that week (0 for a week
@@ -7753,7 +7783,20 @@ function weekPrehabActual(wk){
   const dates=sessions.map(s=>s.date);
   const minDate=dates.reduce((a,b)=>a<b?a:b), maxDate=dates.reduce((a,b)=>a>b?a:b);
   const extraCount=EXTRALOGS.filter(x=>(x.kind==='yoga'||x.kind==='mobility')&&x.date>=minDate&&x.date<=maxDate).length;
-  return planDone+extraCount;
+  // v0.34.12 -- imported mobility/yoga Activities in this same date range count toward "actual" too,
+  // same as the Prehab log itself now shows them (see prehabActivities()'s own comment) -- except a
+  // fulfillment-role Activity linked to a session that's ALREADY counted above via planDone (the real
+  // mobility-typed PLANNED session it's fulfilling), which would otherwise double-count that one real
+  // completion.
+  const activityCount=prehabActivities().filter(a=>{
+    if(!(a.date>=minDate && a.date<=maxDate)) return false;
+    if(a.role==='fulfillment' && a.linkedSessionId){
+      const linkedSession=findSess(a.linkedSessionId);
+      if(linkedSession && sessionMatchesTrendType(linkedSession,'mob')) return false;
+    }
+    return true;
+  }).length;
+  return planDone+extraCount+activityCount;
 }
 function prehabConsistency(){
   const lastCompleteWeek=Math.min(blockWeekCount(),currentRealWeek()-1);
@@ -7783,7 +7826,9 @@ function recoveryPrehabHTML(){
     .map(x=>({date:x.date,html:prehabExtraItemHTML(x)}));
   const planEntries=planMobilitySessions()
     .map(s=>({date:s.date,html:prehabPlanItemHTML(s)}));
-  const merged=extraEntries.concat(planEntries).sort((a,b)=>b.date.localeCompare(a.date));
+  const activityEntries=prehabActivities()
+    .map(a=>({date:a.date,html:prehabActivityItemHTML(a)}));
+  const merged=extraEntries.concat(planEntries).concat(activityEntries).sort((a,b)=>b.date.localeCompare(a.date));
   let html=prehabConsistencyCardHTML();
   html+=`<div class="section-lbl" style="display:flex;justify-content:space-between;align-items:center">Prehab Log<button class="see-more-btn" style="padding:0" onclick="openQuickAdd('prehab')">+ Log Session</button></div><div class="card">`;
   if(merged.length){
@@ -10430,18 +10475,33 @@ function renderTrendDayRows(wk,type){
   const tt=TREND_TYPES.find(t=>t.id===type);
   const sessions=weekSessionsFull(wk);
   const byDate={};
-  const add=(date,v)=>{ if(v===null||v===undefined||isNaN(v)) return; byDate[date]=(byDate[date]||0)+v; };
-  sessions.forEach(s=>{ add(s.date,sessionMetric(s,type)); });
+  // v0.34.12 -- byDateSrc remembers WHO first contributed a real value to a given date (a planned
+  // session, a Quick Add extra, or an imported Activity), so the row below can show that source's own
+  // name and open straight into it, instead of a bare date with a wide empty gap next to the number.
+  // Dylon: "put the name of the planned workout session... make it clickable, so when I click it, it
+  // can go directly to the session that it is linked to." Only the FIRST contributor to a given date
+  // sets the row's title/click target -- matching the order these loops already run in (a planned
+  // session first, then extras, then Activities), so a real planned session's own title always wins
+  // over a same-day standalone extra when both exist, same priority the rest of this function already
+  // gives a session's own contribution.
+  const byDateSrc={};
+  const add=(date,v,src)=>{
+    if(v===null||v===undefined||isNaN(v)) return;
+    byDate[date]=(byDate[date]||0)+v;
+    if(!byDateSrc[date] && src) byDateSrc[date]=src;
+  };
+  sessions.forEach(s=>{ add(s.date,sessionMetric(s,type),{title:s.ti,onclick:`openLog('${s.id}')`}); });
   // Standalone EXTRALOGS/ACTIVITIES entries bucket by trendCalWeek() here too, matching
   // weekMetricTotal() -- see trendCalWeek()'s own comment on why (a plan-sparse week could otherwise
   // nearest-match a standalone log into the wrong week's breakdown).
   if(type==='run'||type==='walk'||type==='weight'||type==='str'){
     extraLogsForTrendWeek(wk).filter(x=>x.kind===type).forEach(x=>{
-      add(x.date, type==='weight'?parseFloat(x.weight):type==='str'?1:parseFloat(x.dist));
+      add(x.date, type==='weight'?parseFloat(x.weight):type==='str'?1:parseFloat(x.dist),
+        {title:qaTitle(x.kind,x.subtype),onclick:`openQuickAdd('${x.kind}','${x.subtype||''}','${x.id}')`});
     });
   }
   if(type==='mob'){
-    extraLogsForTrendWeek(wk).forEach(x=>{ if(x.kind==='mobility'||x.kind==='yoga') add(x.date,1); });
+    extraLogsForTrendWeek(wk).forEach(x=>{ if(x.kind==='mobility'||x.kind==='yoga') add(x.date,1,{title:qaTitle(x.kind,x.subtype),onclick:`openQuickAdd('${x.kind}','${x.subtype||''}','${x.id}')`}); });
   }
   // Imported/uploaded Activities feed the same weekly TOTAL via weekMetricTotal() (Phase 1b) but this
   // per-day breakdown never picked them up -- Dylon: "uploaded data isnt added to the activity trends
@@ -10452,16 +10512,16 @@ function renderTrendDayRows(wk,type){
   // trend type -- see that function's own comment for why (a correctly-typed Mobility Activity that
   // fulfills a RUN session isn't folded into anything and must still show up here).
   if(type==='run'){
-    activitiesForTrendWeek(wk).forEach(a=>{ if(a.type===type && !activityFulfillmentAlreadyCounted(a,type) && a.distanceKm) add(a.date,a.distanceKm); });
+    activitiesForTrendWeek(wk).forEach(a=>{ if(a.type===type && !activityFulfillmentAlreadyCounted(a,type) && a.distanceKm) add(a.date,a.distanceKm,{title:activityDisplayName(a),onclick:`openActivityDetail('${a.id}')`}); });
   }
   if(type==='walk'){
-    activitiesForTrendWeek(wk).forEach(a=>{ if(a.type===type && a.distanceKm) add(a.date,a.distanceKm); });
+    activitiesForTrendWeek(wk).forEach(a=>{ if(a.type===type && a.distanceKm) add(a.date,a.distanceKm,{title:activityDisplayName(a),onclick:`openActivityDetail('${a.id}')`}); });
   }
   if(type==='str'){
-    activitiesForTrendWeek(wk).forEach(a=>{ if(a.type==='strength' && !activityFulfillmentAlreadyCounted(a,type)) add(a.date,1); });
+    activitiesForTrendWeek(wk).forEach(a=>{ if(a.type==='strength' && !activityFulfillmentAlreadyCounted(a,type)) add(a.date,1,{title:activityDisplayName(a),onclick:`openActivityDetail('${a.id}')`}); });
   }
   if(type==='mob'){
-    activitiesForTrendWeek(wk).forEach(a=>{ if((a.type==='mobility'||a.type==='yoga') && !activityFulfillmentAlreadyCounted(a,type)) add(a.date,1); });
+    activitiesForTrendWeek(wk).forEach(a=>{ if((a.type==='mobility'||a.type==='yoga') && !activityFulfillmentAlreadyCounted(a,type)) add(a.date,1,{title:activityDisplayName(a),onclick:`openActivityDetail('${a.id}')`}); });
   }
   const dates=Object.keys(byDate).sort();
   let h=`<div class="trend-days">`;
@@ -10470,7 +10530,14 @@ function renderTrendDayRows(wk,type){
     // possibly adjusted by a swap/date override); fall back to computing it directly for a date that
     // only has Quick Add extras logged against it, no matching session.
     const wd=(sessions.find(s=>s.date===date)||{}).wd||PLAN_WD[new Date(date+'T12:00:00').getDay()];
-    h+=`<div class="trend-day-row"><span>${wd} · ${fmtDate(date)}</span><span style="font-weight:700">${fmtTrendVal(byDate[date],tt.unit)}</span></div>`;
+    const src=byDateSrc[date];
+    h+=`<div class="trend-day-row"${src?` style="cursor:pointer" onclick="${src.onclick}"`:''}>
+      <div style="min-width:0">
+        ${src?`<div style="font-weight:700;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escAttr(src.title)}</div>`:''}
+        <div${src?' style="font-size:11.5px;color:var(--t3)"':''}>${wd} · ${fmtDate(date)}</div>
+      </div>
+      <span style="font-weight:700;flex-shrink:0;padding-left:8px">${fmtTrendVal(byDate[date],tt.unit)}</span>
+    </div>`;
   });
   if(!dates.length) h+=`<div style="font-size:12.5px;color:var(--t3);padding:4px 0">Nothing logged this week.</div>`;
   h+='</div>';
@@ -10482,30 +10549,44 @@ function renderTrendDayRows(wk,type){
 function renderTrendDurationDayRows(wk,type){
   const sessions=weekSessionsFull(wk);
   const byDate={};
-  const add=(date,sec)=>{ if(!sec) return; byDate[date]=(byDate[date]||0)+sec; };
+  // v0.34.12 -- same byDateSrc pattern as renderTrendDayRows() above (the Time view was just as empty
+  // next to the number as the Volume view was) -- see that function's own comment for the full reasoning.
+  const byDateSrc={};
+  const add=(date,sec,src)=>{
+    if(!sec) return;
+    byDate[date]=(byDate[date]||0)+sec;
+    if(!byDateSrc[date] && src) byDateSrc[date]=src;
+  };
   // v0.34.2 -- no more bailing out just because a fulfilling Activity exists; see sessionMetric()'s own
   // comment for the full bug this fixes.
   sessions.forEach(s=>{
     if(!sessionMatchesTrendType(s,type)) return;
     if(STATUS[s.id]!=='done') return;
-    add(s.date,sessionDurationSec(s.id));
+    add(s.date,sessionDurationSec(s.id),{title:s.ti,onclick:`openLog('${s.id}')`});
   });
   extraLogsForTrendWeek(wk).forEach(x=>{
     const kindMatches=type==='mob'?(x.kind==='mobility'||x.kind==='yoga'):(x.kind===type);
-    if(kindMatches) add(x.date,extraLogDurationSec(x));
+    if(kindMatches) add(x.date,extraLogDurationSec(x),{title:qaTitle(x.kind,x.subtype),onclick:`openQuickAdd('${x.kind}','${x.subtype||''}','${x.id}')`});
   });
   // v0.34.5 -- mirrors weekDurationTotal()'s own activityFulfillmentAlreadyCounted() check; see that
   // function's comment for why a plain a.role==='fulfillment' check isn't enough on its own.
   activitiesForTrendWeek(wk).forEach(a=>{
     if(type!=='walk' && activityFulfillmentAlreadyCounted(a,type)) return;
     const activityTypeMatches=type==='str'?a.type==='strength':(type==='mob'?(a.type==='mobility'||a.type==='yoga'):a.type===type);
-    if(activityTypeMatches) add(a.date,a.durationSec);
+    if(activityTypeMatches) add(a.date,a.durationSec,{title:activityDisplayName(a),onclick:`openActivityDetail('${a.id}')`});
   });
   const dates=Object.keys(byDate).sort();
   let h=`<div class="trend-days">`;
   dates.forEach(date=>{
     const wd=(sessions.find(s=>s.date===date)||{}).wd||PLAN_WD[new Date(date+'T12:00:00').getDay()];
-    h+=`<div class="trend-day-row"><span>${wd} · ${fmtDate(date)}</span><span style="font-weight:700">${fmtHoursMin(byDate[date])}</span></div>`;
+    const src=byDateSrc[date];
+    h+=`<div class="trend-day-row"${src?` style="cursor:pointer" onclick="${src.onclick}"`:''}>
+      <div style="min-width:0">
+        ${src?`<div style="font-weight:700;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escAttr(src.title)}</div>`:''}
+        <div${src?' style="font-size:11.5px;color:var(--t3)"':''}>${wd} · ${fmtDate(date)}</div>
+      </div>
+      <span style="font-weight:700;flex-shrink:0;padding-left:8px">${fmtHoursMin(byDate[date])}</span>
+    </div>`;
   });
   if(!dates.length) h+=`<div style="font-size:12.5px;color:var(--t3);padding:4px 0">Nothing logged this week.</div>`;
   h+='</div>';
