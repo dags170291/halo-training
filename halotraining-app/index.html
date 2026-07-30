@@ -1543,7 +1543,7 @@ main{flex:1;padding:14px 14px 24px;max-width:560px;width:100%;margin:0 auto}
    session-style restyle, race-target connection, iOS install fix, icon redesign, onboarding flow).
    APP_STAGE is 'alpha.N' pre-launch, bump N each time you hand a build to a real tester (Dylon's
    sister counts); once launched, APP_VERSION resets to 1.0.0 and APP_STAGE becomes ''. */
-const APP_VERSION='0.34.9';
+const APP_VERSION='0.34.10';
 const APP_STAGE='alpha.1';
 const APP_VERSION_DATE='2026-07-30';
 /* ═══════════════════════════ DATA ═══════════════════════════ */
@@ -10796,9 +10796,22 @@ function historyItems(){
   EXTRALOGS.forEach(x=>{ items.push({kind:'extra',ty:x.kind,date:x.date,id:x.id}); });
   // Every imported Activity shows up here regardless of role (fulfillment/accessory/unplanned) — this
   // is the "all activities, planned or not" feed from ANALYTICS_ROADMAP.md Phase 1, reusing History
-  // rather than building a separate view for it.
-  ACTIVITIES.forEach(a=>{ items.push({kind:'activity',ty:a.type,date:a.date,id:a.id}); });
-  return items.sort((a,b)=>b.date.localeCompare(a.date));
+  // rather than building a separate view for it. startTime (the file's own real clock time, e.g.
+  // "06:42" -- see buildActivityFromParsed()) is carried onto the item here so the sort below can use
+  // it as a same-day tiebreaker, same as unplannedActivities() already does for the Needs Review list.
+  ACTIVITIES.forEach(a=>{ items.push({kind:'activity',ty:a.type,date:a.date,id:a.id,startTime:a.startTime}); });
+  // Sorted by the date each item actually happened (never an upload/import/created timestamp -- an
+  // imported Activity's own `date`/`startTime` always come from the file's real recorded start, see
+  // buildActivityFromParsed()), most recent first. Dylon: "each activity to be sorted by time the
+  // activity was done (not uploaded), most recent to the top... this must apply for even the uploaded
+  // activities as well as manually logged activities." Day-level ordering was already date-based and
+  // already consistent across sessions/extras/activities -- the actual gap was no time-of-day tiebreak,
+  // so two same-day entries (e.g. a 6am imported run and an 8pm manually-logged strength session) fell
+  // back to plain array/insertion order, which could look exactly like "sorted by when it was added"
+  // for that day. A real startTime (only Activities carry one) now settles same-day ties correctly;
+  // sessions/extras have no time-of-day data at all, so same-day ties between two of those still fall
+  // back to insertion order, same as before.
+  return items.sort((a,b)=>b.date.localeCompare(a.date)||(b.startTime||'').localeCompare(a.startTime||''));
 }
 function matchesHistoryFilter(item,filter){
   if(filter==='all') return true;
@@ -10880,6 +10893,35 @@ function activitiesMonthGroups(items){
       const d=new Date((item.date||todayISO())+'T12:00:00');
       const label=isNaN(d.getTime())?'Undated':d.toLocaleDateString('en-US',{month:'long',year:'numeric'});
       cur={key,label,items:[],totalKm:0};
+      groups.push(cur);
+    }
+    cur.items.push(item);
+    cur.totalKm+=historyItemDistanceKm(item);
+  });
+  return groups;
+}
+// "Wed, Jul 22" -- same "Today"/"Yesterday" shortcut as relDayLabel(), but always includes the weekday
+// past that (relDayLabel()'s own fmtDate() fallback is weekday-less, e.g. just "Jul 22" -- fine on a
+// single card next to its own month header, but not enough to tell days apart at a glance once several
+// of them are stacked as their own group headers under one month).
+function dayGroupLabel(dateStr){
+  const rel=relDayLabel(dateStr);
+  if(rel==='Today'||rel==='Yesterday'||rel==='TBD') return rel;
+  const d=new Date(dateStr+'T12:00:00');
+  if(isNaN(d.getTime())) return rel;
+  return d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+}
+// Sub-groups a (month-grouped, already date+time-descending-sorted) item list one level further, by
+// calendar day -- Dylon: "also group activity by days in the activity tab please." Every item on the
+// same real date (never an upload/import timestamp -- see historyItems()'s own comment) lands in one
+// day group together, in the same most-recent-first order the items already arrived in.
+function activitiesDayGroups(items){
+  const groups=[];
+  let cur=null;
+  items.forEach(item=>{
+    const key=item.date||'';
+    if(!cur||cur.key!==key){
+      cur={key,label:dayGroupLabel(key),items:[],totalKm:0};
       groups.push(cur);
     }
     cur.items.push(item);
@@ -11966,13 +12008,21 @@ function renderActivities(){
     // Runna-style month header row ("July 2026 ... 51.7 km") + one real .card per item underneath it
     // (historyItemCardHTML) — replaces the old single shared <div class="card"> wrapping every item as
     // one flat text line each. See the big comment above activityTypeIcoCls for the full redesign
-    // rationale.
+    // rationale. Within each month, cards are further sub-grouped by day (activitiesDayGroups) with
+    // their own lighter "Wed, Jul 22" header — Dylon: "also group activity by days in the activity tab
+    // please."
     activitiesMonthGroups(items).forEach(g=>{
       html+=`<div style="display:flex;justify-content:space-between;align-items:baseline;margin:16px 0 8px">
         <div style="font-size:13.5px;font-weight:800;color:var(--t1)">${escAttr(g.label)}</div>
         ${g.totalKm?`<div style="font-size:12.5px;color:var(--t3)">${fmtDist(g.totalKm)}</div>`:''}
       </div>`;
-      g.items.forEach(item=>{ html+=historyItemCardHTML(item); });
+      activitiesDayGroups(g.items).forEach(dg=>{
+        html+=`<div class="activities-day-hdr" style="display:flex;justify-content:space-between;align-items:baseline;margin:10px 0 6px">
+          <div style="font-size:11.5px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.3px">${escAttr(dg.label)}</div>
+          ${dg.totalKm?`<div style="font-size:11px;color:var(--t3)">${fmtDist(dg.totalKm)}</div>`:''}
+        </div>`;
+        dg.items.forEach(item=>{ html+=historyItemCardHTML(item); });
+      });
     });
   } else {
     html+=`<div class="card" style="font-size:12.5px;color:var(--t3);text-align:center;padding:14px 0">${query?'No activities match your search.':'Nothing logged yet for this filter — import a watch file or log something on Today to see it here.'}</div>`;

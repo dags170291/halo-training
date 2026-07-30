@@ -1546,7 +1546,17 @@
 // always counts, preserving the earlier v0.34.2 fix). A walk or post-run mobility session attached to a
 // run session still marks it done, but its own ground covered/time now only ever shows up once, under
 // its own real type's trend.
-const CACHE_NAME = 'halo-0.34.9-alpha.1';
+// v0.34.10 -- Dylon: "i will like each activity to be sorted by time the activity was done (not
+// uploaded), most recent to the top. this must apply for even the uploaded activities as well as
+// manually logged activities." Investigation found historyItems() was already sorting by each item's
+// real date (never an upload/import timestamp) descending, consistently across planned sessions/manual
+// logs/imported Activities -- the actual gap was no time-of-day tiebreak, so two items on the same
+// calendar day fell back to plain insertion order, which could look exactly like "sorted by when it was
+// added." Fixed by carrying a real Activity's own startTime onto its history item and using it as a
+// same-day tiebreaker. Right after: "also group activity by days in the activity tab please" -- added
+// activitiesDayGroups()/dayGroupLabel(), nesting each month's cards under their own day header
+// ("Wed, Jul 22") the same way the existing month header already groups by month.
+const CACHE_NAME = 'halo-0.34.10-alpha.1';
 const APP_SHELL = [
   './index.html',
   './manifest.webmanifest',
