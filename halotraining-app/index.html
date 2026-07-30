@@ -1543,7 +1543,7 @@ main{flex:1;padding:14px 14px 24px;max-width:560px;width:100%;margin:0 auto}
    session-style restyle, race-target connection, iOS install fix, icon redesign, onboarding flow).
    APP_STAGE is 'alpha.N' pre-launch, bump N each time you hand a build to a real tester (Dylon's
    sister counts); once launched, APP_VERSION resets to 1.0.0 and APP_STAGE becomes ''. */
-const APP_VERSION='0.34.8';
+const APP_VERSION='0.34.9';
 const APP_STAGE='alpha.1';
 const APP_VERSION_DATE='2026-07-30';
 /* ═══════════════════════════ DATA ═══════════════════════════ */
@@ -6233,7 +6233,12 @@ function loggedDist(id){
   // each one's distance is real ground covered that belongs in this session's total. Using .find() here
   // used to silently drop every fulfillment Activity past the first -- Dylon: "the total mileage (km
   // logged) still doesnt doesn't calculate correctly" after importing a day as multiple files.
-  const fulfilling=ACTIVITIES.filter(a=>a.linkedSessionId===id && a.role==='fulfillment' && a.distanceKm);
+  // v0.34.9 -- only sums a fulfilling Activity whose own type is actually NATIVE to this session (see
+  // activityIsNativeToSession()'s own comment) -- a warm-up/cool-down walk marked "Fulfills this" on a
+  // RUN session no longer inflates the run's own distance; it still counts, just under the Walk trend
+  // where it actually belongs.
+  const s=findSess(id);
+  const fulfilling=ACTIVITIES.filter(a=>a.linkedSessionId===id && a.role==='fulfillment' && a.distanceKm && activityIsNativeToSession(a,s));
   if(fulfilling.length) return fulfilling.reduce((sum,a)=>sum+a.distanceKm,0);
   if(n && n.dist) return parseFloat(n.dist)||0;
   // The main Distance field above is normally the whole continuous GPS activity, which already
@@ -9161,6 +9166,37 @@ function sessionMatchesTrendType(s,type){
   if(type==='mob') return s.ty==='mobility' || (s.ty==='rest' && /mobility/i.test(s.ti||''));
   return false;
 }
+// v0.34.9 -- Dylon, after root-causing his own real reported Run trend inflation (Wed 22 showing 7.6km
+// against 6.2km actually run, Sat 25 showing 9.3km against 8.2km): "so i found the error, some walks
+// were added as activity and not as extras is there some way we can ensure that this dont happen when
+// we add walks (warm up or cool down) and even add mobility post run that they get added to their
+// designated activity type even if it is attached to a planned session?" Root cause: loggedDist()/
+// sessionDurationSec() summed EVERY fulfillment-role Activity linked to a session with zero regard for
+// that Activity's own .type -- so a warm-up/cool-down walk (or a post-run mobility session) marked
+// "Fulfills this" on a run session had its distance/duration folded straight into the RUN session's own
+// number, inflating the Run trend, while it ALSO still counted correctly under its own Walk trend
+// (weekMetricTotal's walk branch counts every walk Activity unconditionally, any role) or Mobility trend
+// (already fixed in v0.34.5) -- a genuine double-count, not just a misattribution. Fixed at the source:
+// a fulfilling Activity's distance/duration only folds into its linked session's own number now when
+// that Activity's type is actually NATIVE to the session it's fulfilling -- a run session only pulls in
+// a 'run'-typed fulfilling Activity, a Strength session only a 'strength'-typed one, a Mobility session
+// only a 'mobility'/'yoga'-typed one. A walk or mobility Activity attached to a run session as "Fulfills
+// this" still correctly marks the run done, but its own ground covered / time spent now only ever shows
+// up once, under its own real type's trend -- never bleeding into the run's.
+function activityIsNativeToSession(a,s){
+  if(!s) return true;
+  // 'workout' is inferActivityType()'s own generic fallback for a file with no GPS and no recognizable
+  // sport string -- it means "couldn't tell what this is," not "confidently a different activity type."
+  // Treating it as a mismatch would resurrect the exact v0.34.2 bug (a real run/strength/mobility file
+  // that happened to import as generic 'workout' silently losing its distance/duration) -- only a
+  // CONFIDENTLY different, specifically-typed Activity (walk/strength/mobility/yoga typed against a
+  // session of a different family) should be excluded here.
+  if(a.type==='workout') return true;
+  if(sessionMatchesTrendType(s,'run')) return a.type==='run';
+  if(sessionMatchesTrendType(s,'str')) return a.type==='strength';
+  if(sessionMatchesTrendType(s,'mob')) return a.type==='mobility'||a.type==='yoga';
+  return true;
+}
 // v0.34.5 -- a fulfillment-role Activity's own number is only "already folded into its linked session's
 // contribution" (and therefore safe to skip in the Activities loops below) when that linked session
 // itself actually matches the trend type being computed. Every one of those loops used to skip EVERY
@@ -9582,8 +9618,11 @@ function sessionDurationSec(id){
   // linked would silently keep reporting that stale number in Total time logged forever, never
   // picking up the activity's actual, more-accurate duration. Same "sum every fulfillment Activity,
   // not just the first" fix as loggedDist() above -- see its comment for why a single day can have
-  // more than one.
-  const fulfilling=ACTIVITIES.filter(a=>a.linkedSessionId===id && a.role==='fulfillment' && a.durationSec);
+  // more than one. v0.34.9 -- same activityIsNativeToSession() guard as loggedDist() too: a warm-up
+  // walk or post-run mobility session marked "Fulfills this" no longer inflates this session's own
+  // time, only a fulfilling Activity whose type is native to this session's type does.
+  const s=findSess(id);
+  const fulfilling=ACTIVITIES.filter(a=>a.linkedSessionId===id && a.role==='fulfillment' && a.durationSec && activityIsNativeToSession(a,s));
   if(fulfilling.length) return fulfilling.reduce((sum,a)=>sum+a.durationSec,0);
   if(n){
     if(n.duration){ const d=parseDurationSec(n.duration); if(d) return d; }

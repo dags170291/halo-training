@@ -1531,7 +1531,22 @@
 // .stat-num exactly (22px/800, same as "13/90" or "47.2" on the neighboring cards), .streak-hero-weeks
 // now matches .stat-lbl (12.5px, same as "Sessions logged"/"km logged / planned"), and the badge/chevron
 // were sized back up in proportion so the card still reads as one cohesive design at the new type scale.
-const CACHE_NAME = 'halo-0.34.8-alpha.1';
+// v0.34.9 -- Dylon root-caused his own reported Run trend inflation (Week 1 showing 30.5km against a
+// real 28.2km, Wed 22 at 7.6km instead of 6.2km, Sat 25 at 9.3km instead of 8.2km): "so i found the
+// error, some walks were added as activity and not as extras is there some way we can ensure that this
+// dont happen when we add walks (warm up or cool down) and even add mobility post run that they get
+// added to their designated activity type even if it is attached to a planned session?" Root cause:
+// loggedDist()/sessionDurationSec() summed EVERY fulfillment-role Activity linked to a session with zero
+// regard for that Activity's own .type -- a warm-up/cool-down walk marked "Fulfills this" on a run
+// session had its distance/duration folded straight into the run's own number (inflating the Run trend)
+// while ALSO still counting correctly under its own Walk trend -- a genuine double-count. Fixed with
+// activityIsNativeToSession(a,s): a fulfilling Activity's number only folds into its session's own total
+// now when its type is native to that session's type (run session -> 'run' Activity only; Strength ->
+// 'strength' only; Mobility -> 'mobility'/'yoga' only; the generic unclassified 'workout' fallback still
+// always counts, preserving the earlier v0.34.2 fix). A walk or post-run mobility session attached to a
+// run session still marks it done, but its own ground covered/time now only ever shows up once, under
+// its own real type's trend.
+const CACHE_NAME = 'halo-0.34.9-alpha.1';
 const APP_SHELL = [
   './index.html',
   './manifest.webmanifest',
