@@ -32,6 +32,8 @@
   --long:#B79CFF;--long2:#2A1E45;
   --str:#3ECF9A;--str2:#0F2E28;
   --walk:#4FB8C4;--walk2:#123A3E;--walk3:#0A2124;
+  --mob:#FF8FA8;--mob2:#5A2231;--mob3:#2B1219;
+  --wt:#D4C078;--wt2:#453D1E;--wt3:#221E0F;
   --r6:6px;--r10:10px;--r14:14px;--r18:18px;--rp:999px;
   --font:-apple-system,BlinkMacSystemFont,'Inter',Roboto,Helvetica,Arial,sans-serif;
   --nav-h:64px;
@@ -55,6 +57,8 @@
   --long:#7C5CD9;--long2:#EAE3FC;
   --str:#1C9A6C;--str2:#E1F8EF;
   --walk:#1E8A96;--walk2:#C8EEF1;--walk3:#E6F8F9;
+  --mob:#D6446F;--mob2:#FBD9E4;--mob3:#FDEEF2;
+  --wt:#9C8A2E;--wt2:#F0EAC8;--wt3:#F8F5E4;
 }
 body.phase-durability{--accent:var(--dur);--accent2:var(--dur2);--accent3:var(--dur3)}
 body.phase-ignition{--accent:var(--ign);--accent2:var(--ign2);--accent3:var(--ign3)}
@@ -170,10 +174,10 @@ main{flex:1;padding:14px 14px 24px;max-width:560px;width:100%;margin:0 auto}
 .ico-long{background:var(--long2);color:var(--long)}
 .ico-str{background:var(--str2);color:var(--str)}
 .ico-race{background:var(--race2);color:var(--race)}
-.ico-walk{background:var(--s3);color:var(--t3)}
-.ico-weight{background:var(--s3);color:var(--t3)}
+.ico-walk{background:var(--walk3);color:var(--walk)}
+.ico-weight{background:var(--wt3);color:var(--wt)}
 .ico-yoga{background:var(--dur3);color:var(--dur)}
-.ico-mobility{background:var(--s3);color:var(--t3)}
+.ico-mobility{background:var(--mob3);color:var(--mob)}
 .ico-checkin{background:var(--accent3);color:var(--accent)}
 .sess-body{flex:1;min-width:0}
 .sess-top{display:flex;align-items:center;gap:6px;margin-bottom:2px}
@@ -1543,7 +1547,7 @@ main{flex:1;padding:14px 14px 24px;max-width:560px;width:100%;margin:0 auto}
    session-style restyle, race-target connection, iOS install fix, icon redesign, onboarding flow).
    APP_STAGE is 'alpha.N' pre-launch, bump N each time you hand a build to a real tester (Dylon's
    sister counts); once launched, APP_VERSION resets to 1.0.0 and APP_STAGE becomes ''. */
-const APP_VERSION='0.34.10';
+const APP_VERSION='0.34.11';
 const APP_STAGE='alpha.1';
 const APP_VERSION_DATE='2026-07-30';
 /* ═══════════════════════════ DATA ═══════════════════════════ */
@@ -10849,10 +10853,16 @@ function activityTypeIcoCls(type){
 function activityTypeIcon(type){
   return {run:ICONS.easy,walk:ICONS.walk,strength:ICONS.str,yoga:ICONS.yoga,mobility:ICONS.mobility,workout:ICONS.exercise}[type]||ICONS.easy;
 }
-// A soft full-card gradient tint per icon class, reusing the same light "3"/"2" tint variables the
-// icon badges themselves already sit on — deliberately NOT a bar/stripe along any edge. Types that are
-// already neutral grey in the badge system (walk/weight/mobility/rest) stay a plain card background
-// rather than tinting toward grey, which would just look like a rendering glitch.
+// A soft full-card gradient tint per icon class, reusing the same tint variable each type's own badge
+// (.ico-X above) already sits on — deliberately NOT a bar/stripe along any edge. Dylon: "workout sessions
+// have a gradient colour, running have a gradient colour, but not for the other activities give each
+// activity type its own soft gradient colour like running and workout." Walk/Mobility/Weight used to
+// stay plain grey here (and on their own badges) rather than tint toward grey, since none of the three
+// had a real color of their own defined yet -- Walk's --walk/--walk2/--walk3 tokens already existed
+// elsewhere (a teal dot on the run-detail warm-up/cool-down legend) but were never wired into its own
+// badge/card; Mobility (--mob, soft rose) and Weight (--wt, soft khaki-gold) are new tokens added
+// specifically for this. Rest stays neutral grey on purpose -- it's not a loggable activity type with
+// its own filter chip on this tab, just a plan day with nothing done.
 const ICO_CARD_TINT={
   'ico-easy':'linear-gradient(160deg,var(--dur3),var(--s1) 60%)',
   'ico-qual':'linear-gradient(160deg,var(--ign3),var(--s1) 60%)',
@@ -10860,7 +10870,10 @@ const ICO_CARD_TINT={
   'ico-str':'linear-gradient(160deg,var(--str2),var(--s1) 60%)',
   'ico-race':'linear-gradient(160deg,var(--race2),var(--s1) 60%)',
   'ico-yoga':'linear-gradient(160deg,var(--dur3),var(--s1) 60%)',
-  'ico-checkin':'linear-gradient(160deg,var(--accent3),var(--s1) 60%)'
+  'ico-checkin':'linear-gradient(160deg,var(--accent3),var(--s1) 60%)',
+  'ico-walk':'linear-gradient(160deg,var(--walk3),var(--s1) 60%)',
+  'ico-mobility':'linear-gradient(160deg,var(--mob3),var(--s1) 60%)',
+  'ico-weight':'linear-gradient(160deg,var(--wt3),var(--s1) 60%)'
 };
 // "Today"/"Yesterday" reads more naturally on a recent card than a bare date, matching Runna's own
 // "Today · 5:24 AM" style — falls back to the existing short-date format (fmtDate) past that.

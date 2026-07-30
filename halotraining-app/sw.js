@@ -1556,7 +1556,15 @@
 // same-day tiebreaker. Right after: "also group activity by days in the activity tab please" -- added
 // activitiesDayGroups()/dayGroupLabel(), nesting each month's cards under their own day header
 // ("Wed, Jul 22") the same way the existing month header already groups by month.
-const CACHE_NAME = 'halo-0.34.10-alpha.1';
+// v0.34.11 -- Dylon: "in the activity tab workout sessions have a gradient colour, running have a
+// gradient colour, but not for the other activities give each activity type its own soft gradient
+// colour like running and workout." Walk/Mobility/Weight cards were falling back to a plain grey badge
+// (var(--s3)/var(--t3)) and had no ICO_CARD_TINT entry. Walk now uses its own --walk/--walk2/--walk3
+// tokens (already defined in the theme but never wired into its own badge before -- only used for a
+// tiny warm-up/cool-down legend dot). Mobility (--mob, soft rose) and Weight (--wt, soft khaki-gold) are
+// brand new token families, defined in both the dark and light theme blocks. Rest stays neutral grey on
+// purpose -- it's not a loggable activity type with its own filter chip on this tab.
+const CACHE_NAME = 'halo-0.34.11-alpha.1';
 const APP_SHELL = [
   './index.html',
   './manifest.webmanifest',
