@@ -1555,7 +1555,7 @@ main{flex:1;padding:14px 14px 24px;max-width:560px;width:100%;margin:0 auto}
    session-style restyle, race-target connection, iOS install fix, icon redesign, onboarding flow).
    APP_STAGE is 'alpha.N' pre-launch, bump N each time you hand a build to a real tester (Dylon's
    sister counts); once launched, APP_VERSION resets to 1.0.0 and APP_STAGE becomes ''. */
-const APP_VERSION='0.34.17';
+const APP_VERSION='0.34.18';
 const APP_STAGE='alpha.1';
 const APP_VERSION_DATE='2026-07-31';
 /* ═══════════════════════════ DATA ═══════════════════════════ */
@@ -7554,12 +7554,31 @@ function saveHRZonesToProfile(){
   showToast('Saved — Fitness & Freshness and your zone charts will use this now');
   renderAll();
 }
+// Reuses the exact "Rest"/"Max" open-end convention profileHRZonesCardHTML() already established for
+// its own zone list, instead of ever printing a fabricated numeric ceiling here. Dylon, seeing the
+// LTHR method's Zone 5 show a literal "186–214 bpm" (214 being 115% of his LTHR purely as a rounding
+// convenience for lthrZoneBounds(), not a real physiological max): "instead of hard capping the max to
+// a number just use 'max' as my max is not 214 but 196." This is a pure display fix -- the
+// classification math elsewhere (activityHRZoneBreakdown) is untouched, since anything above the last
+// zone's own numeric hi already correctly falls into that same last zone via that function's own
+// out-of-range fallback regardless of what number is stored there, and Friel's own Zone 5c is
+// literally ">106%" with no defined ceiling to begin with. Applied to every method/column, not just
+// LTHR, for consistency -- the first zone's lo is always "Rest" and the last zone's hi is always "Max"
+// regardless of which of the four calculation methods produced the underlying number.
+function hrZoneRangeLabel(zones,i,method){
+  const range=zones[i][method];
+  if(!range) return '—';
+  const n=zones.length;
+  const lo=i===0?'Rest':range[0];
+  const hi=i===n-1?'Max':range[1];
+  return `${lo}–${hi}`;
+}
 function hrZoneResultHTML(r){
-  const rows=r.zones.map(z=>`<tr><td>${z.label}<div style="font-size:11px;color:var(--t3);font-weight:500">${z.name}</div></td><td>${z[r.method][0]}–${z[r.method][1]} bpm</td><td style="font-size:12px;color:var(--t3)">${z.use}</td></tr>`).join('');
-  // LTHR column shows "—" when nothing's been entered in the LTHR field yet, same as every other
-  // "optional, not filled in" spot in this calculator -- unlike Karvonen/%Max HR/Zoladz, LTHR has no
-  // age-based fallback so it's genuinely absent (not just a zero) until directly measured/entered.
-  const compareRows=r.zones.map(z=>`<tr><td>${z.label}</td><td>${z.karvonen[0]}–${z.karvonen[1]}</td><td>${z.pctmax[0]}–${z.pctmax[1]}</td><td>${z.zoladz[0]}–${z.zoladz[1]}</td><td>${z.lthr?`${z.lthr[0]}–${z.lthr[1]}`:'—'}</td></tr>`).join('');
+  const rows=r.zones.map((z,i)=>`<tr><td>${z.label}<div style="font-size:11px;color:var(--t3);font-weight:500">${z.name}</div></td><td>${hrZoneRangeLabel(r.zones,i,r.method)} bpm</td><td style="font-size:12px;color:var(--t3)">${z.use}</td></tr>`).join('');
+  // LTHR column shows "—" when nothing's been entered in the LTHR field yet (hrZoneRangeLabel's own
+  // !range check), same as every other "optional, not filled in" spot in this calculator -- unlike
+  // Karvonen/%Max HR/Zoladz, LTHR has no age-based fallback so it's genuinely absent until measured.
+  const compareRows=r.zones.map((z,i)=>`<tr><td>${z.label}</td><td>${hrZoneRangeLabel(r.zones,i,'karvonen')}</td><td>${hrZoneRangeLabel(r.zones,i,'pctmax')}</td><td>${hrZoneRangeLabel(r.zones,i,'zoladz')}</td><td>${hrZoneRangeLabel(r.zones,i,'lthr')}</td></tr>`).join('');
   // "Saved" compares against PROFILE.savedHRZones directly rather than a separate flag, so reopening
   // the sheet later on an already-saved profile still shows the right state immediately. Also checks
   // lthr when that's the active method, so changing the LTHR value (same method) correctly flips back

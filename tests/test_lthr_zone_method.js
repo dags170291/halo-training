@@ -132,6 +132,25 @@ function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
   console.log('Test 8 (the LTHR stat card only shows once a real LTHR value is present):',
     (t8AbsentWithoutLthr && t8PresentWithLthr) ? 'PASS' : 'FAIL');
 
+  // ---- Test 8b: the main "Your Training Zones" table shows "Rest" for Zone 1's floor and "Max" for
+  // Zone 5's ceiling -- not a fabricated number (the 115%-of-LTHR ceiling, e.g. 230 for this LTHR=200
+  // fixture, purely a rounding convenience for lthrZoneBounds() -- never meant to be shown as a real
+  // physiological cap). Dylon: "instead of hard capping the max to a number just use 'max' as my max
+  // is not 214 but 196." ----
+  const t8bHasRest = /Rest–\d/.test(t8HTML);
+  const t8bHasMax = /\d–Max bpm/.test(t8HTML);
+  const t8bNoFabricatedCeiling = !/–230 bpm/.test(t8HTML);
+  console.log('Test 8b (the main zone table shows Rest/Max at the open ends, not a fabricated LTHR ceiling number):',
+    (t8bHasRest && t8bHasMax && t8bNoFabricatedCeiling) ? 'PASS' : 'FAIL', { t8bHasRest, t8bHasMax, t8bNoFabricatedCeiling });
+
+  // ---- Test 8c: the "Compare All Methods" table applies the same Rest/Max treatment to EVERY
+  // method's column (not just LTHR) for consistency -- Karvonen's own Zone 5 ceiling (a real maxHR
+  // value, unlike LTHR's fabricated one) also reads "Max" rather than a raw number here. ----
+  const t8cLthrShowsMax = /<td>Rest–\d+<\/td><td>Rest–\d+<\/td><td>Rest–\d+<\/td><td>Rest–\d+<\/td>/.test(t8HTML);
+  const t8cLastRowShowsMax = (t8HTML.match(/<td>\d+–Max<\/td>/g)||[]).length >= 3;
+  console.log('Test 8c (the comparison table shows Rest/Max consistently across all four method columns):',
+    (t8cLthrShowsMax && t8cLastRowShowsMax) ? 'PASS' : 'FAIL', { t8cLthrShowsMax, t8cLastRowShowsMax });
+
   // ---- Test 9: saving to profile with method='lthr' persists correctly, and currentHRZones()'s
   // saved zones read back out through the shared z[method] pattern every other consumer
   // (profileHRZonesCardHTML, activityHRZoneChipRowHTML, zoneTrendRangeLabel) already uses ----

@@ -1616,7 +1616,15 @@
 // the wrong (highest) zone. New lthrZoneBounds() derives each zone's lo from Friel's real percentage
 // (Zone 5's lo lands exactly on the measured LTHR itself) and sets each preceding zone's hi to (next
 // zone's lo − 1), guaranteed gap-free for any LTHR value.
-const CACHE_NAME = 'halo-0.34.17-alpha.1';
+// v0.34.18 -- Dylon, right after the gap fix: "instead of hard capping the max to a number just use
+// 'max' as my max is not 214 but 196 as the other types of test." The LTHR method's Zone 5 ceiling
+// (115% of LTHR, purely a rounding convenience for lthrZoneBounds()) was showing as a fabricated,
+// physiologically-impossible bpm number in the calculator's own two tables (his real Max HR is 196,
+// not 214). Fixed with new hrZoneRangeLabel(), which applies the exact "Rest"/"Max" open-end
+// convention profileHRZonesCardHTML() already established for its own zone list to hrZoneResultHTML()'s
+// "Your Training Zones" and "Compare All Methods" tables too -- the first zone's lo is always "Rest"
+// and the last zone's hi is always "Max", for every method's column, not just LTHR's.
+const CACHE_NAME = 'halo-0.34.18-alpha.1';
 const APP_SHELL = [
   './index.html',
   './manifest.webmanifest',
