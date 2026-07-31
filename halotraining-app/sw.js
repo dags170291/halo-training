@@ -1607,7 +1607,16 @@
 // other features (Relative Effort, Training Load) read hz.maxHR/hz.rhr directly. Friel's real 7-zone
 // running bands (Z1 <85%, Z2 85-89%, Z3 90-94%, Z4 95-99%, Z5a/5b/5c 100%+) are collapsed into this
 // app's existing 5-zone slots, Z5a/b/c merging into the app's single "Zone 5: Maximum."
-const CACHE_NAME = 'halo-0.34.16-alpha.1';
+// v0.34.17 -- fixed a real gap in the LTHR zone table. Dylon, after a second-opinion review with
+// Gemini: "i found an error in the result" -- Zone 3 ended at 175, Zone 4 started at 177, leaving 176
+// unclassified. Root cause: Friel's own published percentages have non-touching boundaries between
+// zones 2-3/3-4/4-5 (a genuine 1% gap in his own table), so independently rounding each zone's own lo
+// and hi could skip an integer bpm -- and it wasn't just cosmetic, since activityHRZoneBreakdown()'s
+// zone lookup uses these exact bounds, silently mis-bucketing a real HR sample landing in the gap into
+// the wrong (highest) zone. New lthrZoneBounds() derives each zone's lo from Friel's real percentage
+// (Zone 5's lo lands exactly on the measured LTHR itself) and sets each preceding zone's hi to (next
+// zone's lo − 1), guaranteed gap-free for any LTHR value.
+const CACHE_NAME = 'halo-0.34.17-alpha.1';
 const APP_SHELL = [
   './index.html',
   './manifest.webmanifest',

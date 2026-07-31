@@ -38,15 +38,26 @@ function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
   win.eval(`SB = { auth:{ getSession:async()=>({data:{session:null}}), onAuthStateChange:()=>({data:{subscription:{unsubscribe(){}}}}) } };`);
   win.eval(`window.renderAll = function(){};`);
 
-  // ---- Test 1: with a clean-math LTHR of 200 bpm, the zone bands match Joe Friel's own published
-  // percentages exactly (Z1 <85%, Z2 85-89%, Z3 90-94%, Z4 95-99%, Z5 100%+ -- 5a/5b/5c collapsed
-  // into this app's single Zone 5 slot, with a 115% ceiling used purely so the table has a concrete
-  // number, not a claim that's some real physiological limit) ----
+  // ---- Test 1: with a clean-math LTHR of 200 bpm, each zone's lo is Friel's own real published
+  // percentage of LTHR (Z1 <85%, Z2 85%, Z3 90%, Z4 95%, Z5 100% -- Zone 5's lo lands exactly on the
+  // measured LTHR itself, matching Friel's own "Zone 5 begins at 100% of LTHR" definition), and every
+  // zone is perfectly contiguous with no gap or overlap -- see lthrZoneBounds()'s own comment for why
+  // independently rounding Friel's non-touching zone-to-zone percentages (a real 1% gap in his own
+  // published table between Z2/Z3, Z3/Z4, Z4/Z5) used to skip an integer bpm between zones. ----
   const r1 = JSON.parse(win.eval(`JSON.stringify(computeHRZones({age:32,maxHR:null,maxHRFormula:'tanaka',restingHR:60,activityLevel:'moderate',lthr:200}))`));
-  const expectedLthrBands = [[0,170],[170,178],[180,188],[190,198],[200,230]];
+  const expectedLthrBands = [[0,169],[170,179],[180,189],[190,199],[200,230]];
   const bandsMatch = r1.zones.every((z,i) => z.lthr[0]===expectedLthrBands[i][0] && z.lthr[1]===expectedLthrBands[i][1]);
-  console.log('Test 1 (LTHR=200 produces Friel\'s exact published zone bands, 5a/5b/5c collapsed into Zone 5):',
+  console.log('Test 1 (LTHR=200 produces contiguous zones anchored to Friel\'s real percentages, Zone 5 lo = LTHR itself):',
     bandsMatch ? 'PASS' : 'FAIL', { gotBands: r1.zones.map(z=>z.lthr), expectedLthrBands });
+
+  // ---- Test 1b: no gaps or overlaps for an arbitrary, non-clean-math LTHR too -- the exact case
+  // Dylon/Gemini caught (LTHR=186 left 176 unclassified between Zone 3 and Zone 4 in the original
+  // independent-rounding version). Every zone's lo must be exactly the previous zone's hi + 1. ----
+  const r1b = JSON.parse(win.eval(`JSON.stringify(computeHRZones({age:32,maxHR:null,maxHRFormula:'tanaka',restingHR:60,activityLevel:'moderate',lthr:186}))`));
+  const contiguous186 = r1b.zones.every((z,i) => i===0 || z.lthr[0] === r1b.zones[i-1].lthr[1]+1);
+  const zone5AnchoredToLthr = r1b.zones[4].lthr[0] === 186;
+  console.log('Test 1b (LTHR=186, the exact value that surfaced the gap, is now perfectly contiguous with Zone 5 anchored at 186):',
+    (contiguous186 && zone5AnchoredToLthr) ? 'PASS' : 'FAIL', { gotBands186: r1b.zones.map(z=>z.lthr) });
 
   // ---- Test 2: with no LTHR entered at all, every zone's `lthr` field is null -- the other three
   // methods (karvonen/pctmax/zoladz) stay populated exactly as before, completely unaffected ----
@@ -88,13 +99,13 @@ function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
   const t5Lthr = win.eval(`HRZONE_LAST.lthr`);
   const t5HTML = win.eval(`document.getElementById('hr-result').innerHTML`);
   console.log('Test 5 (calcHRZones with LTHR filled in produces a real lthr-method result and renders its own bpm ranges):',
-    (t5Method==='lthr' && t5Lthr===200 && t5HTML.includes('170–178 bpm')) ? 'PASS' : 'FAIL',
+    (t5Method==='lthr' && t5Lthr===200 && t5HTML.includes('170–179 bpm')) ? 'PASS' : 'FAIL',
     { t5Method, t5Lthr });
 
   // ---- Test 6: the "Compare All Methods" table gets a 4th LTHR column, showing real ranges when
   // LTHR was entered ----
   const t6HasColumn = /<th>LTHR<\/th>/.test(t5HTML);
-  const t6HasRealRange = /170–178/.test(t5HTML);
+  const t6HasRealRange = /170–179/.test(t5HTML);
   console.log('Test 6 (the comparison table shows an LTHR column with real ranges once entered):',
     (t6HasColumn && t6HasRealRange) ? 'PASS' : 'FAIL');
 

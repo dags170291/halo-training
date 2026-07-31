@@ -1555,7 +1555,7 @@ main{flex:1;padding:14px 14px 24px;max-width:560px;width:100%;margin:0 auto}
    session-style restyle, race-target connection, iOS install fix, icon redesign, onboarding flow).
    APP_STAGE is 'alpha.N' pre-launch, bump N each time you hand a build to a real tester (Dylon's
    sister counts); once launched, APP_VERSION resets to 1.0.0 and APP_STAGE becomes ''. */
-const APP_VERSION='0.34.16';
+const APP_VERSION='0.34.17';
 const APP_STAGE='alpha.1';
 const APP_VERSION_DATE='2026-07-31';
 /* ═══════════════════════════ DATA ═══════════════════════════ */
@@ -7436,25 +7436,46 @@ function hrEstimateMaxHR(age,formula){
   const f=HR_MAXHR_FORMULAS[formula]||HR_MAXHR_FORMULAS.tanaka;
   return f.calc(age);
 }
+// v0.34.17 -- Dylon, after running the calculated LTHR zones past Gemini for a second opinion: "i
+// found an error in the result" -- pointing out a real integer bpm gap (Zone 3 ending 175, Zone 4
+// starting 177, nothing classified as 176). Root cause: Friel's own published percentages have
+// non-touching boundaries between zones 2-3/3-4/4-5 (Z2 ends 89%, Z3 starts 90% -- a genuine 1%
+// no-man's-land in his own table, unlike this app's other 3 methods where each zone's own pctHi
+// exactly equals the next zone's pctLo). Independently Math.round()-ing each zone's own lo and hi from
+// those non-touching percentages can skip an integer bpm entirely, and it's not just cosmetic --
+// activityHRZoneBreakdown()'s zone lookup reads these exact bounds, so a real HR sample landing in the
+// gap was silently falling through to the LAST zone (Zone 5) via its own out-of-range fallback,
+// mis-bucketing genuine Zone 4 effort as Zone 5. Fixed with lthrZoneBounds(): each zone's lo is still
+// derived from Friel's own real percentage (physiologically meaningful -- Zone 5's lo, for instance,
+// lands exactly on the measured LTHR itself, matching Friel's "Zone 5 begins at 100% of LTHR"
+// definition and Gemini's own point that crossing LTHR should immediately register as Zone 5), but
+// each PRECEDING zone's hi is set to (next zone's lo − 1) instead of independently rounding that
+// zone's own pctHi -- guaranteed contiguous, zero gaps or overlaps, for any LTHR value.
+function lthrZoneBounds(lthr){
+  if(!lthr||lthr<=0) return null;
+  const los=HR_ZONES.map((z,i)=>i===0?0:Math.round(lthr*z.lthrPctLo));
+  return HR_ZONES.map((z,i)=>[los[i],i===HR_ZONES.length-1?Math.round(lthr*z.lthrPctHi):los[i+1]-1]);
+}
 // Pure computation, kept separate from the form-reading/rendering below so it's easy to unit-test.
 // Returns null only when there's no way to arrive at a Max HR at all (no direct value AND no age) --
 // Age/Max HR stays required regardless of which method is ultimately selected (see the big comment
 // above for why LTHR doesn't relax this). input.lthr (optional, a directly measured bpm value -- there
-// is no age-based way to estimate it) additionally populates each zone's `lthr` range when provided;
-// left null/undefined otherwise, same "just don't add the field" pattern as everything else here that
-// depends on an optional input.
+// is no age-based way to estimate it) additionally populates each zone's `lthr` range (via
+// lthrZoneBounds(), gap-free by construction) when provided; left null/undefined otherwise, same "just
+// don't add the field" pattern as everything else here that depends on an optional input.
 function computeHRZones(input){
   const maxHR=input.maxHR||hrEstimateMaxHR(input.age,input.maxHRFormula);
   if(!maxHR||maxHR<=0) return null;
   const rhr=input.restingHR||HR_ACTIVITY_RHR[input.activityLevel]||60;
   const hrr=maxHR-rhr;
   const lthr=input.lthr>0?input.lthr:null;
-  const zones=HR_ZONES.map(z=>({
+  const lthrBounds=lthrZoneBounds(lthr);
+  const zones=HR_ZONES.map((z,i)=>({
     ...z,
     karvonen:[Math.round(hrr*z.pctLo+rhr),Math.round(hrr*z.pctHi+rhr)],
     pctmax:[Math.round(maxHR*z.pctLo),Math.round(maxHR*z.pctHi)],
     zoladz:[Math.round(maxHR-z.zSubLo),Math.round(maxHR-z.zSubHi)],
-    lthr:lthr?[Math.round(lthr*z.lthrPctLo),Math.round(lthr*z.lthrPctHi)]:null
+    lthr:lthrBounds?lthrBounds[i]:null
   }));
   return {maxHR:Math.round(maxHR),rhr:Math.round(rhr),hrr:Math.round(hrr),lthr:lthr?Math.round(lthr):null,zones};
 }
