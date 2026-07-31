@@ -1555,9 +1555,9 @@ main{flex:1;padding:14px 14px 24px;max-width:560px;width:100%;margin:0 auto}
    session-style restyle, race-target connection, iOS install fix, icon redesign, onboarding flow).
    APP_STAGE is 'alpha.N' pre-launch, bump N each time you hand a build to a real tester (Dylon's
    sister counts); once launched, APP_VERSION resets to 1.0.0 and APP_STAGE becomes ''. */
-const APP_VERSION='0.34.15';
+const APP_VERSION='0.34.16';
 const APP_STAGE='alpha.1';
-const APP_VERSION_DATE='2026-07-30';
+const APP_VERSION_DATE='2026-07-31';
 /* ═══════════════════════════ DATA ═══════════════════════════ */
 // Block 5's session list — now the seed content for its Block record rather than a global const.
 // The live, active-block-driven binding is `let DATA` further down (see SEASONS/BLOCKS section).
@@ -7385,27 +7385,45 @@ function paceConvertResultHTML(state){
 /* ═══════════════════════════ HEART RATE ZONE CALCULATOR ═══════════════════════════
    A standalone tool (own sidebar button / own Tools-sheet row, same as Pace Calculator) for
    working out personal training-intensity heart rate zones. Modeled after yearroundrunning's Heart
-   Rate Zone Calculator: pick a calculation method (Karvonen/Heart Rate Reserve, %Max HR, or Zoladz),
-   supply age + optional Max HR + optional Resting HR, and get the standard 5-zone breakdown plus a
-   side-by-side comparison across all three methods.
+   Rate Zone Calculator: pick a calculation method (Karvonen/Heart Rate Reserve, %Max HR, Zoladz, or
+   LTHR), supply age + optional Max HR + optional Resting HR, and get the standard 5-zone breakdown
+   plus a side-by-side comparison across all four methods.
    - Karvonen (recommended): Target HR = ((Max HR − Resting HR) × %intensity) + Resting HR. Needs a
-     real or estimated Resting HR; most accurate since it accounts for individual fitness via HRR
-     (Heart Rate Reserve = Max HR − Resting HR).
+     real or estimated Resting HR; most accurate of the three Max-HR-anchored methods since it
+     accounts for individual fitness via HRR (Heart Rate Reserve = Max HR − Resting HR) -- %Max HR
+     ignores Resting HR entirely, and Zoladz is a fixed bpm offset with no individual fitness signal
+     at all. All three, though, are still only as good as the Max HR feeding them, which for most
+     people is itself an age-based estimate with real error (Tanaka's own published standard error is
+     roughly ±7-10 bpm).
    - %Max HR: Target HR = Max HR × %intensity. Simplest method, doesn't need a Resting HR at all.
    - Zoladz: Target HR = Max HR − a fixed bpm offset per zone (a coaching heuristic, not a percentage
      of anything) — the offsets used here (60/50/40/30/20/10 bpm below max, one pair per zone) are the
      commonly-cited standard Zoladz bands, not something this calculator derives itself.
+   - LTHR (Joe Friel's Lactate Threshold HR method, added v0.34.16 per Dylon's request): Target HR =
+     LTHR × %intensity, where LTHR is a directly MEASURED value (classically a 30-minute solo time
+     trial, lap-split at 10 minutes, average HR over the final 20 minutes) rather than anything derived
+     from age. Friel's own published running zones are a 7-band system (Z1 <85%, Z2 85-89%, Z3 90-94%,
+     Z4 95-99%, Z5a 100-102%, Z5b 103-106%, Z5c >106% of LTHR) -- since every other part of this app
+     (activity zone donuts, Weekly Zone Time, the comparison table below) is built around a fixed
+     5-zone list, Z5a/Z5b/Z5c are collapsed into this app's existing single "Zone 5: Maximum" slot
+     (open-ended above 100% LTHR in Friel's own definition; a 115% ceiling is used here purely so the
+     table has a concrete number to display, not a claim that 115% is some real physiological limit).
+     Zones 1-4 map onto the app's existing 5 slots exactly as Friel defines them, unchanged. Unlike the
+     other three methods, LTHR can't be estimated from age at all -- selecting it requires the bpm
+     field below to actually be filled in, and Age/Max HR stay required regardless of which method is
+     selected, since other features (Relative Effort, Training Load) read hz.maxHR/hz.rhr directly and
+     shouldn't silently break for someone who's only entered an LTHR.
    Max HR, if not directly known, is estimated from age via one of three published formulas (Tanaka
    208−0.7×age, recommended; Fox/classic 220−age; Gulati 206−0.88×age, tuned for women). Resting HR,
    if not known, is estimated from a self-reported activity level (sedentary/moderately active/very
    active/elite ~70/60/50/40 bpm) — same population-average tradeoff as the Max HR formulas: a
    reasonable estimate, not a substitute for an actual measured value. */
 const HR_ZONES=[
-  {key:'z1',label:'Zone 1',name:'Recovery',pctLo:.50,pctHi:.60,zSubLo:60,zSubHi:50,use:'Warm-ups, cool-downs, active recovery days'},
-  {key:'z2',label:'Zone 2',name:'Aerobic / Endurance',pctLo:.60,pctHi:.70,zSubLo:50,zSubHi:40,use:'Easy/base mileage — most of your weekly running belongs here'},
-  {key:'z3',label:'Zone 3',name:'Tempo',pctLo:.70,pctHi:.80,zSubLo:40,zSubHi:30,use:'Tempo runs, marathon-pace efforts'},
-  {key:'z4',label:'Zone 4',name:'Threshold',pctLo:.80,pctHi:.90,zSubLo:30,zSubHi:20,use:'Intervals, hill repeats, 10K-pace work'},
-  {key:'z5',label:'Zone 5',name:'Maximum',pctLo:.90,pctHi:1.00,zSubLo:20,zSubHi:0,use:'Sprints, VO2 max work, race finishes'}
+  {key:'z1',label:'Zone 1',name:'Recovery',pctLo:.50,pctHi:.60,zSubLo:60,zSubHi:50,lthrPctLo:0,lthrPctHi:.85,use:'Warm-ups, cool-downs, active recovery days'},
+  {key:'z2',label:'Zone 2',name:'Aerobic / Endurance',pctLo:.60,pctHi:.70,zSubLo:50,zSubHi:40,lthrPctLo:.85,lthrPctHi:.89,use:'Easy/base mileage — most of your weekly running belongs here'},
+  {key:'z3',label:'Zone 3',name:'Tempo',pctLo:.70,pctHi:.80,zSubLo:40,zSubHi:30,lthrPctLo:.90,lthrPctHi:.94,use:'Tempo runs, marathon-pace efforts'},
+  {key:'z4',label:'Zone 4',name:'Threshold',pctLo:.80,pctHi:.90,zSubLo:30,zSubHi:20,lthrPctLo:.95,lthrPctHi:.99,use:'Intervals, hill repeats, 10K-pace work'},
+  {key:'z5',label:'Zone 5',name:'Maximum',pctLo:.90,pctHi:1.00,zSubLo:20,zSubHi:0,lthrPctLo:1.00,lthrPctHi:1.15,use:'Sprints, VO2 max work, race finishes'}
 ];
 const HR_MAXHR_FORMULAS={
   tanaka:{label:'Tanaka (recommended)',calc:age=>208-0.7*age},
@@ -7419,19 +7437,26 @@ function hrEstimateMaxHR(age,formula){
   return f.calc(age);
 }
 // Pure computation, kept separate from the form-reading/rendering below so it's easy to unit-test.
-// Returns null only when there's no way to arrive at a Max HR at all (no direct value AND no age).
+// Returns null only when there's no way to arrive at a Max HR at all (no direct value AND no age) --
+// Age/Max HR stays required regardless of which method is ultimately selected (see the big comment
+// above for why LTHR doesn't relax this). input.lthr (optional, a directly measured bpm value -- there
+// is no age-based way to estimate it) additionally populates each zone's `lthr` range when provided;
+// left null/undefined otherwise, same "just don't add the field" pattern as everything else here that
+// depends on an optional input.
 function computeHRZones(input){
   const maxHR=input.maxHR||hrEstimateMaxHR(input.age,input.maxHRFormula);
   if(!maxHR||maxHR<=0) return null;
   const rhr=input.restingHR||HR_ACTIVITY_RHR[input.activityLevel]||60;
   const hrr=maxHR-rhr;
+  const lthr=input.lthr>0?input.lthr:null;
   const zones=HR_ZONES.map(z=>({
     ...z,
     karvonen:[Math.round(hrr*z.pctLo+rhr),Math.round(hrr*z.pctHi+rhr)],
     pctmax:[Math.round(maxHR*z.pctLo),Math.round(maxHR*z.pctHi)],
-    zoladz:[Math.round(maxHR-z.zSubLo),Math.round(maxHR-z.zSubHi)]
+    zoladz:[Math.round(maxHR-z.zSubLo),Math.round(maxHR-z.zSubHi)],
+    lthr:lthr?[Math.round(lthr*z.lthrPctLo),Math.round(lthr*z.lthrPctHi)]:null
   }));
-  return {maxHR:Math.round(maxHR),rhr:Math.round(rhr),hrr:Math.round(hrr),zones};
+  return {maxHR:Math.round(maxHR),rhr:Math.round(rhr),hrr:Math.round(hrr),lthr:lthr?Math.round(lthr):null,zones};
 }
 function openHRZone(){
   document.getElementById('hrzone-sh-body').innerHTML=hrzoneBodyHTML();
@@ -7444,6 +7469,7 @@ function hrzoneBodyHTML(){
         <option value="karvonen">Karvonen / Heart Rate Reserve (recommended)</option>
         <option value="pctmax">% Max HR</option>
         <option value="zoladz">Zoladz</option>
+        <option value="lthr">LTHR (Joe Friel)</option>
       </select>
     </div>
     <div class="field-row">
@@ -7464,6 +7490,10 @@ function hrzoneBodyHTML(){
         </select>
       </div>
     </div>
+    <div class="field"><label>LTHR <span style="text-transform:none;font-weight:400">(required only for the LTHR method — no age-based estimate exists)</span></label>
+      <input type="text" inputmode="numeric" id="hr-lthr" placeholder="e.g. 172">
+      <div style="font-size:11px;color:var(--t3);line-height:1.4;margin-top:4px">Run a 30-minute solo time trial at your best sustainable effort, lap-splitting your watch at the 10-minute mark. Your average heart rate over the FINAL 20 minutes is a good approximation of LTHR.</div>
+    </div>
     <button class="btn btn-primary btn-block" onclick="calcHRZones()">Calculate Heart Rate Zones</button>
     <div id="hr-result" style="margin-top:14px">`;
   html+=HRZONE_LAST?hrZoneResultHTML(HRZONE_LAST):'';
@@ -7476,9 +7506,14 @@ function calcHRZones(){
   const maxHRFormula=(document.getElementById('hr-maxhr-formula')||{}).value||'tanaka';
   const restingHR=parseFloat((document.getElementById('hr-resting')||{}).value);
   const activityLevel=(document.getElementById('hr-activity')||{}).value||'moderate';
+  const lthr=parseFloat((document.getElementById('hr-lthr')||{}).value);
   const method=(document.getElementById('hr-method')||{}).value||'karvonen';
   if((!maxHR||maxHR<=0) && (!age||age<=0)){ showToast('Enter your age, or a known Max HR'); return; }
-  const result=computeHRZones({age,maxHR:maxHR>0?maxHR:null,maxHRFormula,restingHR:restingHR>0?restingHR:null,activityLevel});
+  // Unlike the other three methods, LTHR has no age-based fallback at all -- it's a directly measured
+  // value (see the field's own helper text for the 30-minute time trial protocol), so selecting this
+  // method specifically requires it, on top of the Age/Max HR that's always required regardless.
+  if(method==='lthr' && (!lthr||lthr<=0)){ showToast('Enter your LTHR (bpm) — there\'s no way to estimate it from age'); return; }
+  const result=computeHRZones({age,maxHR:maxHR>0?maxHR:null,maxHRFormula,restingHR:restingHR>0?restingHR:null,activityLevel,lthr:lthr>0?lthr:null});
   if(!result){ showToast('Could not calculate zones'); return; }
   HRZONE_LAST={...result,method};
   const out=document.getElementById('hr-result');
@@ -7500,15 +7535,21 @@ function saveHRZonesToProfile(){
 }
 function hrZoneResultHTML(r){
   const rows=r.zones.map(z=>`<tr><td>${z.label}<div style="font-size:11px;color:var(--t3);font-weight:500">${z.name}</div></td><td>${z[r.method][0]}–${z[r.method][1]} bpm</td><td style="font-size:12px;color:var(--t3)">${z.use}</td></tr>`).join('');
-  const compareRows=r.zones.map(z=>`<tr><td>${z.label}</td><td>${z.karvonen[0]}–${z.karvonen[1]}</td><td>${z.pctmax[0]}–${z.pctmax[1]}</td><td>${z.zoladz[0]}–${z.zoladz[1]}</td></tr>`).join('');
+  // LTHR column shows "—" when nothing's been entered in the LTHR field yet, same as every other
+  // "optional, not filled in" spot in this calculator -- unlike Karvonen/%Max HR/Zoladz, LTHR has no
+  // age-based fallback so it's genuinely absent (not just a zero) until directly measured/entered.
+  const compareRows=r.zones.map(z=>`<tr><td>${z.label}</td><td>${z.karvonen[0]}–${z.karvonen[1]}</td><td>${z.pctmax[0]}–${z.pctmax[1]}</td><td>${z.zoladz[0]}–${z.zoladz[1]}</td><td>${z.lthr?`${z.lthr[0]}–${z.lthr[1]}`:'—'}</td></tr>`).join('');
   // "Saved" compares against PROFILE.savedHRZones directly rather than a separate flag, so reopening
-  // the sheet later on an already-saved profile still shows the right state immediately.
+  // the sheet later on an already-saved profile still shows the right state immediately. Also checks
+  // lthr when that's the active method, so changing the LTHR value (same method) correctly flips back
+  // to an unsaved state instead of showing a stale "Saved" for a value that's since changed.
   const saved=PROFILE.savedHRZones;
-  const isSaved=!!(saved&&saved.maxHR===r.maxHR&&saved.rhr===r.rhr&&saved.method===r.method);
+  const isSaved=!!(saved&&saved.maxHR===r.maxHR&&saved.rhr===r.rhr&&saved.method===r.method&&(r.method!=='lthr'||saved.lthr===r.lthr));
   return `<div class="stat-grid" style="margin-bottom:4px">
       <div class="stat-card"><div class="stat-num">${r.maxHR}</div><div class="stat-lbl">Max HR (bpm)</div></div>
       <div class="stat-card"><div class="stat-num">${r.rhr}</div><div class="stat-lbl">Resting HR (bpm)</div></div>
       <div class="stat-card"><div class="stat-num">${r.hrr}</div><div class="stat-lbl">HR Reserve (bpm)</div></div>
+      ${r.lthr?`<div class="stat-card"><div class="stat-num">${r.lthr}</div><div class="stat-lbl">LTHR (bpm)</div></div>`:''}
     </div>
     <button class="btn btn-primary btn-block" onclick="saveHRZonesToProfile()"${isSaved?' disabled':''}>${isSaved?'Saved to Profile ✓':'Save to Profile'}</button>
     <div style="font-size:11px;color:var(--t3);line-height:1.4;margin:6px 0 14px">Saving is what lets Fitness &amp; Freshness, Weekly Zone Time, and per-activity heart rate breakdowns use these zones — calculating alone won't update them, and nothing here is kept after you close the app until you save.</div>
@@ -7522,7 +7563,7 @@ function hrZoneResultHTML(r){
     <div class="section-lbl">Compare All Methods</div>
     <div class="card compare-card">
       <div class="compare-scroll"><table class="compare-tbl">
-        <thead><tr><th>Zone</th><th>Karvonen</th><th>%Max HR</th><th>Zoladz</th></tr></thead>
+        <thead><tr><th>Zone</th><th>Karvonen</th><th>%Max HR</th><th>Zoladz</th><th>LTHR</th></tr></thead>
         <tbody>${compareRows}</tbody>
       </table></div>
     </div>`;

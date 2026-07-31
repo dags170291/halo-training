@@ -1599,7 +1599,15 @@
 // optional actType ('all'/'run'/'walk') filter, and the card gained a Total/Runs/Walks pill row above
 // the existing Heart Rate/Pace toggle -- shown only once there's real Walk zone data to actually split
 // out, so it never shows a redundant "Runs" tab for someone who's never logged a walk with HR data.
-const CACHE_NAME = 'halo-0.34.15-alpha.1';
+// v0.34.16 -- added Joe Friel's LTHR (Lactate Threshold Heart Rate) method as a 4th option in the
+// Heart Rate Zone Calculator, per Dylon's request after discussing why Karvonen was the recommended
+// pick among the original three. LTHR is a directly MEASURED value (a 30-minute time trial, average
+// HR over the final 20 minutes) rather than an age-based estimate, so it needed its own bpm input
+// field plus validation -- but Age/Max HR still stay required regardless of the selected method, since
+// other features (Relative Effort, Training Load) read hz.maxHR/hz.rhr directly. Friel's real 7-zone
+// running bands (Z1 <85%, Z2 85-89%, Z3 90-94%, Z4 95-99%, Z5a/5b/5c 100%+) are collapsed into this
+// app's existing 5-zone slots, Z5a/b/c merging into the app's single "Zone 5: Maximum."
+const CACHE_NAME = 'halo-0.34.16-alpha.1';
 const APP_SHELL = [
   './index.html',
   './manifest.webmanifest',
