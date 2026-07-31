@@ -1624,7 +1624,13 @@
 // convention profileHRZonesCardHTML() already established for its own zone list to hrZoneResultHTML()'s
 // "Your Training Zones" and "Compare All Methods" tables too -- the first zone's lo is always "Rest"
 // and the last zone's hi is always "Max", for every method's column, not just LTHR's.
-const CACHE_NAME = 'halo-0.34.18-alpha.1';
+// v0.34.19 -- Dylon, seeing tomorrow's Long Run prescribe "HR ≤148–152" in the app: "which based on my
+// recent calculation is zone 1 we need to update our training plan recommendations to match what is
+// my heart rate zones." Block 5's easy/long sessions had their HR cue written as static text straight
+// into each session's own det field when the block was authored, never wired to the HR Zone
+// Calculator. New sessionAerobicHRNote() strips that embedded text and replaces it with a live Zone 2
+// (Aerobic/Endurance) range from currentHRZones(), wired into stepsFor()'s easy/long branch.
+const CACHE_NAME = 'halo-0.34.19-alpha.1';
 const APP_SHELL = [
   './index.html',
   './manifest.webmanifest',

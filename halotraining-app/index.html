@@ -1555,7 +1555,7 @@ main{flex:1;padding:14px 14px 24px;max-width:560px;width:100%;margin:0 auto}
    session-style restyle, race-target connection, iOS install fix, icon redesign, onboarding flow).
    APP_STAGE is 'alpha.N' pre-launch, bump N each time you hand a build to a real tester (Dylon's
    sister counts); once launched, APP_VERSION resets to 1.0.0 and APP_STAGE becomes ''. */
-const APP_VERSION='0.34.18';
+const APP_VERSION='0.34.19';
 const APP_STAGE='alpha.1';
 const APP_VERSION_DATE='2026-07-31';
 /* ═══════════════════════════ DATA ═══════════════════════════ */
@@ -12645,6 +12645,30 @@ function raceStepsFor(s){
 function genericStep(s){
   return [{type:'group',label:s.ti||'Session'},{type:'runline',text:s.det||s.full||'See the session notes for details.',sub:s.dist||''}];
 }
+// v0.34.19 -- Dylon, seeing tomorrow's Long Run prescribe "HR ≤148–152" in the app: "which based on my
+// recent calculation is zone 1 we need to update our training plan recommendations to match what is
+// my heart rate zones." Block 5's easy/long sessions (BLOCK5_SESSIONS below) had their HR cue written
+// as plain text straight into each session's own det field back when the block was authored -- a
+// placeholder guess (148, then 148-152 later in the block) that was never wired to the HR Zone
+// Calculator, so once Dylon actually calculated his real zones the plan's own advice fell out of sync
+// with them. This strips whatever "HR ≤NNN[-NNN]" text is embedded in a session's det-derived pace
+// note and replaces it with a live Zone 2 (Aerobic/Endurance -- exactly what easy/long days are for,
+// see HR_ZONES[1].use) range sourced from currentHRZones(), so every easy/long session always reflects
+// whatever's actually saved to Profile instead of a number frozen at plan-authoring time. Sessions
+// that never had HR text to begin with (e.g. "5-6 km, flat, only if Monday was clean") are left
+// exactly as they were -- this only touches the specific substring, it doesn't invent HR guidance for
+// a session that never had any. If no HR zones have been saved yet, the old text is simply dropped
+// rather than shown stale -- no zones saved means nothing accurate to show.
+const HR_NOTE_RE=/,?\s*HR\s*≤\s*\d+(?:[–-]\d+)?/i;
+function sessionAerobicHRNote(paceNote){
+  if(!paceNote||!HR_NOTE_RE.test(paceNote)) return paceNote;
+  const stripped=paceNote.replace(HR_NOTE_RE,'');
+  const hz=currentHRZones();
+  if(!hz||!hz.zones) return stripped;
+  const range=hrZoneRangeLabel(hz.zones,1,hz.method||'karvonen'); // Zone 2 -- Aerobic/Endurance
+  if(range==='—') return stripped;
+  return `${stripped}, HR ${range} (Zone 2)`;
+}
 function stepsFor(s){
   // A session's own structured steps (if the plan JSON supplied any) always win, for any block —
   // this is what lets an uploaded plan get the same rich warmup/main/cooldown breakdown Block 5's
@@ -12672,7 +12696,7 @@ function stepsFor(s){
   // always come with its own explicit steps (see buildWeeklyCheckinSession-style construction),
   // but this keeps a checkin-type session from ever rendering empty if one somehow doesn't.
   if(s.ty==='checkin') return [{type:'checkin',label:'Weekly Check-In',intro:s.det||'Take a few minutes to reflect on the week.',questions:[{id:'sleepHours',text:'Average sleep this week (hours)',type:'number'},{id:'general',text:'How did this week go?'}]}];
-  if(s.ty==='easy'||s.ty==='long') return runSteps((s.dist||'Easy')+' at conversational pace',(s.det||'').split('.')[0]);
+  if(s.ty==='easy'||s.ty==='long') return runSteps((s.dist||'Easy')+' at conversational pace',sessionAerobicHRNote((s.det||'').split('.')[0]));
   return genericStep(s);
 }
 function coachNoteFor(s){
