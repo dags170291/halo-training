@@ -1592,7 +1592,7 @@ main{flex:1;padding:14px 14px 24px;max-width:560px;width:100%;margin:0 auto}
    session-style restyle, race-target connection, iOS install fix, icon redesign, onboarding flow).
    APP_STAGE is 'alpha.N' pre-launch, bump N each time you hand a build to a real tester (Dylon's
    sister counts); once launched, APP_VERSION resets to 1.0.0 and APP_STAGE becomes ''. */
-const APP_VERSION='0.34.24';
+const APP_VERSION='0.34.25';
 const APP_STAGE='alpha.1';
 const APP_VERSION_DATE='2026-08-02';
 /* ═══════════════════════════ DATA ═══════════════════════════ */
@@ -2166,6 +2166,46 @@ function backfillRaceTargetsIfNeeded(){
     saveRacesList(true);
   }
   safeSet(RTBK,'1');
+}
+// One-time correction: an earlier round's "the Sunday right after a race gets Full Rest" fix edited the
+// hardcoded seed template, but loadSeasonsBlocks() only ever reads BLOCKS from localStorage/Supabase --
+// it never re-seeds an already-created block from that template (see its own comment on why: seeding
+// a returning user's real device would blow away their actual data). So a block created before that
+// source fix landed keeps whatever it was originally seeded with, permanently, no matter how many later
+// rounds correct the template. Dylon's own screenshot showed exactly this: the ordinary week-transition
+// Sunday BEFORE a race week even starts (a week early) was "Full Rest", while the real day after the
+// race -- the one that's actually supposed to be full rest -- was still a plain Recovery Run. Anchored
+// purely to each block's own race date (not a hardcoded session id), so this self-heals any block/device
+// still carrying the old mis-seeded pair, not just this one.
+const RRSK='b5_race_restday_fixed';
+function fixRaceRestDaySwapIfNeeded(){
+  if(safeGet(RRSK,null)==='1') return;
+  let touched=false;
+  BLOCKS.forEach(b=>{
+    (b.sessions||[]).forEach(race=>{
+      if(race.ty!=='race') return;
+      const correctDate=addDaysISO(race.date,1); // the actual day after the race
+      const wrongDate=addDaysISO(race.date,-6);  // the Sunday (D0) that starts the race's own calendar week
+      const correctSess=(b.sessions||[]).find(s=>s.date===correctDate);
+      const wrongSess=(b.sessions||[]).find(s=>s.date===wrongDate);
+      // Only touch the mis-seeded pair if they're actually still sitting in that exact state -- if this
+      // device was never wrong (a block created after the source fix), or Dylon's since edited either
+      // day some other way, this is a no-op rather than fighting a real, intentional edit.
+      if(!wrongSess || !correctSess || wrongSess.ty!=='rest' || correctSess.ty==='rest') return;
+      wrongSess.ty='easy'; wrongSess.ti='Recovery Run';
+      if(wrongSess.full) wrongSess.full=wrongSess.full.replace(/:[^:]*$/,': Recovery Run');
+      wrongSess.det='~5 km / 30 min, extremely easy pace — no pace target beyond staying conversational.';
+      wrongSess.dist='~5 km';
+      correctSess.ty='rest'; correctSess.ti='Full Rest';
+      if(correctSess.full) correctSess.full=correctSess.full.replace(/:[^:]*$/,': Full Rest');
+      correctSess.det='No run, no strength. The day after a race — even an easy, no-pressure race like this one — earns full rest, not another session.';
+      delete correctSess.dist; delete correctSess.shoe;
+      recalcBlockDerived(b);
+      touched=true;
+    });
+  });
+  if(touched) saveSeasonsBlocks(true);
+  safeSet(RRSK,'1');
 }
 // skipSyncNote: true when this is just re-deriving view state (app startup, or right after a
 // cloud pull rebuilds BLOCKS) rather than a real "user switched blocks" action — otherwise every
@@ -2810,6 +2850,7 @@ function maybeAutoCompleteBlock(blockId){
 
 /* ═══════════════════════════ STATE ═══════════════════════════ */
 const SK='b5_status',NK='b5_notes',VK='b5_view',WK='b5_wk',IK='b5_installdismiss',PK='b5_profile',EK='b5_extralogs',HK='b5_shoes',DOK='b5_dateoverrides',GRK='b5_globalraces',RK='b5_races',RMK='b5_races_migrated',SBK='b5_sidebar_collapsed',IJK='b5_injuries',RTBK='b5_race_target_backfill',WLK='b5_wellness';
+// RRSK ('b5_race_restday_fixed') is declared alongside fixRaceRestDaySwapIfNeeded() itself, above.
 let STATUS={},NOTES={},PROFILE={},EXTRALOGS=[],SHOES={},DATE_OVERRIDES={},INJURIES=[],WELLNESS_LOG=[];
 // A race you registered for before its training block exists is just a race with blockId:null — GRK/
 // GLOBAL_RACES below is legacy (pre-unification) storage, read once by migrateRacesIfNeeded() and never
@@ -5219,6 +5260,7 @@ loadSeasonsBlocks();
 initSyncSession();
 migrateRacesIfNeeded();
 backfillRaceTargetsIfNeeded();
+fixRaceRestDaySwapIfNeeded();
 setActiveBlock(ACTIVE_BLOCK_ID,true);
 function applyDateOverrides(){
   Object.keys(DATE_OVERRIDES).forEach(id=>{
