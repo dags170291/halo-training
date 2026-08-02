@@ -1592,7 +1592,7 @@ main{flex:1;padding:14px 14px 24px;max-width:560px;width:100%;margin:0 auto}
    session-style restyle, race-target connection, iOS install fix, icon redesign, onboarding flow).
    APP_STAGE is 'alpha.N' pre-launch, bump N each time you hand a build to a real tester (Dylon's
    sister counts); once launched, APP_VERSION resets to 1.0.0 and APP_STAGE becomes ''. */
-const APP_VERSION='0.34.22';
+const APP_VERSION='0.34.23';
 const APP_STAGE='alpha.1';
 const APP_VERSION_DATE='2026-08-02';
 /* ═══════════════════════════ DATA ═══════════════════════════ */
@@ -12944,6 +12944,103 @@ function sessionAerobicHRNote(paceNote){
   if(range==='—') return stripped;
   return `${stripped}, HR ${range} (Zone 2)`;
 }
+/* ── Structured distance/pace/HR session targets ──
+   v0.34.23 -- Dylon: "make distance heart rate and pace in the sessions a proper editable fields not
+   just a generic note. give them individual fields that the app can read from and calculate from when
+   needed also ensure when i place a distance say 20 km it updates the total for that week." Before
+   this, a session's target distance/pace/HR all lived as loose text -- s.dist a free-text string
+   ("9-10 km"), pace buried as prose inside s.det ("target 5:45/km"), HR either also buried in s.det
+   (old plans) or entirely computed live from saved HR Zones with nothing per-session to override
+   (sessionAerobicHRNote above). New real fields: s.distMin/s.distMax (numbers, km), s.targetPaceMin/
+   s.targetPaceMax (mm:ss/km strings), s.targetHRMin/s.targetHRMax (numbers, bpm -- an OPTIONAL manual
+   override of the live Zone 2 calculation, not a replacement for it: leaving these blank keeps using
+   the calculated range exactly as before).
+
+   Deliberately entirely additive, not a data migration: every session that hasn't been edited through
+   the new form has none of these set, so every existing read site (recalcBlockDerived's mileage total,
+   stepsFor's old text-only branch, quickStatsHTML, PDF/Markdown plan export, week day rows, etc.) keeps
+   reading the original s.dist/s.det strings exactly as before -- see stepsFor's own "hasStructured"
+   branch below for the one place display actually forks. savePlanEdits() also keeps s.dist (the legacy
+   STRING) in sync from distMin/distMax on every save specifically so all ~70 of those other read sites
+   -- most of which will likely never get touched to read the new fields directly -- keep working with
+   zero changes, including the "week's total updates when I edit a distance" requirement, which flows
+   entirely through recalcBlockDerived()'s existing parseFloat(s.dist) call. */
+function sessionDistLabel(s){
+  if(s.distMin==null) return '';
+  return (s.distMax!=null && s.distMax!==s.distMin) ? `${s.distMin}-${s.distMax} km` : `${s.distMin} km`;
+}
+function sessionPaceLabel(s){
+  if(!s.targetPaceMin) return '';
+  return (s.targetPaceMax && s.targetPaceMax!==s.targetPaceMin) ? `${s.targetPaceMin}-${s.targetPaceMax}/km` : `${s.targetPaceMin}/km`;
+}
+// Not tagged "(Zone 2)" like the auto-calculated version below -- a hand-typed override might target a
+// different zone entirely for a specific session, so it shouldn't claim to be Zone 2 by default.
+function sessionHRLabel(s){
+  if(s.targetHRMin==null) return '';
+  return (s.targetHRMax!=null && s.targetHRMax!==s.targetHRMin) ? `HR ${s.targetHRMin}-${s.targetHRMax} bpm` : `HR ${s.targetHRMin} bpm`;
+}
+// The live-calculated Zone 2 (Aerobic/Endurance) range, same source sessionAerobicHRNote() already
+// pulls from -- factored out so the new structured display path (and the edit form's own placeholder
+// text) can show/use it without needing any free text around to regex-substitute into.
+function autoZone2HRLabel(){
+  const hz=currentHRZones();
+  if(!hz||!hz.zones) return '';
+  const range=hrZoneRangeLabel(hz.zones,1,hz.method||'karvonen');
+  return range==='—' ? '' : `HR ${range} (Zone 2)`;
+}
+// Best-effort extraction of a min/max distance out of a legacy free-text dist string ("9-10 km",
+// "~7 km", "15 km"), used ONLY to pre-fill the new Distance Min/Max fields the first time a
+// still-unedited session's edit form opens, so switching to structured fields never silently drops
+// whatever number was already there.
+function parseLegacyDistRange(distStr){
+  if(!distStr) return {min:undefined,max:undefined};
+  const range=String(distStr).match(/(\d+(?:\.\d+)?)\s*(?:-|–|to)\s*(\d+(?:\.\d+)?)/);
+  if(range) return {min:parseFloat(range[1]),max:parseFloat(range[2])};
+  const single=String(distStr).match(/(\d+(?:\.\d+)?)/);
+  return single ? {min:parseFloat(single[1]),max:parseFloat(single[1])} : {min:undefined,max:undefined};
+}
+// Same idea for a pace mention buried in the old free-text notes ("...target 5:45/km", "5:30-5:45/km").
+function parseLegacyPaceRange(detStr){
+  if(!detStr) return {min:undefined,max:undefined};
+  const range=String(detStr).match(/(\d+:\d{2})\s*(?:-|–)\s*(\d+:\d{2})\s*\/\s*km/i);
+  if(range) return {min:range[1],max:range[2]};
+  const single=String(detStr).match(/(\d+:\d{2})\s*\/\s*km/i);
+  return single ? {min:single[1],max:single[1]} : {min:undefined,max:undefined};
+}
+// Strips a recognized legacy pace/HR mention out of free text -- used to pre-fill the edit form's new
+// Notes field with just the actual notes, now that pace and HR each have their own dedicated field
+// instead of living as prose inside this same string.
+function stripLegacyPaceHRMentions(detStr){
+  if(!detStr) return '';
+  let out=String(detStr);
+  out=out.replace(/,?\s*target\s*\d+:\d{2}(?:\s*(?:-|–)\s*\d+:\d{2})?\s*\/\s*km/gi,'');
+  out=out.replace(HR_NOTE_RE,'');
+  out=out.replace(/^[\s,]+/,'').replace(/[\s,]+$/,'').replace(/,\s*,/g,',').trim();
+  return out;
+}
+// Overlay of the new structured Pace/HR fields onto a Block-5 Quality session's QUALITY_CFG entry --
+// reps/rest/warmup/cooldown stay exactly as QUALITY_CFG prescribes (out of scope for this feature,
+// and genuinely a different kind of prescription than a single pace/HR target), only the interval work
+// line's pace and an appended HR target actually change.
+function intervalStepsWithOverrides(s,cfg){
+  const pace=sessionPaceLabel(s)||cfg.pace;
+  const hrLbl=sessionHRLabel(s);
+  const rows=[{type:'group',label:'Warm Up'},{type:'runline',text:cfg.wu}];
+  rows.push({type:'group',label:'Main Set',repeat:cfg.reps,sets:cfg.reps+' total',rest:cfg.rest});
+  rows.push({type:'interval',kind:'work',text:cfg.repDist+' @ '+pace+(hrLbl?' · '+hrLbl:'')});
+  rows.push({type:'group',label:'Cool Down'});
+  rows.push({type:'runline',text:cfg.cd});
+  return rows;
+}
+// Quality sessions outside Block 5 (no QUALITY_CFG entry) fall back to the same plain genericStep()
+// every other block's session without structured steps uses -- this variant additionally surfaces the
+// new distance/pace/HR fields in the sub-line when set, instead of only ever showing s.dist.
+function genericQualStep(s){
+  const parts=[sessionDistLabel(s)||s.dist||''];
+  const paceLbl=sessionPaceLabel(s); if(paceLbl) parts.push(`Target ${paceLbl}`);
+  const hrLbl=sessionHRLabel(s); if(hrLbl) parts.push(hrLbl);
+  return [{type:'group',label:s.ti||'Session'},{type:'runline',text:s.det||s.full||'See the session notes for details.',sub:parts.filter(Boolean).join(' · ')}];
+}
 function stepsFor(s){
   // A session's own structured steps (if the plan JSON supplied any) always win, for any block —
   // this is what lets an uploaded plan get the same rich warmup/main/cooldown breakdown Block 5's
@@ -12959,7 +13056,7 @@ function stepsFor(s){
   // neighbors: a race's own details living in one place (RACES_LIST) rather than per-block lookup
   // tables is what keeps Schedule/Today in sync with the Races tab for any race, old or new.
   if(s.ty==='race') return raceStepsFor(s);
-  if(s.ty==='qual') return (isBlock5&&QUALITY_CFG[s.id])?intervalSteps(QUALITY_CFG[s.id]):genericStep(s);
+  if(s.ty==='qual') return (isBlock5&&QUALITY_CFG[s.id])?intervalStepsWithOverrides(s,QUALITY_CFG[s.id]):genericQualStep(s);
   // Both rest and mobility days used to attach a fixed 7-move "Mobility Flow" card (mobilityStep())
   // with prescribed sets/durations here — that's exactly the kind of locked-in workout these days
   // are meant NOT to have. The suggestion theme already lives in the session's own det text (e.g.
@@ -12971,7 +13068,25 @@ function stepsFor(s){
   // always come with its own explicit steps (see buildWeeklyCheckinSession-style construction),
   // but this keeps a checkin-type session from ever rendering empty if one somehow doesn't.
   if(s.ty==='checkin') return [{type:'checkin',label:'Weekly Check-In',intro:s.det||'Take a few minutes to reflect on the week.',questions:[{id:'sleepHours',text:'Average sleep this week (hours)',type:'number'},{id:'general',text:'How did this week go?'}]}];
-  if(s.ty==='easy'||s.ty==='long') return runSteps((s.dist||'Easy')+' at conversational pace',sessionAerobicHRNote((s.det||'').split('.')[0]));
+  if(s.ty==='easy'||s.ty==='long'){
+    // Once ANY of the new structured fields has a real value, this session switches to the fully
+    // structured display path -- mixing partial structured data with the old regex-substituted free
+    // text got unreadable fast (double "target 5:45/km" mentions, etc.), so it's one path or the
+    // other per session, never both at once. See the field group's own big comment above for why this
+    // is safe: every session that's never been touched by the new edit form has none of these set, so
+    // it always takes the untouched legacy branch below, byte-identical to before this feature shipped.
+    const hasStructured=s.distMin!=null||s.targetPaceMin||s.targetHRMin!=null;
+    if(hasStructured){
+      const mainTxt=(sessionDistLabel(s)||s.dist||'Easy')+' at conversational pace';
+      const parts=[];
+      const notes=(s.det||'').trim();
+      if(notes) parts.push(notes);
+      const paceLbl=sessionPaceLabel(s); if(paceLbl) parts.push(`Target ${paceLbl}`);
+      const hrLbl=sessionHRLabel(s)||autoZone2HRLabel(); if(hrLbl) parts.push(hrLbl);
+      return runSteps(mainTxt,parts.join(', '));
+    }
+    return runSteps((s.dist||'Easy')+' at conversational pace',sessionAerobicHRNote((s.det||'').split('.')[0]));
+  }
   return genericStep(s);
 }
 function coachNoteFor(s){
@@ -16935,27 +17050,66 @@ function togglePlanEdit(id){
   PLAN_EDIT_OPEN=!PLAN_EDIT_OPEN;
   openLog(id);
 }
-// v0.34.20 -- Dylon: "Add ability to edit distances and paces in plans. Like i want to adapt my plan
-// to add a bit more mileage i chould be able to do so to specific actiities." Distance edits the
-// session's own `dist` string directly (the exact field runSteps()'s Main step text and
-// recalcBlockDerived()'s mileage total both already read) -- typing "10-11 km" instead of the
-// original "9-10 km" immediately shows up both in the step breakdown and in the block's own planned-
-// mileage total on the very next render, no separate "override" concept needed since dist already IS
-// the one source both of those read. Pace/notes edits the session's `det` field -- where a pace or HR
-// note already lives as free text for Easy/Long sessions (see sessionAerobicHRNote()), so typing a new
-// target pace here (e.g. "AM, target 5:45/km") flows straight into the Main step's sub-line exactly
-// like the plan's own original text did.
+// v0.34.20 -- Dylon: "Add ability to edit distances and paces in plans." v0.34.23 -- Dylon: "make
+// distance heart rate and pace in the sessions a proper editable fields not just a generic note. give
+// them individual fields that the app can read from and calculate from when needed." Replaced the
+// single Distance text box + one combined Notes/pace textarea with three real min/max field pairs
+// (Distance in km, Pace in mm:ss/km, HR in bpm) plus a separate plain Notes field. Distance/Pace/HR
+// each pre-fill from whatever's already there -- parseLegacyDistRange/parseLegacyPaceRange do a
+// best-effort extraction out of the OLD free-text s.dist/s.det for a session that's never been edited
+// through this form before, so switching to structured fields never silently loses a number that was
+// already visible. HR's placeholder shows the live-calculated Zone 2 range and stays optional -- an
+// empty HR field keeps using that calculated range exactly as before (see autoZone2HRLabel()).
 function planEditFieldsHTML(s){
-  return `<div class="field"><label>Distance</label><input type="text" id="pe-dist" value="${escAttr(s.dist||'')}" placeholder="e.g. 9-10 km"></div>
-    <div class="field"><label>Notes / pace <span style="text-transform:none;font-weight:400">(optional)</span></label><textarea id="pe-det" placeholder="e.g. AM, flat route, target 5:45/km">${escAttr(s.det||'')}</textarea></div>`;
+  const legacyDist=parseLegacyDistRange(s.dist);
+  const legacyPace=parseLegacyPaceRange(s.det);
+  const distMin=s.distMin!=null?s.distMin:legacyDist.min;
+  const distMax=s.distMax!=null?s.distMax:legacyDist.max;
+  const paceMin=s.targetPaceMin||legacyPace.min;
+  const paceMax=s.targetPaceMax||legacyPace.max;
+  const autoHR=autoZone2HRLabel();
+  const notes=s.det!=null?stripLegacyPaceHRMentions(s.det):'';
+  return `<div class="field-row">
+      <div class="field"><label>Distance Min <span style="text-transform:none;font-weight:400">(km)</span></label><input type="number" step="0.1" min="0" id="pe-dist-min" value="${distMin!=null?distMin:''}" placeholder="e.g. 9"></div>
+      <div class="field"><label>Distance Max <span style="text-transform:none;font-weight:400">(km)</span></label><input type="number" step="0.1" min="0" id="pe-dist-max" value="${distMax!=null?distMax:''}" placeholder="e.g. 10"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Pace Min <span style="text-transform:none;font-weight:400">(mm:ss/km)</span></label><input type="text" id="pe-pace-min" value="${escAttr(paceMin||'')}" placeholder="e.g. 5:30"></div>
+      <div class="field"><label>Pace Max <span style="text-transform:none;font-weight:400">(mm:ss/km)</span></label><input type="text" id="pe-pace-max" value="${escAttr(paceMax||'')}" placeholder="e.g. 5:45"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>HR Min <span style="text-transform:none;font-weight:400">(bpm, optional)</span></label><input type="number" id="pe-hr-min" value="${s.targetHRMin!=null?s.targetHRMin:''}" placeholder="auto"></div>
+      <div class="field"><label>HR Max <span style="text-transform:none;font-weight:400">(bpm, optional)</span></label><input type="number" id="pe-hr-max" value="${s.targetHRMax!=null?s.targetHRMax:''}" placeholder="auto"></div>
+    </div>
+    ${autoHR?`<div style="font-size:10.5px;color:var(--t3);margin:-4px 0 10px;line-height:1.4">Leave HR blank to keep using your calculated range: ${escAttr(autoHR)}.</div>`:''}
+    <div class="field"><label>Notes <span style="text-transform:none;font-weight:400">(optional)</span></label><textarea id="pe-det" placeholder="e.g. AM, flat route">${escAttr(notes)}</textarea></div>`;
 }
 function savePlanEdits(id){
   const s=findSess(id);
   if(!s) return;
-  const distVal=(document.getElementById('pe-dist')||{}).value;
-  const detVal=(document.getElementById('pe-det')||{}).value;
-  s.dist=(distVal||'').trim()||undefined;
-  s.det=(detVal||'').trim();
+  const val=elId=>{ const el=document.getElementById(elId); return el?el.value:''; };
+  const distMinVal=parseFloat(val('pe-dist-min'));
+  const distMaxVal=parseFloat(val('pe-dist-max'));
+  s.distMin=isNaN(distMinVal)?undefined:distMinVal;
+  s.distMax=isNaN(distMaxVal)?undefined:distMaxVal;
+  const PACE_RE=/^\d{1,2}:\d{2}$/;
+  const paceMinVal=val('pe-pace-min').trim();
+  const paceMaxVal=val('pe-pace-max').trim();
+  s.targetPaceMin=PACE_RE.test(paceMinVal)?paceMinVal:undefined;
+  s.targetPaceMax=PACE_RE.test(paceMaxVal)?paceMaxVal:undefined;
+  const hrMinVal=parseFloat(val('pe-hr-min'));
+  const hrMaxVal=parseFloat(val('pe-hr-max'));
+  s.targetHRMin=isNaN(hrMinVal)?undefined:hrMinVal;
+  s.targetHRMax=isNaN(hrMaxVal)?undefined:hrMaxVal;
+  s.det=val('pe-det').trim();
+  // Keep the legacy s.dist STRING in sync with the new distMin/distMax -- dozens of other read sites
+  // across the app (recalcBlockDerived's mileage total, the Main step text for a session that ISN'T
+  // on the new structured display path yet, quickStatsHTML, PDF/Markdown plan export, week day rows,
+  // etc.) all still read s.dist directly rather than the new fields, so deriving it here from the
+  // structured values is what makes "type a new distance, the week's total updates" (Dylon's explicit
+  // ask) keep working with zero changes to any of those other call sites -- it flows entirely through
+  // recalcBlockDerived()'s existing parseFloat(s.dist) call below, exactly like before this feature.
+  s.dist=s.distMin!=null?((s.distMax!=null&&s.distMax!==s.distMin)?`${s.distMin}-${s.distMax} km`:`${s.distMin} km`):undefined;
   // findSess() can return a session from ANY block (it falls back to searching every block, not just
   // the active one, so browsing a historical block's own sessions still works) -- find whichever block
   // object actually owns this exact session reference rather than assuming it's the active one, so
@@ -17155,17 +17309,19 @@ function openLog(id){
   if(detailsOpen){
     body+=quickStatsHTML(s)+equipRowHTML(s);
     // Edit Planned Target -- Dylon: "Add ability to edit distances and paces in plans. Like i want to
-    // adapt my plan to add a bit more mileage i chould be able to do so to specific actiities." Scoped
-    // to Easy/Long sessions only (not Quality -- its real prescription lives in QUALITY_CFG's reps/
-    // pace, not a plain dist string, so editing s.dist alone wouldn't change the actual workout; not
-    // Race -- that's a view onto RACES_LIST, already editable via "Edit Race Details" above; not
-    // Strength/Rest/Mobility -- they don't carry a dist string to begin with). findSess() returns a
+    // adapt my plan to add a bit more mileage i chould be able to do so to specific actiities." v0.34.23
+    // widened scope to Quality/Interval too, per Dylon's own choice when asked ("also add to
+    // Quality/Interval sessions") -- Quality's reps/rest/warmup/cooldown still come from QUALITY_CFG
+    // where that exists (out of scope here), but its pace/HR/overall-distance targets are now editable
+    // the same way Easy/Long's already were (see intervalStepsWithOverrides/genericQualStep in
+    // stepsFor). Still excludes Race (a view onto RACES_LIST, already editable via "Edit Race Details"
+    // above) and Strength/Rest/Mobility (no dist/pace/HR concept to begin with). findSess() returns a
     // live reference straight into whichever block actually owns this session (recalcBlockDerived()
     // afterward keeps mileagePlan in sync, exactly like every other block-adjustment feature already
     // mutates b.sessions directly), so the edit is immediately reflected everywhere this session's
     // data is read (Schedule, Today, this same Details view) on the very next render.
-    if(s.ty==='easy'||s.ty==='long'){
-      body+=`<button class="btn btn-ghost btn-block" style="margin-top:10px" onclick="togglePlanEdit('${id}')">${PLAN_EDIT_OPEN?'Hide Edit Target':'Edit Planned Distance / Pace'}</button>`;
+    if(s.ty==='easy'||s.ty==='long'||s.ty==='qual'){
+      body+=`<button class="btn btn-ghost btn-block" style="margin-top:10px" onclick="togglePlanEdit('${id}')">${PLAN_EDIT_OPEN?'Hide Edit Target':'Edit Distance / Pace / HR'}</button>`;
       if(PLAN_EDIT_OPEN){
         body+=`<div class="card" style="margin-top:10px">${planEditFieldsHTML(s)}</div>`;
         body+=`<button class="btn btn-primary btn-block" style="margin-top:10px" onclick="savePlanEdits('${id}')">Save Changes</button>`;
