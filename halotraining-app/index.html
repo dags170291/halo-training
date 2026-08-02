@@ -306,17 +306,15 @@ main{flex:1;padding:14px 14px 24px;max-width:560px;width:100%;margin:0 auto}
 .hrzone-slice:hover{opacity:.85}
 .hrzone-pie.has-selection .hrzone-slice{opacity:.55}
 .hrzone-pie.has-selection .hrzone-slice.selected{opacity:1}
-/* v0.34.20 -- Dylon: "Make pie charts more oval shape to take up space (width across its card
-   container) sor of like a standard race track." The donut used to be a fixed 132x132 square,
-   floating in the middle of a much wider card with empty space either side. The ring itself is still
-   drawn as a perfect circle in 132x132 viewBox space (hrZoneAnnularPath/activityHRZonePieSlices are
-   completely unchanged) -- the <svg> tag's own width is set to 100% with preserveAspectRatio="none"
-   instead, which is what actually does the stretching: the browser maps that same circular geometry
-   onto however wide the container really is, distorting it into a wide oval/stadium shape with zero
-   new coordinate math. See renderZoneTrendDonut/activityHRZoneDonutSVG's own callout-positioning
-   comments for the one place that DOES need to know about the stretch (the floating callout label's
-   horizontal position, expressed in % rather than px for exactly this reason). */
-.hrzone-donut-wrap{position:relative;width:100%;height:132px;margin:0 auto 12px}
+/* v0.34.21 -- Dylon rejected v0.34.20's ellipse-stretch approach: "this is how i want the zones card
+   to be redesigned not how you did it," with a mockup of a literal stadium/race-track ring -- flat
+   straight top/bottom edges, semicircular rounded ends, not a continuously-curved oval. A non-uniform
+   scale of a circle (what preserveAspectRatio="none" did) can only ever produce an ellipse, so this
+   now builds the true stadium shape directly in viewBox coordinates (see hrZoneStadiumGeom and
+   friends) at a fixed wide aspect ratio. This wrap's own aspect-ratio is set to match that viewBox
+   exactly, so the SVG's default preserveAspectRatio ("xMidYMid meet") fills the box precisely -- no
+   distortion, no letterboxing -- while still scaling fluidly with the card's real width. */
+.hrzone-donut-wrap{position:relative;width:100%;aspect-ratio:320/140;margin:0 auto 12px}
 .hrzone-donut-center{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none;width:68px}
 .hrzone-donut-center .hrzone-dc-sub{font-size:9.5px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.3px}
 .hrzone-donut-center .hrzone-dc-main{font-size:17px;font-weight:800;color:var(--t1);line-height:1.15;margin-top:2px}
@@ -332,7 +330,9 @@ main{flex:1;padding:14px 14px 24px;max-width:560px;width:100%;margin:0 auto}
 .zonewk-legend{display:flex;flex-direction:column;gap:2px;margin-top:2px}
 .zonewk-legend-row{display:flex;align-items:center;gap:10px;padding:7px 6px;border-radius:8px;cursor:pointer;transition:background .15s ease}
 .zonewk-legend-row:hover,.zonewk-legend-row.selected{background:var(--s2)}
-.zonewk-legend-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+/* v0.34.21 -- rounded-square swatch (not a circular dot) to match Dylon's stadium-redesign mockup,
+   which shows a small rounded-square color chip per zone row in the legend. */
+.zonewk-legend-dot{width:11px;height:11px;border-radius:3px;flex-shrink:0}
 
 /* ── quick add (ad-hoc run/walk/weight logging) ── */
 .qa-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:4px}
@@ -1565,7 +1565,7 @@ main{flex:1;padding:14px 14px 24px;max-width:560px;width:100%;margin:0 auto}
    session-style restyle, race-target connection, iOS install fix, icon redesign, onboarding flow).
    APP_STAGE is 'alpha.N' pre-launch, bump N each time you hand a build to a real tester (Dylon's
    sister counts); once launched, APP_VERSION resets to 1.0.0 and APP_STAGE becomes ''. */
-const APP_VERSION='0.34.20';
+const APP_VERSION='0.34.21';
 const APP_STAGE='alpha.1';
 const APP_VERSION_DATE='2026-08-02';
 /* ═══════════════════════════ DATA ═══════════════════════════ */
@@ -3691,8 +3691,8 @@ const ZONE_TREND_BAR_COLORS=['--dur','--gr','--gold','--am','--ign','--re'];
 // out directly with a screenshot of a single flat bar: "this is useless as is there is nothing that
 // says which colour is which zone it isnt interactive or nothng ... find something else." Replaced
 // with a real per-week donut (reusing the exact geometry/interaction pattern the per-activity Effort
-// card's HR zone donut already established -- activityHRZonePieSlices/hrZoneAnnularPath/
-// hrZonePolarPoint below) plus a legend that's ALWAYS visible underneath it, not just on tap: every
+// card's HR zone donut already established -- as of v0.34.21, hrZoneStadiumGeom/hrZoneStadiumSlices/
+// hrZoneStadiumSectorPath below) plus a legend that's ALWAYS visible underneath it, not just on tap: every
 // zone's color dot, name, bpm/pace range, and time shown at once. Tapping a wedge or a legend row
 // still highlights that zone in the center readout, and a week picker lets you flip between weeks
 // instead of trying to compare several tiny stacked bars side by side.
@@ -3757,18 +3757,20 @@ function renderZoneTrendDonut(type,weeksData,wk){
   // this one specifically picks a WEEK, the same kind of date-range navigation rpred-range-bar was
   // built for, so it gets that look instead of a generic filter-pill look.
   const weekPicker=weeksData.length>1?`<div class="rpred-range-bar" style="margin-bottom:10px">${weeksData.map(w=>`<button type="button" class="rpred-range-btn${w.wk===weekEntry.wk?' active':''}" onclick="selectZoneTrendWeek('${type}',${w.wk})">W${w.wk}</button>`).join('')}</div>`:'';
-  const size=ACT_HRZONE_DONUT_SIZE,cx=size/2,cy=size/2,rOuter=ACT_HRZONE_DONUT_R_OUTER,rInner=ACT_HRZONE_DONUT_R_INNER;
-  const slices=activityHRZonePieSlices(zones).filter(s=>s.sweepDeg>0.05);
+  // v0.34.21 -- same true stadium/race-track ring as activityHRZoneDonutSVG (see hrZoneStadiumGeom's
+  // own comment) -- Dylon: "it should also look this way for the activity heart rate zones as well,"
+  // meaning both this card's donut and the per-activity Effort card's donut need to match.
+  const w=ACT_HRZONE_STADIUM_W,h=ACT_HRZONE_STADIUM_H,cx=w/2,cy=h/2;
+  const geom=hrZoneStadiumGeom(w,h,ACT_HRZONE_STADIUM_THICKNESS);
+  const slices=hrZoneStadiumSlices(zones,geom).filter(s=>s.span>0.05);
   const hasSel=selIdx!=null?' has-selection':'';
   const paths=slices.map(s=>{
-    const d=hrZoneAnnularPath(cx,cy,rOuter,rInner,s.startAngle,s.endAngle);
+    const d=hrZoneStadiumSectorPath(cx,cy,geom,s.s1,s.s2);
     const color=ZONE_TREND_BAR_COLORS[s.idx]||'--accent';
     const z=s.zone;
     const sel=selIdx===s.idx?' selected':'';
     // vector-effect="non-scaling-stroke" keeps the 2px separator a crisp, uniform 2px all the way
-    // around the ring even though the <svg> itself gets stretched horizontally below (preserveAspect-
-    // Ratio="none") -- without it, the stroke would visibly thin/thicken depending on where a given
-    // point on the ring's curve sits, since the stretch is a real non-uniform coordinate transform.
+    // around the ring regardless of how much the wrap's CSS aspect-ratio scales this SVG.
     return `<path class="hrzone-slice${sel}" data-idx="${s.idx}" d="${d}" fill="var(${color})" stroke="var(--s1)" stroke-width="2" vector-effect="non-scaling-stroke" onclick="selectZoneTrendSlice('${type}',${s.idx})"><title>${escAttr(z.label)} · ${escAttr(z.name)}: ${fmtDurationSec(z.sec)} (${z.pct}%)</title></path>`;
   }).join('');
   const totalSec=zones.reduce((s,z)=>s+z.sec,0);
@@ -3786,21 +3788,17 @@ function renderZoneTrendDonut(type,weeksData,wk){
   if(hasSelZone){
     const s=slices.find(sl=>sl.idx===selIdx);
     if(s){
-      const midAngle=(s.startAngle+s.endAngle)/2;
-      const pt=hrZonePolarPoint(cx,cy,rOuter+16,midAngle);
-      // x is expressed as a % of the wrap's own width, not a fixed px value -- the SVG itself is now
-      // stretched to fill however wide .hrzone-donut-wrap actually renders (see its own v0.34.20
-      // comment), so a px value computed from the original 132-wide viewBox would drift left of where
-      // the wedge visually ends up on anything wider than that. % is resolution-independent: it's
-      // just (viewBox x / viewBox width) either way, which is exactly what preserveAspectRatio="none"
-      // itself uses to map viewBox space onto the real rendered box. y stays in px since the wrap's
-      // height is NOT stretched (still a fixed 132px).
-      const xPct=Math.max(8,Math.min(92,(pt.x/size)*100));
-      const y=Math.max(12,Math.min(size-12,pt.y));
-      callout=`<div class="hrzone-callout" style="left:${xPct.toFixed(1)}%;top:${y.toFixed(1)}px">${escAttr(zones[selIdx].name)} ${fmtDurationSec(zones[selIdx].sec)}</div>`;
+      const midS=(s.s1+s.s2)/2;
+      const pt=hrZoneStadiumPoint(cx,cy,geom,geom.rOuter+16,midS);
+      // Both x and y expressed as % of the wrap's own box, not px -- the wrap scales fluidly via CSS
+      // aspect-ratio now (see its own comment), so a px value computed from the fixed 320x140 viewBox
+      // would drift off target on any screen where the box doesn't render at exactly that size.
+      const xPct=Math.max(6,Math.min(94,(pt.x/w)*100));
+      const yPct=Math.max(8,Math.min(92,(pt.y/h)*100));
+      callout=`<div class="hrzone-callout" style="left:${xPct.toFixed(1)}%;top:${yPct.toFixed(1)}%">${escAttr(zones[selIdx].name)} ${fmtDurationSec(zones[selIdx].sec)}</div>`;
     }
   }
-  const donut=`<div class="hrzone-donut-wrap"><svg class="hrzone-pie${hasSel}" width="100%" height="${size}" viewBox="0 0 ${size} ${size}" preserveAspectRatio="none">${paths}</svg>${center}${callout}</div>`;
+  const donut=`<div class="hrzone-donut-wrap"><svg class="hrzone-pie${hasSel}" width="100%" height="100%" viewBox="0 0 ${w} ${h}">${paths}</svg>${center}${callout}</div>`;
   const legend=zones.map((z,i)=>{
     const color=ZONE_TREND_BAR_COLORS[i]||'--accent';
     const sel=selIdx===i;
@@ -7736,6 +7734,100 @@ function hrZoneAnnularPath(cx,cy,rOuter,rInner,startAngle,endAngle){
   const pi1=hrZonePolarPoint(cx,cy,rInner,startAngle);
   return `M ${po1.x.toFixed(2)} ${po1.y.toFixed(2)} A ${rOuter} ${rOuter} 0 ${large} 1 ${po2.x.toFixed(2)} ${po2.y.toFixed(2)} L ${pi2.x.toFixed(2)} ${pi2.y.toFixed(2)} A ${rInner} ${rInner} 0 ${large} 0 ${pi1.x.toFixed(2)} ${pi1.y.toFixed(2)} Z`;
 }
+/* ── Stadium (race-track) ring geometry ──
+   v0.34.21 -- Dylon, after the v0.34.20 ellipse stretch: "this is how i want the zones card to be
+   redesigned not how you did it," with a mockup showing a literal running-track shape -- flat straight
+   top/bottom edges, semicircular rounded ends, not a continuously-curved oval. A non-uniform scale of
+   a circle (what preserveAspectRatio="none" did) can only ever produce an ellipse; a real stadium shape
+   needs its own perimeter geometry, walked exactly like a real track's lane markings: two straights
+   connected by two semicircular turns, both boundaries (inner/outer) sharing the same two turn
+   centers, just different radii -- like an outside vs. inside running lane.
+   hrZoneStadiumGeom(w,h,thickness) precomputes the shape's fixed measurements from a bounding box.
+   hrZoneStadiumPoint walks a single boundary (given radius r) to the point at arc-length s, measured
+   clockwise starting at the top-left corner of the top straight. hrZoneStadiumVertices collects every
+   vertex (start/end plus each straight/turn boundary crossed) between two arc-lengths, tagging each
+   with whether the segment leading into it is a straight line or a curved arc. hrZoneStadiumSectorPath
+   assembles one zone's full closed wedge from those vertices -- outer walked forward, a straight
+   "radial" cut in to the inner boundary, inner walked backward, closed. Zone boundaries are placed by
+   arc-length share of the OUTER boundary's own total perimeter (2 straights + 2 semicircles = one full
+   circle's circumference) -- using the outer boundary for the proportions (rather than trying to keep
+   inner/outer arc-length exactly equal, which isn't possible for two different radii sharing the same
+   turn angle) is exactly how a real track works: the inside lane is physically shorter than the
+   outside one for the same "one lap," and the boundary lines between lanes/zones still read as clean
+   radial cuts because inner and outer points at a shared position use the same x (on a straight) or
+   the same angle from the same turn center (on a curve) -- never the same literal arc-length on both. */
+function hrZoneStadiumGeom(w,h,thickness){
+  const rOuter=h/2;
+  const rInner=rOuter-thickness;
+  const halfStraight=Math.max(0,w/2-rOuter);
+  const topLen=halfStraight*2;
+  const turnLen=Math.PI*rOuter;
+  const bottomLen=topLen;
+  return {rOuter,rInner,halfStraight,topLen,turnLen,bottomLen,total:topLen+turnLen+bottomLen+turnLen};
+}
+function hrZoneStadiumPoint(cx,cy,geom,r,s){
+  s=((s%geom.total)+geom.total)%geom.total;
+  if(s<geom.topLen) return {x:cx-geom.halfStraight+s,y:cy-r};
+  s-=geom.topLen;
+  if(s<geom.turnLen) return hrZonePolarPoint(cx+geom.halfStraight,cy,r,-90+(s/geom.turnLen)*180);
+  s-=geom.turnLen;
+  if(s<geom.bottomLen) return {x:cx+geom.halfStraight-s,y:cy+r};
+  s-=geom.bottomLen;
+  return hrZonePolarPoint(cx-geom.halfStraight,cy,r,90+(s/geom.turnLen)*180);
+}
+// Every vertex from s1 to s2 (forward, s2 assumed >= s1) at radius r -- the two endpoints plus one
+// vertex per straight/turn boundary crossed in between. Each vertex (other than the very first, whose
+// `viaArc` is never actually read by the caller) is tagged with whether the segment LEADING INTO it is
+// a straight line or a curved arc, decided from the midpoint of that segment so a segment can never be
+// straddling two different segment types.
+function hrZoneStadiumVertices(cx,cy,geom,r,s1,s2){
+  const breakpoints=[geom.topLen,geom.topLen+geom.turnLen,geom.topLen+geom.turnLen+geom.bottomLen,geom.total];
+  const stops=[s1];
+  breakpoints.forEach(b=>{ if(b>s1+1e-9&&b<s2-1e-9) stops.push(b); });
+  stops.push(s2);
+  return stops.map((s,i)=>{
+    const p=hrZoneStadiumPoint(cx,cy,geom,r,s);
+    if(i===0) return {x:p.x,y:p.y,viaArc:false};
+    const midS=(stops[i-1]+s)/2;
+    const local=((midS%geom.total)+geom.total)%geom.total;
+    const onStraight=local<geom.topLen||(local>=geom.topLen+geom.turnLen&&local<geom.topLen+geom.turnLen+geom.bottomLen);
+    return {x:p.x,y:p.y,viaArc:!onStraight};
+  });
+}
+// One zone's full closed wedge -- outer boundary walked forward from s1 to s2, a straight cut in to
+// the inner boundary at s2, inner boundary walked backward from s2 to s1 (arcs use sweep-flag 0 there
+// since retracing a clockwise boundary backward is inherently counter-clockwise), closed back to the
+// outer start.
+function hrZoneStadiumSectorPath(cx,cy,geom,s1,s2){
+  const outerPts=hrZoneStadiumVertices(cx,cy,geom,geom.rOuter,s1,s2);
+  const innerPts=hrZoneStadiumVertices(cx,cy,geom,geom.rInner,s1,s2).reverse();
+  let d=`M ${outerPts[0].x.toFixed(2)} ${outerPts[0].y.toFixed(2)} `;
+  for(let i=1;i<outerPts.length;i++){
+    const v=outerPts[i];
+    d+=v.viaArc?`A ${geom.rOuter} ${geom.rOuter} 0 0 1 ${v.x.toFixed(2)} ${v.y.toFixed(2)} `:`L ${v.x.toFixed(2)} ${v.y.toFixed(2)} `;
+  }
+  d+=`L ${innerPts[0].x.toFixed(2)} ${innerPts[0].y.toFixed(2)} `;
+  for(let i=1;i<innerPts.length;i++){
+    const v=innerPts[i];
+    const leadingArc=innerPts[i-1].viaArc;
+    d+=leadingArc?`A ${geom.rInner} ${geom.rInner} 0 0 0 ${v.x.toFixed(2)} ${v.y.toFixed(2)} `:`L ${v.x.toFixed(2)} ${v.y.toFixed(2)} `;
+  }
+  return d+'Z';
+}
+// Same role as activityHRZonePieSlices (below) but slicing the stadium's own total perimeter length
+// instead of 360 degrees -- each zone's [s1,s2) arc-length span is proportional to its own share of
+// total logged seconds, walked in the same order (Zone 1 first) starting at arc-length 0 (the top-left
+// corner of the top straight).
+function hrZoneStadiumSlices(zones,geom){
+  const total=zones.reduce((a,z)=>a+z.sec,0);
+  let s=0;
+  return zones.map((z,i)=>{
+    const span=total>0?(z.sec/total)*geom.total:0;
+    const s1=s,s2=s+span;
+    s=s2;
+    return {zone:z,idx:i,s1,s2,span};
+  });
+}
 /* ── Per-activity HR zone donut chart ──
    Strava-style donut for a single activity's real time-in-zone breakdown (activityHRZoneBreakdown()
    above) -- see the big comment on profileHRZonesCardHTML for why this moved here from Profile. The
@@ -7756,28 +7848,31 @@ function activityHRZonePieSlices(zones){
     return {zone:z,idx:i,startAngle,endAngle,sweepDeg};
   });
 }
-const ACT_HRZONE_DONUT_SIZE=132,ACT_HRZONE_DONUT_R_OUTER=60,ACT_HRZONE_DONUT_R_INNER=38;
+// v0.34.21 -- stadium viewBox dimensions for the per-activity donut (see hrZoneStadiumGeom's own big
+// comment). Fixed wide aspect ratio (320:140, matching .hrzone-donut-wrap's CSS aspect-ratio) so the
+// SVG scales fluidly with the card with no distortion.
+const ACT_HRZONE_STADIUM_W=320,ACT_HRZONE_STADIUM_H=140,ACT_HRZONE_STADIUM_THICKNESS=30;
 function activityHRZoneDonutSVG(zones,idPrefix,activityId,selIdx){
-  const size=ACT_HRZONE_DONUT_SIZE,cx=size/2,cy=size/2,rOuter=ACT_HRZONE_DONUT_R_OUTER,rInner=ACT_HRZONE_DONUT_R_INNER;
+  const w=ACT_HRZONE_STADIUM_W,h=ACT_HRZONE_STADIUM_H,cx=w/2,cy=h/2;
+  const geom=hrZoneStadiumGeom(w,h,ACT_HRZONE_STADIUM_THICKNESS);
   // Zero-second zones are skipped entirely rather than drawn as a zero-width sliver -- unlike
   // Profile's old bpm-based chart, a real activity genuinely can have no time at all in a given
   // zone, and that should just mean no wedge, not a degenerate one.
-  const slices=activityHRZonePieSlices(zones).filter(s=>s.sweepDeg>0.05);
+  const slices=hrZoneStadiumSlices(zones,geom).filter(s=>s.span>0.05);
   const paths=slices.map(s=>{
-    const d=hrZoneAnnularPath(cx,cy,rOuter,rInner,s.startAngle,s.endAngle);
+    const d=hrZoneStadiumSectorPath(cx,cy,geom,s.s1,s.s2);
     const color=ZONE_TREND_BAR_COLORS[s.idx]||'--accent';
     const z=s.zone;
     const sel=selIdx===s.idx?' selected':'';
-    // vector-effect="non-scaling-stroke" -- see renderZoneTrendDonut's own v0.34.20 comment for why:
-    // keeps the 2px separator uniform despite the horizontal stretch below.
+    // vector-effect="non-scaling-stroke" keeps the 2px separator uniform regardless of how much the
+    // wrap's CSS aspect-ratio ends up scaling this SVG on any given screen.
     return `<path class="hrzone-slice${sel}" data-idx="${s.idx}" d="${d}" fill="var(${color})" stroke="var(--s1)" stroke-width="2" vector-effect="non-scaling-stroke" onclick="selectActivityHRZoneSlice('${idPrefix}','${activityId}',${s.idx})"><title>${escAttr(z.label)} · ${escAttr(z.name)}: ${fmtDurationSec(z.sec)} (${z.pct}%)</title></path>`;
   }).join('');
   const hasSel=selIdx!=null?' has-selection':'';
-  // v0.34.20 -- Dylon: "Make pie charts more oval shape to take up space (width across its card
-  // container) sor of like a standard race track." See .hrzone-donut-wrap's own CSS comment for the
-  // full reasoning -- width:100% + preserveAspectRatio="none" stretches this still-perfectly-circular
-  // geometry into a wide oval to fill the card, no new coordinate math needed.
-  return `<svg class="hrzone-pie${hasSel}" width="100%" height="${size}" viewBox="0 0 ${size} ${size}" preserveAspectRatio="none">${paths}</svg>`;
+  // v0.34.21 -- true stadium/race-track ring, not an ellipse stretch -- see .hrzone-donut-wrap's own
+  // CSS comment and hrZoneStadiumGeom's comment for the full story. No preserveAspectRatio="none"
+  // needed anymore: the shape is genuinely stadium-shaped in its own coordinates already.
+  return `<svg class="hrzone-pie${hasSel}" width="100%" height="100%" viewBox="0 0 ${w} ${h}">${paths}</svg>`;
 }
 function activityHRZoneDonutOverlayHTML(zones,selIdx){
   if(selIdx==null||!zones[selIdx]||!(zones[selIdx].sec>0)){
@@ -7792,17 +7887,18 @@ function activityHRZoneDonutOverlayHTML(zones,selIdx){
     <div class="hrzone-dc-main">${z.pct}%</div>
     <div class="hrzone-dc-unit">${fmtDurationSec(z.sec)}</div>
   </div>`;
-  const size=ACT_HRZONE_DONUT_SIZE,cx=size/2,cy=size/2,rOuter=ACT_HRZONE_DONUT_R_OUTER;
-  const slices=activityHRZonePieSlices(zones);
+  const w=ACT_HRZONE_STADIUM_W,h=ACT_HRZONE_STADIUM_H,cx=w/2,cy=h/2;
+  const geom=hrZoneStadiumGeom(w,h,ACT_HRZONE_STADIUM_THICKNESS);
+  const slices=hrZoneStadiumSlices(zones,geom);
   const s=slices[selIdx];
-  const midAngle=(s.startAngle+s.endAngle)/2;
-  const pt=hrZonePolarPoint(cx,cy,rOuter+16,midAngle);
-  // x in % of the wrap's own width, not px -- see renderZoneTrendDonut's own v0.34.20 comment for why
-  // (the SVG is now stretched to the wrap's real rendered width via preserveAspectRatio="none", so a
-  // px value computed from the original 132-wide viewBox would drift off target on anything wider).
-  const xPct=Math.max(8,Math.min(92,(pt.x/size)*100));
-  const y=Math.max(12,Math.min(size-12,pt.y));
-  const callout=`<div class="hrzone-callout" style="left:${xPct.toFixed(1)}%;top:${y.toFixed(1)}px">${escAttr(z.name)} ${fmtDurationSec(z.sec)}</div>`;
+  const midS=(s.s1+s.s2)/2;
+  const pt=hrZoneStadiumPoint(cx,cy,geom,geom.rOuter+16,midS);
+  // Both x and y in % of the wrap's own box, not px -- the wrap now scales fluidly via CSS
+  // aspect-ratio (see its own comment), so a px value computed from the fixed 320x140 viewBox would
+  // drift off target on any screen where the box doesn't render at exactly that size.
+  const xPct=Math.max(6,Math.min(94,(pt.x/w)*100));
+  const yPct=Math.max(8,Math.min(92,(pt.y/h)*100));
+  const callout=`<div class="hrzone-callout" style="left:${xPct.toFixed(1)}%;top:${yPct.toFixed(1)}%">${escAttr(z.name)} ${fmtDurationSec(z.sec)}</div>`;
   return center+callout;
 }
 // Static bpm-range legend row -- pulled from currentHRZones() (the same numbers Profile's list
