@@ -109,20 +109,22 @@ function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
   `);
   const savedSess = JSON.parse(win.eval(`JSON.stringify(findSess('w1d1'))`));
   const mileagePlan = JSON.parse(win.eval(`JSON.stringify(BLOCKS[0].mileagePlan)`));
-  // Week 1's mileagePlan total is w1d1's new 12km PLUS w1d6's own unrelated 15km Long Run (both are
-  // isRunTypeSession() and share wk:1) -- 27, not 12 alone. w1d3 (Quality, '~7 km') isn't touched by
-  // this save so it stays out of this particular sum's math (still string 'dist', not distMin).
+  // Week 1's mileagePlan total is w1d1's new 12km PLUS w1d6's own unrelated 15km Long Run PLUS w1d3's
+  // own unrelated Quality session ('~7 km', untouched by this save) -- 34, not 12 or 27. Pre-v0.34.24,
+  // recalcBlockDerived's parseFloat(s.dist) choked on the leading "~" and silently counted w1d3 as 0km
+  // (an actual shipped bug -- Dylon: "when i add up the total distance i get 38 but this still says
+  // 27km" -- planDistNum() now strips the "~" first, see Test 13 below for the direct regression check).
   console.log('Test 5 (saving stores real distMin/distMax/targetPaceMin/Max/targetHRMin/Max, derives s.dist, and mileagePlan reflects it):',
     (savedSess.distMin === 12 && savedSess.distMax === 13 && savedSess.targetPaceMin === '5:15' && savedSess.targetPaceMax === '5:30'
       && savedSess.targetHRMin === 140 && savedSess.targetHRMax === 150 && savedSess.dist === '12-13 km' && savedSess.det === 'PM, flat route'
-      && mileagePlan['1'] === 27) ? 'PASS' : 'FAIL',
+      && mileagePlan['1'] === 34) ? 'PASS' : 'FAIL',
     { savedSess, mileagePlan });
 
   // ---- Test 6: blockPlanTotal() (the app-wide plan total, not just this one block's own mileagePlan
   // object) also reflects the edit -- the v0.34.22 fix this same round builds on. ----
   const planTotal = win.eval(`blockPlanTotal()`);
   console.log('Test 6 (blockPlanTotal() reflects the edited distance, not a stale pre-edit snapshot):',
-    planTotal === 27 ? 'PASS' : 'FAIL', { planTotal });
+    planTotal === 34 ? 'PASS' : 'FAIL', { planTotal });
 
   // ---- Test 7: the new distance/pace/HR show up in stepsFor()'s own Main step text immediately --
   // once ANY structured field is set, the session switches fully to the new structured display path
@@ -196,6 +198,26 @@ function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
   const resetAfterSwitch = win.eval(`PLAN_EDIT_OPEN`);
   console.log('Test 12 (switching to a different session resets the edit form closed):',
     (wasOpen === true && resetAfterSwitch === false) ? 'PASS' : 'FAIL', { wasOpen, resetAfterSwitch });
+
+  // ---- Test 13: planDistNum()/recalcBlockDerived() correctly parse a "~5 km"-style approximate
+  // distance (used throughout Block 5 for easy/recovery/warm-up-total sessions), not just clean
+  // "9-10 km" ranges -- direct regression check for the bug Test 5/6's math above depends on. Plain
+  // parseFloat("~5 km") returns NaN (a leading "~" isn't numeric), which displayToKm's `||0` fallback
+  // then silently turned into a real zero, undercounting the week's real total by that session's full
+  // distance. A fresh block isolates this from b1/block5's own state above. ----
+  win.eval(`
+    BLOCKS.push({id:'tilde',name:'Tilde Test',startDate:'2026-07-20',endDate:'2026-08-30',mileagePlan:{},sessions:[
+      {id:'t1',wk:1,d:'D1',ty:'easy',date:'2026-07-20',wd:'Mon',ti:'Recovery Run',full:'Recovery Run',det:'',dist:'~5 km'},
+      {id:'t2',wk:1,d:'D2',ty:'qual',date:'2026-07-21',wd:'Tue',ti:'Fartlek',full:'Fartlek',det:'',dist:'~7.5 km'},
+      {id:'t3',wk:1,d:'D3',ty:'long',date:'2026-07-22',wd:'Wed',ti:'Long Run',full:'Long Run',det:'',dist:'9-10 km'}
+    ]});
+    const tb=BLOCKS.find(b=>b.id==='tilde');
+    recalcBlockDerived(tb);
+  `);
+  const tildeMileagePlan = JSON.parse(win.eval(`JSON.stringify(BLOCKS.find(b=>b.id==='tilde').mileagePlan)`));
+  const tildeDistNum = win.eval(`planDistNum('~5 km')`);
+  console.log('Test 13 (planDistNum/recalcBlockDerived correctly count "~5 km"-style approximate distances, not silently zero them out):',
+    (tildeDistNum === 5 && tildeMileagePlan['1'] === 21.5) ? 'PASS' : 'FAIL', { tildeDistNum, tildeMileagePlan });
 
   await wait(200);
   win.close();

@@ -1592,7 +1592,7 @@ main{flex:1;padding:14px 14px 24px;max-width:560px;width:100%;margin:0 auto}
    session-style restyle, race-target connection, iOS install fix, icon redesign, onboarding flow).
    APP_STAGE is 'alpha.N' pre-launch, bump N each time you hand a build to a real tester (Dylon's
    sister counts); once launched, APP_VERSION resets to 1.0.0 and APP_STAGE becomes ''. */
-const APP_VERSION='0.34.23';
+const APP_VERSION='0.34.24';
 const APP_STAGE='alpha.1';
 const APP_VERSION_DATE='2026-08-02';
 /* ═══════════════════════════ DATA ═══════════════════════════ */
@@ -12964,7 +12964,8 @@ function sessionAerobicHRNote(paceNote){
    STRING) in sync from distMin/distMax on every save specifically so all ~70 of those other read sites
    -- most of which will likely never get touched to read the new fields directly -- keep working with
    zero changes, including the "week's total updates when I edit a distance" requirement, which flows
-   entirely through recalcBlockDerived()'s existing parseFloat(s.dist) call. */
+   entirely through recalcBlockDerived()'s existing planDistNum(s.dist) call (renamed from a plain
+   parseFloat in v0.34.24 -- see that function's own comment for why). */
 function sessionDistLabel(s){
   if(s.distMin==null) return '';
   return (s.distMax!=null && s.distMax!==s.distMin) ? `${s.distMin}-${s.distMax} km` : `${s.distMin} km`;
@@ -15019,12 +15020,24 @@ function confirmExtendBlock(blockId){
     }},
      {label:'Cancel',cls:'btn-ghost',fn:()=>{}}]);
 }
+// Dylon: "when i add up the total distance i get 38 but this still says 27km" -- root cause was
+// plain parseFloat(s.dist) here returning NaN (silently treated as 0 by displayToKm's `||0`) for any
+// session whose dist string starts with "~" (e.g. "~5 km", used throughout Block 5 for easy recovery
+// runs/quality warm-up totals that are intentionally approximate) -- parseFloat refuses to parse past a
+// leading non-numeric character, unlike a range like "9-10 km" where the FIRST character is already a
+// digit and parses fine. planDistNum() below strips any such non-numeric prefix before parsing, so
+// "~5 km" now correctly contributes 5, matching every other distance format already handled.
+function planDistNum(distStr){
+  if(!distStr) return 0;
+  const n=parseFloat(String(distStr).replace(/^[^\d.]+/,''));
+  return isNaN(n)?0:n;
+}
 // Rebuilds mileagePlan and endDate straight from the current session list — always correct after any
 // date-shifting/insertion, regardless of how many times (or in what order) a block has been adjusted.
 function recalcBlockDerived(b){
   const mp={};
   (b.sessions||[]).forEach(s=>{
-    const km=isRunTypeSession(s)&&s.dist?displayToKm(parseFloat(s.dist)):0;
+    const km=isRunTypeSession(s)&&s.dist?displayToKm(planDistNum(s.dist)):0;
     mp[s.wk]=(mp[s.wk]||0)+km;
   });
   b.mileagePlan=mp;
@@ -15077,7 +15090,7 @@ function extendBlockPlan(blockId,extraWeeks,intensityPct){
       const isRun=isRunTypeSession({ty});
       let dist,det,ti=s.ti,steps;
       if(isRun){
-        const origKm=s.dist?displayToKm(parseFloat(s.dist)):0;
+        const origKm=s.dist?displayToKm(planDistNum(s.dist)):0;
         const newKm=Math.max(0.1,origKm*factor);
         dist=fmtDist(newKm);
         ti=ty==='long'?'Easy Long Run':'Easy Run';
@@ -17108,7 +17121,8 @@ function savePlanEdits(id){
   // etc.) all still read s.dist directly rather than the new fields, so deriving it here from the
   // structured values is what makes "type a new distance, the week's total updates" (Dylon's explicit
   // ask) keep working with zero changes to any of those other call sites -- it flows entirely through
-  // recalcBlockDerived()'s existing parseFloat(s.dist) call below, exactly like before this feature.
+  // recalcBlockDerived()'s existing planDistNum(s.dist) call below, exactly like before this feature
+  // (that helper was a plain parseFloat until v0.34.24 fixed its "~5 km" bug -- see its own comment).
   s.dist=s.distMin!=null?((s.distMax!=null&&s.distMax!==s.distMin)?`${s.distMin}-${s.distMax} km`:`${s.distMin} km`):undefined;
   // findSess() can return a session from ANY block (it falls back to searching every block, not just
   // the active one, so browsing a historical block's own sessions still works) -- find whichever block
