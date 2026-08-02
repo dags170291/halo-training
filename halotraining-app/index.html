@@ -306,7 +306,17 @@ main{flex:1;padding:14px 14px 24px;max-width:560px;width:100%;margin:0 auto}
 .hrzone-slice:hover{opacity:.85}
 .hrzone-pie.has-selection .hrzone-slice{opacity:.55}
 .hrzone-pie.has-selection .hrzone-slice.selected{opacity:1}
-.hrzone-donut-wrap{position:relative;width:132px;height:132px;margin:0 auto 12px}
+/* v0.34.20 -- Dylon: "Make pie charts more oval shape to take up space (width across its card
+   container) sor of like a standard race track." The donut used to be a fixed 132x132 square,
+   floating in the middle of a much wider card with empty space either side. The ring itself is still
+   drawn as a perfect circle in 132x132 viewBox space (hrZoneAnnularPath/activityHRZonePieSlices are
+   completely unchanged) -- the <svg> tag's own width is set to 100% with preserveAspectRatio="none"
+   instead, which is what actually does the stretching: the browser maps that same circular geometry
+   onto however wide the container really is, distorting it into a wide oval/stadium shape with zero
+   new coordinate math. See renderZoneTrendDonut/activityHRZoneDonutSVG's own callout-positioning
+   comments for the one place that DOES need to know about the stretch (the floating callout label's
+   horizontal position, expressed in % rather than px for exactly this reason). */
+.hrzone-donut-wrap{position:relative;width:100%;height:132px;margin:0 auto 12px}
 .hrzone-donut-center{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none;width:68px}
 .hrzone-donut-center .hrzone-dc-sub{font-size:9.5px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.3px}
 .hrzone-donut-center .hrzone-dc-main{font-size:17px;font-weight:800;color:var(--t1);line-height:1.15;margin-top:2px}
@@ -1555,9 +1565,9 @@ main{flex:1;padding:14px 14px 24px;max-width:560px;width:100%;margin:0 auto}
    session-style restyle, race-target connection, iOS install fix, icon redesign, onboarding flow).
    APP_STAGE is 'alpha.N' pre-launch, bump N each time you hand a build to a real tester (Dylon's
    sister counts); once launched, APP_VERSION resets to 1.0.0 and APP_STAGE becomes ''. */
-const APP_VERSION='0.34.19';
+const APP_VERSION='0.34.20';
 const APP_STAGE='alpha.1';
-const APP_VERSION_DATE='2026-07-31';
+const APP_VERSION_DATE='2026-08-02';
 /* ═══════════════════════════ DATA ═══════════════════════════ */
 // Block 5's session list — now the seed content for its Block record rather than a global const.
 // The live, active-block-driven binding is `let DATA` further down (see SEASONS/BLOCKS section).
@@ -1596,7 +1606,7 @@ const BLOCK5_SESSIONS=[{id:'w1d0m',wk:1,ph:'dur',d:'D0',date:'2026-07-19',wd:'Su
 {id:'w4d4m',wk:4,ph:'dur',d:'D4',date:'2026-08-13',wd:'Thu',ty:'mobility',ti:'Stretch & Mobility',full:'2026 Block 5 Durability W4D4: Stretch & Mobility',det:'Suggestion: Whatever\'s tight or off today. No fixed routine — pick your own guided video, log the link and how it felt when you\'re done.'},
 {id:'w4d5',wk:4,ph:'dur',d:'D5',date:'2026-08-14',wd:'Fri',ty:'str',ti:'Full Body Strength — Light',full:'2026 Block 5 Durability W4D5: Full Body Strength — Light',det:'Bodyweight only, no new loading, no jump rope, no plyo. Rest legs for Saturday.'},
 {id:'w4d6',wk:4,ph:'dur',d:'D6',date:'2026-08-15',wd:'Sat',ty:'race',ti:'Mayaro Coconut Run 5K — B-Race',full:'2026 Block 5 Durability W4D6: Mayaro Coconut Run 5K — B-Race',det:'Sand, effort-based, no time goal — but wear your watch. Free, no-pressure read on where your pace/HR actually sit right now, useful data heading into the back half of the block. Treat the sand load with respect for the calves. This closes out the Durability phase.',dist:'5 km'},
-{id:'w5d0',wk:5,ph:'ign',d:'D0',date:'2026-08-16',wd:'Sun',ty:'easy',ti:'Recovery Run',full:'2026 Block 5 Ignition W5D0: Recovery Run',det:'~5 km / 30 min, extremely easy pace — no pace target beyond staying conversational. Comes the day after Saturday\'s long run.',dist:'~5 km',shoe:'SL2'},
+{id:'w5d0',wk:5,ph:'ign',d:'D0',date:'2026-08-16',wd:'Sun',ty:'rest',ti:'Full Rest',full:'2026 Block 5 Ignition W5D0: Full Rest',det:'No run, no strength. The day after a race — even an easy, no-pressure B-race like Mayaro — earns full rest, not another session.'},
 {id:'w5d0m',wk:5,ph:'ign',d:'D0',date:'2026-08-16',wd:'Sun',ty:'mobility',ti:'Stretch & Mobility',full:'2026 Block 5 Ignition W5D0: Stretch & Mobility',det:'Suggestion: Full-body flow. No fixed routine — pick your own guided video, log the link and how it felt when you\'re done.'},
 {id:'w5d1',wk:5,ph:'ign',d:'D1',date:'2026-08-17',wd:'Mon',ty:'easy',ti:'Easy Run + Strides',full:'2026 Block 5 Ignition W5D1: Easy Run + Strides',det:'8.5 km, AM. Close with 4×20s relaxed strides.',dist:'8.5 km',shoe:'SL2'},
 {id:'w5d2',wk:5,ph:'ign',d:'D2',date:'2026-08-18',wd:'Tue',ty:'str',ti:'Full Body Strength',full:'2026 Block 5 Ignition W5D2: Full Body Strength',det:'Calf raise 8 kg, goblet squat 14 kg, RDL 12 kg. Jump rope 5×30s. Pogo hops only if Mayaro showed zero calf feedback — 2×10s bilateral, low amplitude; otherwise skip this block entirely.'},
@@ -2844,6 +2854,13 @@ const ACTIVITY_TYPES=['run','walk','strength','yoga','mobility','workout'];
 //                 Feed (Phase 1) rather than any planned day.
 const ACTIVITY_ROLES=['fulfillment','accessory','unplanned'];
 const ACTIVITY_TYPE_LABELS={run:'Run',walk:'Walk',strength:'Strength',yoga:'Yoga',mobility:'Mobility',workout:'Workout'};
+// v0.34.20 -- Dylon: "Different details for different activity types e.g. mobility & strength don't
+// need shoes." The activity edit form's Shoe (and new Cadence) fields used to show for every type
+// unconditionally, including Strength/Yoga/Mobility where neither one is meaningful. 'run'/'walk' are
+// the obvious cases; 'workout' stays included too since it's the catch-all for anything cardio/gym-
+// floor that could plausibly be done in trainers (e.g. a treadmill or elliptical session) -- only the
+// genuinely static/floor-based types (strength, yoga, mobility) are excluded.
+function activityTypeWearsFootwear(type){ return type==='run'||type==='walk'||type==='workout'; }
 function newActivityId(){ return 'act_'+Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
 // Fills in every field of the unified activity shape, same pattern as normalizeRaceRecord — always run
 // anything entering ACTIVITIES through this (imported, manually added, or migrated) so every consumer
@@ -2869,6 +2886,11 @@ function normalizeActivityRecord(a){
     maxHr:a.maxHr||null,
     avgPower:a.avgPower||null,
     maxPower:a.maxPower||null,
+    // Manually-entered only (see openActivityDetail's edit form / activityTypeWearsFootwear) -- no
+    // importer here computes this from stream.cadence[] the way avgHr/avgPower get filled in from the
+    // file itself. Dylon: "would be nice if i can add my own data to an uploaded activity e.g.
+    // cadence even if it doesnt come in the tcx file."
+    avgCadence:a.avgCadence||null,
     minTempC:(a.minTempC===0?0:a.minTempC)||null,
     maxTempC:(a.maxTempC===0?0:a.maxTempC)||null,
     elevationGainM:a.elevationGainM||0,
@@ -3601,6 +3623,13 @@ function renderActivityPaceZoneBreakdown(a){
 // Total from Runs-only/Walks-only per Dylon: "can you also separate it by total, runs and walks?"
 // Purely an extra filter on which Activities get summed -- Total still folds in every other type
 // (Strength/Mobility HR streams included) exactly like before, just like "all" always did.
+// v0.34.20 -- switched from activitiesForWeek() (nearest-PLANNED-session matching, weekForDate()) to
+// activitiesForTrendWeek() (pure calendar-week math, trendCalWeek()) -- Dylon: "weekly zone level
+// should be updated during the week not after. once an activity is logged during that week it should
+// show up." activitiesForWeek()'s nearest-session fallback is the exact same misattribution-near-a-
+// week-boundary bug Activity Trends had before v0.34.2/3 (see trendCalWeek()'s own comment); Weekly
+// Zone Time was built afterward (v0.34.14) but reused the older, still-buggy helper instead of the
+// already-fixed one.
 function weeklyHRZoneTotals(wk,actType){
   actType=actType||'all';
   const hz=currentHRZones();
@@ -3608,7 +3637,7 @@ function weeklyHRZoneTotals(wk,actType){
   const zones=hz.zones;
   const totals=zones.map(()=>0);
   let any=false;
-  activitiesForWeek(wk).filter(a=>actType==='all'||a.type===actType).forEach(a=>{
+  activitiesForTrendWeek(wk).filter(a=>actType==='all'||a.type===actType).forEach(a=>{
     const bd=activityHRZoneBreakdown(a);
     if(!bd) return;
     any=true;
@@ -3621,7 +3650,7 @@ function weeklyPaceZoneTotals(wk,actType){
   actType=actType||'all';
   const totals=PACE_ZONE_BANDS.map(()=>0);
   let any=false;
-  activitiesForWeek(wk).filter(a=>actType==='all'||a.type===actType).forEach(a=>{
+  activitiesForTrendWeek(wk).filter(a=>actType==='all'||a.type===actType).forEach(a=>{
     const bd=activityPaceZoneBreakdown(a);
     if(!bd) return;
     any=true;
@@ -3630,13 +3659,20 @@ function weeklyPaceZoneTotals(wk,actType){
   if(!any) return null;
   return PACE_ZONE_BANDS.map((z,i)=>({label:z.label,name:z.name,sec:totals[i]}));
 }
-// Trailing window of weeks (up to whichever week is currently elapsed, same racePredWeeksElapsed()
-// the Race Predictions/PB Progression trends already anchor to) that actually have zone data for the
-// chart -- skips weeks with no eligible activity rather than showing an empty entry for it, the same
-// "gap not zero" convention allWeeklyWeight()/allWeeklyPaceSpeed() already use. `actType` passed
-// straight through to weeklyHRZoneTotals/weeklyPaceZoneTotals (see their own v0.34.15 comment).
+// Trailing window of weeks that actually have zone data for the chart -- skips weeks with no eligible
+// activity rather than showing an empty entry for it, the same "gap not zero" convention
+// allWeeklyWeight()/allWeeklyPaceSpeed() already use. `actType` passed straight through to
+// weeklyHRZoneTotals/weeklyPaceZoneTotals (see their own v0.34.15 comment).
+// v0.34.20 -- switched the trailing window's upper bound from racePredWeeksElapsed() to
+// trendCalWeek(todayISO()). racePredWeeksElapsed() only counts a week as "elapsed" once EVERY session
+// in it has a date on or before today -- built on purpose for Race Predictions' "how many full weeks
+// of the block have actually happened" question, but that meant a week you're only partway through
+// (with a real activity already logged in it) was excluded from Weekly Zone Time entirely until the
+// whole week's own last scheduled session date had passed. trendCalWeek() is pure calendar-week math
+// (which real Monday-Sunday week does today fall in), so the current in-progress week shows up the
+// moment it has any real zone data, exactly like Activity Trends already behaves.
 function zoneTimeTrendWeeks(type,weekCount,actType){
-  const weeksElapsed=racePredWeeksElapsed();
+  const weeksElapsed=trendCalWeek(todayISO());
   if(!weeksElapsed) return [];
   const startWk=Math.max(1,weeksElapsed-weekCount+1);
   const out=[];
@@ -3713,7 +3749,14 @@ function renderZoneTrendDonut(type,weeksData,wk){
   const weekEntry=weeksData.find(w=>w.wk===wk)||weeksData[weeksData.length-1];
   const zones=zonesWithPct(weekEntry.zones);
   const selIdx=ZONE_TREND_SELIDX[type];
-  const weekPicker=weeksData.length>1?`<div class="trend-pills" style="margin-bottom:10px">${weeksData.map(w=>`<button class="trend-pill${w.wk===weekEntry.wk?' active':''}" onclick="selectZoneTrendWeek('${type}',${w.wk})">W${w.wk}</button>`).join('')}</div>`:'';
+  // v0.34.20 -- Dylon: "make the weekly zone card similar to the Race prediction card with the buttom
+  // bar that select the period week 1/ week 2/ etc. use this design for cards that have week / date
+  // filters." Reuses the exact rpred-range-bar/rpred-range-btn segmented-control style the Race
+  // Predictions trend chart's own 2W/4W/Block toggle already established, instead of the plain
+  // trend-pill row every other filter on this card (Total/Runs/Walks, Heart Rate/Pace) still uses --
+  // this one specifically picks a WEEK, the same kind of date-range navigation rpred-range-bar was
+  // built for, so it gets that look instead of a generic filter-pill look.
+  const weekPicker=weeksData.length>1?`<div class="rpred-range-bar" style="margin-bottom:10px">${weeksData.map(w=>`<button type="button" class="rpred-range-btn${w.wk===weekEntry.wk?' active':''}" onclick="selectZoneTrendWeek('${type}',${w.wk})">W${w.wk}</button>`).join('')}</div>`:'';
   const size=ACT_HRZONE_DONUT_SIZE,cx=size/2,cy=size/2,rOuter=ACT_HRZONE_DONUT_R_OUTER,rInner=ACT_HRZONE_DONUT_R_INNER;
   const slices=activityHRZonePieSlices(zones).filter(s=>s.sweepDeg>0.05);
   const hasSel=selIdx!=null?' has-selection':'';
@@ -3722,7 +3765,11 @@ function renderZoneTrendDonut(type,weeksData,wk){
     const color=ZONE_TREND_BAR_COLORS[s.idx]||'--accent';
     const z=s.zone;
     const sel=selIdx===s.idx?' selected':'';
-    return `<path class="hrzone-slice${sel}" data-idx="${s.idx}" d="${d}" fill="var(${color})" stroke="var(--s1)" stroke-width="2" onclick="selectZoneTrendSlice('${type}',${s.idx})"><title>${escAttr(z.label)} · ${escAttr(z.name)}: ${fmtDurationSec(z.sec)} (${z.pct}%)</title></path>`;
+    // vector-effect="non-scaling-stroke" keeps the 2px separator a crisp, uniform 2px all the way
+    // around the ring even though the <svg> itself gets stretched horizontally below (preserveAspect-
+    // Ratio="none") -- without it, the stroke would visibly thin/thicken depending on where a given
+    // point on the ring's curve sits, since the stretch is a real non-uniform coordinate transform.
+    return `<path class="hrzone-slice${sel}" data-idx="${s.idx}" d="${d}" fill="var(${color})" stroke="var(--s1)" stroke-width="2" vector-effect="non-scaling-stroke" onclick="selectZoneTrendSlice('${type}',${s.idx})"><title>${escAttr(z.label)} · ${escAttr(z.name)}: ${fmtDurationSec(z.sec)} (${z.pct}%)</title></path>`;
   }).join('');
   const totalSec=zones.reduce((s,z)=>s+z.sec,0);
   const hasSelZone=selIdx!=null&&zones[selIdx]&&zones[selIdx].sec>0;
@@ -3741,12 +3788,19 @@ function renderZoneTrendDonut(type,weeksData,wk){
     if(s){
       const midAngle=(s.startAngle+s.endAngle)/2;
       const pt=hrZonePolarPoint(cx,cy,rOuter+16,midAngle);
-      const x=Math.max(30,Math.min(size-30,pt.x));
+      // x is expressed as a % of the wrap's own width, not a fixed px value -- the SVG itself is now
+      // stretched to fill however wide .hrzone-donut-wrap actually renders (see its own v0.34.20
+      // comment), so a px value computed from the original 132-wide viewBox would drift left of where
+      // the wedge visually ends up on anything wider than that. % is resolution-independent: it's
+      // just (viewBox x / viewBox width) either way, which is exactly what preserveAspectRatio="none"
+      // itself uses to map viewBox space onto the real rendered box. y stays in px since the wrap's
+      // height is NOT stretched (still a fixed 132px).
+      const xPct=Math.max(8,Math.min(92,(pt.x/size)*100));
       const y=Math.max(12,Math.min(size-12,pt.y));
-      callout=`<div class="hrzone-callout" style="left:${x.toFixed(1)}px;top:${y.toFixed(1)}px">${escAttr(zones[selIdx].name)} ${fmtDurationSec(zones[selIdx].sec)}</div>`;
+      callout=`<div class="hrzone-callout" style="left:${xPct.toFixed(1)}%;top:${y.toFixed(1)}px">${escAttr(zones[selIdx].name)} ${fmtDurationSec(zones[selIdx].sec)}</div>`;
     }
   }
-  const donut=`<div class="hrzone-donut-wrap"><svg class="hrzone-pie${hasSel}" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">${paths}</svg>${center}${callout}</div>`;
+  const donut=`<div class="hrzone-donut-wrap"><svg class="hrzone-pie${hasSel}" width="100%" height="${size}" viewBox="0 0 ${size} ${size}" preserveAspectRatio="none">${paths}</svg>${center}${callout}</div>`;
   const legend=zones.map((z,i)=>{
     const color=ZONE_TREND_BAR_COLORS[i]||'--accent';
     const sel=selIdx===i;
@@ -5956,6 +6010,11 @@ let SESS_ATTACH_OPEN=false;
 // whenever a different session is opened, so leaving one session collapsed never carries over and
 // collapses the next session's own Details on first look.
 let LOG_DETAILS_OPEN=null;
+// v0.34.20 -- Dylon: "Add ability to edit distances and paces in plans. Like i want to adapt my plan
+// to add a bit more mileage i chould be able to do so to specific actiities." Whether the Details
+// section's "Edit Planned Target" form (planEditFieldsHTML/savePlanEdits, easy/long sessions only) is
+// currently expanded. Same reset-on-different-session pattern as LOGGED_DATA_OPEN/SESS_ATTACH_OPEN.
+let PLAN_EDIT_OPEN=false;
 let CURR_TREND='run';
 let CURR_TREND_WK=null;
 let CURR_RUN_SUBTAB='vol';
@@ -7709,10 +7768,16 @@ function activityHRZoneDonutSVG(zones,idPrefix,activityId,selIdx){
     const color=ZONE_TREND_BAR_COLORS[s.idx]||'--accent';
     const z=s.zone;
     const sel=selIdx===s.idx?' selected':'';
-    return `<path class="hrzone-slice${sel}" data-idx="${s.idx}" d="${d}" fill="var(${color})" stroke="var(--s1)" stroke-width="2" onclick="selectActivityHRZoneSlice('${idPrefix}','${activityId}',${s.idx})"><title>${escAttr(z.label)} · ${escAttr(z.name)}: ${fmtDurationSec(z.sec)} (${z.pct}%)</title></path>`;
+    // vector-effect="non-scaling-stroke" -- see renderZoneTrendDonut's own v0.34.20 comment for why:
+    // keeps the 2px separator uniform despite the horizontal stretch below.
+    return `<path class="hrzone-slice${sel}" data-idx="${s.idx}" d="${d}" fill="var(${color})" stroke="var(--s1)" stroke-width="2" vector-effect="non-scaling-stroke" onclick="selectActivityHRZoneSlice('${idPrefix}','${activityId}',${s.idx})"><title>${escAttr(z.label)} · ${escAttr(z.name)}: ${fmtDurationSec(z.sec)} (${z.pct}%)</title></path>`;
   }).join('');
   const hasSel=selIdx!=null?' has-selection':'';
-  return `<svg class="hrzone-pie${hasSel}" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">${paths}</svg>`;
+  // v0.34.20 -- Dylon: "Make pie charts more oval shape to take up space (width across its card
+  // container) sor of like a standard race track." See .hrzone-donut-wrap's own CSS comment for the
+  // full reasoning -- width:100% + preserveAspectRatio="none" stretches this still-perfectly-circular
+  // geometry into a wide oval to fill the card, no new coordinate math needed.
+  return `<svg class="hrzone-pie${hasSel}" width="100%" height="${size}" viewBox="0 0 ${size} ${size}" preserveAspectRatio="none">${paths}</svg>`;
 }
 function activityHRZoneDonutOverlayHTML(zones,selIdx){
   if(selIdx==null||!zones[selIdx]||!(zones[selIdx].sec>0)){
@@ -7732,9 +7797,12 @@ function activityHRZoneDonutOverlayHTML(zones,selIdx){
   const s=slices[selIdx];
   const midAngle=(s.startAngle+s.endAngle)/2;
   const pt=hrZonePolarPoint(cx,cy,rOuter+16,midAngle);
-  const x=Math.max(30,Math.min(size-30,pt.x));
+  // x in % of the wrap's own width, not px -- see renderZoneTrendDonut's own v0.34.20 comment for why
+  // (the SVG is now stretched to the wrap's real rendered width via preserveAspectRatio="none", so a
+  // px value computed from the original 132-wide viewBox would drift off target on anything wider).
+  const xPct=Math.max(8,Math.min(92,(pt.x/size)*100));
   const y=Math.max(12,Math.min(size-12,pt.y));
-  const callout=`<div class="hrzone-callout" style="left:${x.toFixed(1)}px;top:${y.toFixed(1)}px">${escAttr(z.name)} ${fmtDurationSec(z.sec)}</div>`;
+  const callout=`<div class="hrzone-callout" style="left:${xPct.toFixed(1)}%;top:${y.toFixed(1)}px">${escAttr(z.name)} ${fmtDurationSec(z.sec)}</div>`;
   return center+callout;
 }
 // Static bpm-range legend row -- pulled from currentHRZones() (the same numbers Profile's list
@@ -11754,6 +11822,12 @@ function activityStatRowsHTML(a,opts){
     ['Max HR',a.maxHr?a.maxHr+' bpm':''],
     ['Avg Power',a.avgPower?a.avgPower+' W':''],
     ['Max Power',a.maxPower?a.maxPower+' W':''],
+    // v0.34.20 -- a.avgCadence is a manually-entered field (see openActivityDetail's edit form) --
+    // unlike avgHr/avgPower above (filled in by the import parser from the file's own stream), no
+    // importer here ever computed a scalar cadence average, so this only ever shows a value the user
+    // typed in themselves. Dylon: "would be nice if i can add my own data to an uploaded activity
+    // e.g. cadence even if it doesnt come in the tcx file."
+    ['Cadence',a.avgCadence?a.avgCadence+' spm':''],
     ['Elevation gain',a.elevationGainM?a.elevationGainM+' m':''],
     ['Temperature',(a.minTempC!==null&&a.minTempC!==undefined)?a.minTempC+'–'+a.maxTempC+'°C':(a.weather?a.weather.minC+'–'+a.weather.maxC+'°C (estimated)':'')],
     ['Calories',a.calories?a.calories:''],
@@ -12043,16 +12117,30 @@ function openActivityDetail(id){
   OPEN_ACTIVITY_ID=id;
   const roleTxt=a.role==='unplanned'?'Unplanned — not linked to any planned session':(a.role==='fulfillment'?'Completes a planned session':'Attached to a planned session');
   const needsWeather=(a.minTempC===null||a.minTempC===undefined)&&!a.weather;
-  // Edit form: Name, Shoe worn, Perceived Exertion, Tags, and private Notes -- reusing the exact same
-  // components a hand-logged run/walk's own Quick Add form already uses for these fields
+  // Edit form: Name, Shoe worn, Cadence, Perceived Exertion, Tags, and private Notes -- reusing the
+  // exact same components a hand-logged run/walk's own Quick Add form already uses for these fields
   // (shoeSelectOptions/rpeSliderHTML/QA_TAGS), just applied to an imported Activity instead of an
   // EXTRALOGS entry, per Dylon: "shoes is missing from this as well so if we can add shoes, tags and
   // rpe scale and all the other manually editable activity information just like strava."
+  // v0.34.20 -- Shoe worn (and, new this round, Cadence) are now only shown for movement types that
+  // actually wear a shoe/have a step cadence (run/walk/workout) -- Dylon: "Different details for
+  // different activity types e.g. mobility & strength don't need shoes." Importing a Strength or
+  // Mobility/Yoga session used to show the exact same Shoe dropdown a Run gets, which never made
+  // sense (see activityTypeWearsFootwear()'s own comment for the exact type list this scopes to).
+  // Cadence is a NEW manually-entered field (a.avgCadence) -- Dylon: "would be nice if i can add my
+  // own data to an uploaded activity e.g. cadence even if it doesnt come in the tcx file." Unlike
+  // avgHr/avgPower/elevationGainM (already scalar fields the import parser itself fills in from the
+  // file's own stream), no importer here ever computed a scalar average cadence from stream.cadence[]
+  // -- so there was no field to type a value into even when the file was missing it entirely. This
+  // adds that missing scalar field, editable the same way Shoe/RPE/Notes already are, shown in
+  // activityStatRowsHTML's own detail rows (see its own v0.34.20 comment) whenever it's set.
+  const wearsFootwear=activityTypeWearsFootwear(a.type);
   const editBlock=ACT_EDIT_MODE
     ? `<div style="margin-bottom:4px">
         <div class="field"><label>Name</label><input type="text" id="act-name-input" value="${escAttr(a.title||'')}" placeholder="${escAttr(ACTIVITY_TYPE_LABELS[a.type]||'Activity')}"></div>
         <div class="field"><label>Type</label><select id="act-edit-type">${ACTIVITY_TYPES.map(t=>`<option value="${t}"${a.type===t?' selected':''}>${ACTIVITY_TYPE_LABELS[t]}</option>`).join('')}</select></div>
-        <div class="field"><label>Shoe worn</label><select id="act-edit-shoe">${shoeSelectOptions(a.shoe||'',true)}</select></div>
+        ${wearsFootwear?`<div class="field"><label>Shoe worn</label><select id="act-edit-shoe">${shoeSelectOptions(a.shoe||'',true)}</select></div>`:''}
+        ${wearsFootwear?`<div class="field"><label>Avg cadence (spm) <span style="text-transform:none;font-weight:400">(optional)</span></label><input type="number" id="act-edit-cadence" value="${a.avgCadence||''}" placeholder="172"></div>`:''}
         ${rpeSliderHTML('act-edit',a.rpe)}
         <div class="field"><label>Tags</label><div class="qa-tagrow">${QA_TAGS.map(t=>`<button type="button" class="qa-tag${ACT_EDIT_TAGS.has(t.key)?' active':''}" onclick="toggleActEditTag(this,'${t.key}')">${t.label}</button>`).join('')}</div></div>
         <div class="field"><label>Notes</label><textarea id="act-edit-notes" placeholder="Anything worth remembering...">${escAttr(a.notes||'')}</textarea></div>
@@ -12123,6 +12211,12 @@ function saveActivityDetailsInline(id){
   if(typeSel && ACTIVITY_TYPES.includes(typeSel.value)) a.type=typeSel.value;
   const shoeSel=document.getElementById('act-edit-shoe');
   if(shoeSel) a.shoe=shoeSel.value||'';
+  // Cadence field only exists in the DOM for footwear-wearing types (activityTypeWearsFootwear) --
+  // same guarded-by-existence pattern every other optional field on this form already uses, so
+  // switching Type away from a footwear type simply leaves whatever was already saved untouched
+  // rather than wiping it (the field isn't in the DOM to read from either way).
+  const cadenceInput=document.getElementById('act-edit-cadence');
+  if(cadenceInput) a.avgCadence=cadenceInput.value?parseFloat(cadenceInput.value):undefined;
   const rpeHidden=document.getElementById('act-edit-rpe');
   if(rpeHidden) a.rpe=rpeHidden.value||'';
   const notesInput=document.getElementById('act-edit-notes');
@@ -16649,6 +16743,43 @@ function toggleLogDetails(id){
   LOG_DETAILS_OPEN=!logDetailsOpen(id);
   openLog(id);
 }
+function togglePlanEdit(id){
+  PLAN_EDIT_OPEN=!PLAN_EDIT_OPEN;
+  openLog(id);
+}
+// v0.34.20 -- Dylon: "Add ability to edit distances and paces in plans. Like i want to adapt my plan
+// to add a bit more mileage i chould be able to do so to specific actiities." Distance edits the
+// session's own `dist` string directly (the exact field runSteps()'s Main step text and
+// recalcBlockDerived()'s mileage total both already read) -- typing "10-11 km" instead of the
+// original "9-10 km" immediately shows up both in the step breakdown and in the block's own planned-
+// mileage total on the very next render, no separate "override" concept needed since dist already IS
+// the one source both of those read. Pace/notes edits the session's `det` field -- where a pace or HR
+// note already lives as free text for Easy/Long sessions (see sessionAerobicHRNote()), so typing a new
+// target pace here (e.g. "AM, target 5:45/km") flows straight into the Main step's sub-line exactly
+// like the plan's own original text did.
+function planEditFieldsHTML(s){
+  return `<div class="field"><label>Distance</label><input type="text" id="pe-dist" value="${escAttr(s.dist||'')}" placeholder="e.g. 9-10 km"></div>
+    <div class="field"><label>Notes / pace <span style="text-transform:none;font-weight:400">(optional)</span></label><textarea id="pe-det" placeholder="e.g. AM, flat route, target 5:45/km">${escAttr(s.det||'')}</textarea></div>`;
+}
+function savePlanEdits(id){
+  const s=findSess(id);
+  if(!s) return;
+  const distVal=(document.getElementById('pe-dist')||{}).value;
+  const detVal=(document.getElementById('pe-det')||{}).value;
+  s.dist=(distVal||'').trim()||undefined;
+  s.det=(detVal||'').trim();
+  // findSess() can return a session from ANY block (it falls back to searching every block, not just
+  // the active one, so browsing a historical block's own sessions still works) -- find whichever block
+  // object actually owns this exact session reference rather than assuming it's the active one, so
+  // recalcBlockDerived() recomputes the right block's mileagePlan.
+  const owner=BLOCKS.find(b=>(b.sessions||[]).includes(s))||getActiveBlock();
+  if(owner) recalcBlockDerived(owner);
+  saveSeasonsBlocks();
+  PLAN_EDIT_OPEN=false;
+  showToast('Plan updated');
+  renderAll();
+  openLog(id);
+}
 // Saves whatever's currently in the inline Logged Data form without touching the sheet's own
 // open/close state or the session's status — unlike completeSession/saveLog, which both close the
 // sheet and (for completeSession) force status to done. Editing already-logged data shouldn't do
@@ -16761,7 +16892,7 @@ function detachActivityFromSession(activityId,sessionId){
   showToast('Unlinked');
 }
 function openLog(id){
-  if(CURR_LOG_ID!==id){ LOGGED_DATA_OPEN=false; SESS_ATTACH_OPEN=false; LOG_DETAILS_OPEN=null; }
+  if(CURR_LOG_ID!==id){ LOGGED_DATA_OPEN=false; SESS_ATTACH_OPEN=false; LOG_DETAILS_OPEN=null; PLAN_EDIT_OPEN=false; }
   CURR_LOG_ID=id;
   const s=findSess(id);
   if(!s) return;
@@ -16826,6 +16957,23 @@ function openLog(id){
   </div>`;
   if(detailsOpen){
     body+=quickStatsHTML(s)+equipRowHTML(s);
+    // Edit Planned Target -- Dylon: "Add ability to edit distances and paces in plans. Like i want to
+    // adapt my plan to add a bit more mileage i chould be able to do so to specific actiities." Scoped
+    // to Easy/Long sessions only (not Quality -- its real prescription lives in QUALITY_CFG's reps/
+    // pace, not a plain dist string, so editing s.dist alone wouldn't change the actual workout; not
+    // Race -- that's a view onto RACES_LIST, already editable via "Edit Race Details" above; not
+    // Strength/Rest/Mobility -- they don't carry a dist string to begin with). findSess() returns a
+    // live reference straight into whichever block actually owns this session (recalcBlockDerived()
+    // afterward keeps mileagePlan in sync, exactly like every other block-adjustment feature already
+    // mutates b.sessions directly), so the edit is immediately reflected everywhere this session's
+    // data is read (Schedule, Today, this same Details view) on the very next render.
+    if(s.ty==='easy'||s.ty==='long'){
+      body+=`<button class="btn btn-ghost btn-block" style="margin-top:10px" onclick="togglePlanEdit('${id}')">${PLAN_EDIT_OPEN?'Hide Edit Target':'Edit Planned Distance / Pace'}</button>`;
+      if(PLAN_EDIT_OPEN){
+        body+=`<div class="card" style="margin-top:10px">${planEditFieldsHTML(s)}</div>`;
+        body+=`<button class="btn btn-primary btn-block" style="margin-top:10px" onclick="savePlanEdits('${id}')">Save Changes</button>`;
+      }
+    }
     body+=renderStepsHTML(stepsFor(s),s.id);
   }
   const note=coachNoteFor(s);

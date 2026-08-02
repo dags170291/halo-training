@@ -1630,7 +1630,21 @@
 // into each session's own det field when the block was authored, never wired to the HR Zone
 // Calculator. New sessionAerobicHRNote() strips that embedded text and replaces it with a live Zone 2
 // (Aerobic/Endurance) range from currentHRZones(), wired into stepsFor()'s easy/long branch.
-const CACHE_NAME = 'halo-0.34.19-alpha.1';
+// v0.34.20 -- a batch of 2 bugs + 4 features from one round of feedback. Bugs: (1) Weekly Zone Time
+// excluded the current in-progress week until every session in it had already happened -- switched to
+// trendCalWeek()/activitiesForTrendWeek() (pure calendar-week math) so a logged activity shows up mid-
+// week, not after it ends. (2) w5d0 (the Sunday right after the Mayaro Coconut Run race) was an Easy
+// Recovery Run with stale "day after Saturday's long run" text -- changed to a proper Rest day, since
+// racing the day before earns full rest. Features: session distance/pace are now editable per-session
+// (planEditFieldsHTML/savePlanEdits, Easy/Long sessions) so the plan can be adapted without a full re-
+// upload; the activity edit form's Shoe/Cadence fields are now scoped to footwear-wearing types only
+// (activityTypeWearsFootwear) instead of showing for Strength/Mobility too; a new manually-entered
+// a.avgCadence field lets you add cadence data an imported file didn't include; Weekly Zone Time's week
+// picker now uses the same rpred-range-bar segmented-control style Race Predictions' 2W/4W/Block
+// toggle already established; and both HR-zone donut charts (Weekly Zone Time + per-activity Effort
+// card) now stretch to a wide oval spanning the card's width via preserveAspectRatio="none", instead
+// of a fixed 132x132 square.
+const CACHE_NAME = 'halo-0.34.20-alpha.1';
 const APP_SHELL = [
   './index.html',
   './manifest.webmanifest',

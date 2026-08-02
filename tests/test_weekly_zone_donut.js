@@ -35,6 +35,12 @@ function isoDaysAgo(baseISO, n) {
   d.setDate(d.getDate() - n);
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
+// v0.34.20 -- zoneTimeTrendWeeks() switched from racePredWeeksElapsed()/activitiesForWeek() (nearest-
+// session matching) to trendCalWeek()/activitiesForTrendWeek() (pure Monday-Sunday calendar math), so
+// this fixture's dates need to land on real calendar-week boundaries relative to a Monday-aligned
+// BLOCK_START, same pattern test_activity_trends_calendar_week.js already established -- arbitrary
+// "N days ago" offsets no longer reliably land in the week number DATA claims for them.
+function mondayOf(iso) { const d = new Date(iso + 'T12:00:00'); const wd = (d.getDay() + 6) % 7; d.setDate(d.getDate() - wd); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
 
 (async () => {
   const win = makeWindow();
@@ -43,15 +49,17 @@ function isoDaysAgo(baseISO, n) {
   win.eval(`window.renderAll = function(){};`);
 
   const today = win.eval(`todayISO()`);
-  const week1Date = isoDaysAgo(today, 14);
-  const week2Date = isoDaysAgo(today, 7);
-  const blockEnd = isoDaysAgo(today, -14);
+  const todayMonday = mondayOf(today);
+  const week1Date = isoDaysAgo(todayMonday, 14); // Monday of "two calendar weeks ago"
+  const week2Date = isoDaysAgo(todayMonday, 7); // Monday of "last calendar week"
+  const blockEnd = isoDaysAgo(today, -60);
 
   win.eval(`
     BLOCKS=[{id:'b1',name:'Test Block',startDate:'${week1Date}',endDate:'${blockEnd}',sessions:[
       {id:'s1',wk:1,ty:'easy',date:'${week1Date}',ph:'dur'},
-      {id:'s2',wk:2,ty:'easy',date:'${week2Date}',ph:'dur'}
-    ],mileagePlan:{1:20,2:20}}];
+      {id:'s2',wk:2,ty:'easy',date:'${week2Date}',ph:'dur'},
+      {id:'s3',wk:3,ty:'easy',date:'${todayMonday}',ph:'dur'}
+    ],mileagePlan:{1:20,2:20,3:20}}];
     DATA=BLOCKS[0].sessions; ACTIVE_BLOCK_ID='b1'; BLOCK_START='${week1Date}'; BLOCK_END='${blockEnd}';
     STATUS={}; NOTES={};
     EXTRALOGS=[{id:'x1',kind:'run',dist:5,pace:'5:00',date:'${week1Date}'}];
@@ -104,6 +112,15 @@ function isoDaysAgo(baseISO, n) {
   const t3HasWeekPicker = /selectZoneTrendWeek\('hr',1\)/.test(cardHTML) && /selectZoneTrendWeek\('hr',2\)/.test(cardHTML);
   console.log('Test 3 (a week picker with W1/W2 buttons appears once more than one real week has data):',
     t3HasWeekPicker ? 'PASS' : 'FAIL');
+
+  // ---- Test 3b: v0.34.20 -- the week picker reuses the exact rpred-range-bar/rpred-range-btn
+  // segmented-control style the Race Predictions trend chart's own 2W/4W/Block toggle already
+  // established, instead of the generic trend-pill row every other filter on this card still uses.
+  // Dylon: "make the weekly zone card similar to the Race prediction card with the buttom bar that
+  // select the period week 1/ week 2/ etc." ----
+  const t3bHasSegClass = /class="rpred-range-bar"/.test(cardHTML) && /class="rpred-range-btn active"/.test(cardHTML);
+  console.log('Test 3b (the week picker uses the Race Predictions-style segmented range bar, not a plain trend-pill row):',
+    t3bHasSegClass ? 'PASS' : 'FAIL', { hasSegClass: t3bHasSegClass });
 
   // ---- Test 4: tapping a zone (selectZoneTrendSlice) selects it -- the re-rendered card shows that
   // zone's own row marked selected and the donut center switches from the week total to that zone's
@@ -162,6 +179,31 @@ function isoDaysAgo(baseISO, n) {
   const t8PaceOk = /\+\/km$/.test(paceZone1Open) && /^\d+:\d{2}-\d+:\d{2}\/km$/.test(paceZone4Bounded);
   console.log('Test 8 (zoneTrendRangeLabel gives real bpm ranges for HR, and open/bounded pace ranges):',
     (hrRangeMatches && t8PaceOk) ? 'PASS' : 'FAIL', { hrRangeMatches, paceZone1Open, paceZone4Bounded });
+
+  // ---- Test 9: the real bug this round -- Dylon: "weekly zone level should be updated during the
+  // week not after. once an activity is logged during that week it should show up." Week 3 (this
+  // fixture's current, still-in-progress calendar week) has a session dated LATER this week (Sunday)
+  // that hasn't happened yet -- under the OLD racePredWeeksElapsed()-based logic, that would keep the
+  // whole week excluded from the trend until that future session's date passed. Log a real HR activity
+  // TODAY (partway through week 3) and confirm it shows up in zoneTimeTrendWeeks() right away, not
+  // after the week ends. ----
+  win.eval(`
+    DATA.push({id:'s3b',wk:3,ty:'easy',date:'${isoDaysAgo(todayMonday, -6)}',ph:'dur'});
+    (function(){
+      function stream(baseDate, hrVal, points, stepSec){
+        const BASE_T = Date.parse(baseDate+'T06:00:00.000Z');
+        const iso = (sec) => new Date(BASE_T + sec*1000).toISOString();
+        const t = []; for(let i=0;i<points;i++) t.push(iso(i*stepSec));
+        const hr = t.map(()=>hrVal);
+        return {t, lat:[], lon:[], alt:[], distM:[], hr, cadence:[]};
+      }
+      addActivity({type:'run', date:'${today}', durationSec:120, distanceKm:0.4,
+        stream: stream('${today}', 130, 10, 12), source:'import', role:'unplanned'});
+    })();
+  `);
+  const t9Weeks = JSON.parse(win.eval(`JSON.stringify(zoneTimeTrendWeeks('hr',8,'all').map(w=>w.wk))`));
+  console.log('Test 9 (an activity logged partway through the current, still-in-progress week shows up immediately, not after the week ends):',
+    t9Weeks.includes(3) ? 'PASS' : 'FAIL', { t9Weeks, today, todayMonday });
 
   await wait(200);
   win.close();
