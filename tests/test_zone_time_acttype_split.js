@@ -89,7 +89,7 @@ function isoDaysAgo(baseISO, n) {
   // row, defaults to Total, and the donut center shows the combined 270s ("4:30") ----
   const allCardHTML = win.eval(`zoneTimeTrendCardHTML()`);
   const t4HasPills = /selectZoneTrendActType\('all'\)/.test(allCardHTML) && /selectZoneTrendActType\('run'\)/.test(allCardHTML) && /selectZoneTrendActType\('walk'\)/.test(allCardHTML);
-  const t4TotalActive = /trend-pill active" onclick="selectZoneTrendActType\('all'\)"/.test(allCardHTML);
+  const t4TotalActive = /zonewk-acttype-pill active" onclick="selectZoneTrendActType\('all'\)"/.test(allCardHTML);
   const t4ShowsCombined = /4:30/.test(allCardHTML);
   console.log('Test 4 (with real walk data, the card shows Total/Runs/Walks pills, defaults to Total, shows the combined time):',
     (t4HasPills && t4TotalActive && t4ShowsCombined) ? 'PASS' : 'FAIL', { t4HasPills, t4TotalActive, t4ShowsCombined });
@@ -97,7 +97,7 @@ function isoDaysAgo(baseISO, n) {
   // ---- Test 5: tapping Runs re-renders scoped to just the run's own 90s ("1:30") ----
   win.eval(`selectZoneTrendActType('run')`);
   const runCardHTML = win.eval(`zoneTimeTrendCardHTML()`);
-  const t5RunActive = /trend-pill active" onclick="selectZoneTrendActType\('run'\)"/.test(runCardHTML);
+  const t5RunActive = /zonewk-acttype-pill active" onclick="selectZoneTrendActType\('run'\)"/.test(runCardHTML);
   const t5ShowsRunOnly = /1:30/.test(runCardHTML) && !/3:00/.test(runCardHTML);
   console.log('Test 5 (tapping Runs scopes the donut to just the run\'s own 90s):',
     (t5RunActive && t5ShowsRunOnly) ? 'PASS' : 'FAIL', { t5RunActive, t5ShowsRunOnly });
@@ -105,7 +105,7 @@ function isoDaysAgo(baseISO, n) {
   // ---- Test 6: tapping Walks re-renders scoped to just the walk's own 180s ("3:00") ----
   win.eval(`selectZoneTrendActType('walk')`);
   const walkCardHTML = win.eval(`zoneTimeTrendCardHTML()`);
-  const t6WalkActive = /trend-pill active" onclick="selectZoneTrendActType\('walk'\)"/.test(walkCardHTML);
+  const t6WalkActive = /zonewk-acttype-pill active" onclick="selectZoneTrendActType\('walk'\)"/.test(walkCardHTML);
   const t6ShowsWalkOnly = /3:00/.test(walkCardHTML) && !/1:30/.test(walkCardHTML);
   console.log('Test 6 (tapping Walks scopes the donut to just the walk\'s own 180s):',
     (t6WalkActive && t6ShowsWalkOnly) ? 'PASS' : 'FAIL', { t6WalkActive, t6ShowsWalkOnly });

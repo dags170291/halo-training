@@ -51,10 +51,13 @@ function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
   const strId = win.eval(`ACTIVITIES.find(a=>a.type==='strength').id`);
   const mobId = win.eval(`ACTIVITIES.find(a=>a.type==='mobility').id`);
 
-  // ---- Test 1: activityTypeWearsFootwear correctly scopes to run/walk/workout only ----
+  // ---- Test 1: activityTypeWearsFootwear correctly scopes to run/walk only -- v0.34.22, Dylon:
+  // "remove shoes from workouts to match the other activity types that we edited," dropping 'workout'
+  // out of the footwear-eligible list (v0.34.20 had kept it in as a "could be done in trainers"
+  // catch-all, which Dylon then rejected for consistency with Strength/Yoga/Mobility). ----
   const t1 = win.eval(`[activityTypeWearsFootwear('run'),activityTypeWearsFootwear('walk'),activityTypeWearsFootwear('workout'),activityTypeWearsFootwear('strength'),activityTypeWearsFootwear('yoga'),activityTypeWearsFootwear('mobility')]`);
-  console.log('Test 1 (activityTypeWearsFootwear: run/walk/workout=true, strength/yoga/mobility=false):',
-    JSON.stringify(t1) === JSON.stringify([true,true,true,false,false,false]) ? 'PASS' : 'FAIL', { t1 });
+  console.log('Test 1 (activityTypeWearsFootwear: run/walk=true, workout/strength/yoga/mobility=false):',
+    JSON.stringify(t1) === JSON.stringify([true,true,false,false,false,false]) ? 'PASS' : 'FAIL', { t1 });
 
   // ---- Test 2: opening the edit form for a RUN activity shows both Shoe and Cadence fields ----
   win.eval(`OPEN_ACTIVITY_ID='${runId}'; ACT_EDIT_MODE=true; ACT_EDIT_TAGS=new Set(); openActivityDetail('${runId}');`);

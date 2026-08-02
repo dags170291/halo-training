@@ -333,6 +333,20 @@ main{flex:1;padding:14px 14px 24px;max-width:560px;width:100%;margin:0 auto}
 /* v0.34.21 -- rounded-square swatch (not a circular dot) to match Dylon's stadium-redesign mockup,
    which shows a small rounded-square color chip per zone row in the legend. */
 .zonewk-legend-dot{width:11px;height:11px;border-radius:3px;flex-shrink:0}
+/* v0.34.22 -- Total/Running/Walking pills, redesigned to match Dylon's full zone-card mockup: a
+   black(-ish, theme-aware)-outlined pill row instead of the generic filled .trend-pill look every
+   other filter on the app uses. Uses --t1 (the theme's own primary text color) rather than a literal
+   black so it still reads correctly in dark theme (white outline/text there) -- same "black in light
+   theme, light in dark theme" trick .stat-card-streak's flame badge already relies on via --am. */
+.zonewk-acttype-pills{display:flex;gap:8px;margin-bottom:14px}
+.zonewk-acttype-pill{flex:1;text-align:center;padding:8px 4px;border:1.5px solid var(--t1);border-radius:999px;background:transparent;color:var(--t1);font-family:var(--font);font-size:11.5px;font-weight:800;letter-spacing:.3px;text-transform:uppercase;-webkit-tap-highlight-color:transparent}
+.zonewk-acttype-pill.active{background:var(--t1);color:var(--s1)}
+/* Heart Rate/Pace toggle, redesigned to match the same mockup: two individually-rounded capsule
+   buttons (not one shared pill-bar container like rpred-range-bar/the week picker below) -- the active
+   one fills solid blue (--dur) with white text, the inactive one sits as a plain light-grey pill. */
+.zonewk-scheme-toggle{display:flex;gap:8px;justify-content:center;margin:14px 0 12px}
+.zonewk-scheme-btn{padding:8px 22px;border:none;border-radius:999px;background:var(--s2);color:var(--t3);font-family:var(--font);font-size:11.5px;font-weight:800;letter-spacing:.3px;text-transform:uppercase;-webkit-tap-highlight-color:transparent}
+.zonewk-scheme-btn.active{background:var(--dur);color:#fff}
 
 /* ── quick add (ad-hoc run/walk/weight logging) ── */
 .qa-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:4px}
@@ -475,14 +489,27 @@ main{flex:1;padding:14px 14px 24px;max-width:560px;width:100%;margin:0 auto}
    width changed between v0.34.6 and v0.34.7/8, never the type scale of its text. Uses the theme's own
    --am/--am2/--am3 tokens for the gradient/badge/text either way, so it reads as the same warm
    cream-to-peach card in light theme and an equivalent dark-amber version in dark theme. ── */
-.stat-card-streak{display:flex;align-items:center;gap:10px;cursor:pointer;background:linear-gradient(135deg,var(--am3),var(--am2));border-color:var(--am2)}
+/* v0.34.22 -- Dylon sent a new mockup for this card: a wide, two-grid-cell-spanning hero (icon badge +
+   N DAYS/N WEEKS on the left, a "View This Month's Streak" link with a small dot-grid calendar preview
+   on the right), replacing the single-grid-cell version v0.34.7 shipped. grid-column:1/-1 spans both
+   .stat-grid columns (same technique the full-width backup-nudge card below already used), rather than
+   going back to a fully standalone card outside .stat-grid -- it still needs to sit IN the grid's own
+   flow, just twice as wide as a normal cell. */
+.stat-card-streak{grid-column:1 / -1;display:flex;align-items:center;justify-content:space-between;gap:18px;cursor:pointer;background:linear-gradient(100deg,var(--s1) 0%,var(--am3) 55%,var(--am2) 100%);border-color:var(--am2)}
+.streak-hero-left{display:flex;align-items:center;gap:10px;min-width:0}
 .streak-hero-badge{width:38px;height:38px;border-radius:50%;background:var(--am2);color:var(--am);display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .streak-hero-badge svg{width:21px!important;height:21px!important}
-.streak-hero-info{flex:1;min-width:0}
-.streak-hero-days{font-size:22px;font-weight:800;letter-spacing:.2px;color:var(--am);line-height:1.15;font-variant-numeric:tabular-nums}
+.streak-hero-info{min-width:0}
+.streak-hero-days{font-size:22px;font-weight:800;letter-spacing:.2px;color:var(--am);line-height:1.15;font-variant-numeric:tabular-nums;white-space:nowrap}
 .streak-hero-div{height:1px;width:28px;max-width:70%;background:var(--am2);margin:3px 0}
 .streak-hero-weeks{font-size:12.5px;font-weight:600;letter-spacing:.1px;color:var(--am);opacity:.85;white-space:nowrap}
-.streak-hero-chevron{width:16px;height:16px;color:var(--am);flex-shrink:0}
+.streak-hero-chevron{width:14px;height:14px;color:var(--am);flex-shrink:0}
+.streak-hero-cal{display:flex;flex-direction:column;align-items:flex-end;gap:9px;flex-shrink:0}
+.streak-hero-cal-link{display:flex;align-items:center;gap:2px;font-size:11px;font-weight:800;letter-spacing:.1px;color:var(--am);white-space:nowrap}
+.streak-hero-cal-dots{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+.smcal-dot{width:8px;height:8px;border-radius:50%;background:var(--am2)}
+.smcal-dot.active{background:var(--am)}
+.smcal-dot.empty{background:transparent}
 .streak-page-hero{display:flex;flex-direction:column;align-items:center;text-align:center;padding:6px 0 4px}
 .streak-page-flame{width:64px;height:64px;border-radius:50%;background:var(--am2);color:var(--am);display:flex;align-items:center;justify-content:center;margin-bottom:12px}
 .streak-page-flame svg{width:34px;height:34px}
@@ -1565,7 +1592,7 @@ main{flex:1;padding:14px 14px 24px;max-width:560px;width:100%;margin:0 auto}
    session-style restyle, race-target connection, iOS install fix, icon redesign, onboarding flow).
    APP_STAGE is 'alpha.N' pre-launch, bump N each time you hand a build to a real tester (Dylon's
    sister counts); once launched, APP_VERSION resets to 1.0.0 and APP_STAGE becomes ''. */
-const APP_VERSION='0.34.21';
+const APP_VERSION='0.34.22';
 const APP_STAGE='alpha.1';
 const APP_VERSION_DATE='2026-08-02';
 /* ═══════════════════════════ DATA ═══════════════════════════ */
@@ -2856,11 +2883,12 @@ const ACTIVITY_ROLES=['fulfillment','accessory','unplanned'];
 const ACTIVITY_TYPE_LABELS={run:'Run',walk:'Walk',strength:'Strength',yoga:'Yoga',mobility:'Mobility',workout:'Workout'};
 // v0.34.20 -- Dylon: "Different details for different activity types e.g. mobility & strength don't
 // need shoes." The activity edit form's Shoe (and new Cadence) fields used to show for every type
-// unconditionally, including Strength/Yoga/Mobility where neither one is meaningful. 'run'/'walk' are
-// the obvious cases; 'workout' stays included too since it's the catch-all for anything cardio/gym-
-// floor that could plausibly be done in trainers (e.g. a treadmill or elliptical session) -- only the
-// genuinely static/floor-based types (strength, yoga, mobility) are excluded.
-function activityTypeWearsFootwear(type){ return type==='run'||type==='walk'||type==='workout'; }
+// unconditionally, including Strength/Yoga/Mobility where neither one is meaningful. v0.34.20 kept
+// 'workout' in this list too (the catch-all for anything cardio/gym-floor, reasoning it could
+// plausibly be done in trainers), but v0.34.22 -- Dylon: "remove shoes from workouts to match the
+// other activity types that we edited" -- corrected that: Workout drops out too, same as Strength/
+// Yoga/Mobility, leaving only 'run'/'walk' where a shoe is unambiguously meaningful.
+function activityTypeWearsFootwear(type){ return type==='run'||type==='walk'; }
 function newActivityId(){ return 'act_'+Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
 // Fills in every field of the unified activity shape, same pattern as normalizeRaceRecord — always run
 // anything entering ACTIVITIES through this (imported, manually added, or migrated) so every consumer
@@ -3685,7 +3713,11 @@ function zoneTimeTrendWeeks(type,weekCount,actType){
 // Same low-to-high intensity ramp (blue -> green -> gold -> amber -> orange -> red) the per-activity
 // HR_ZONE_BAR_COLORS/PACE_ZONE_BAR_COLORS bars already use, shared here since a week's zone count can
 // be either scheme's own length (5 for HR, 6 for Pace) and both index the same ramp by zone number.
-const ZONE_TREND_BAR_COLORS=['--dur','--gr','--gold','--am','--ign','--re'];
+// v0.34.22 -- reordered per Dylon's zone-card mockup, which showed a specific low-to-high color per
+// zone (Zone 1 green, Zone 2 blue, Zone 3 gold, Zone 4 orange, Zone 5 red) that didn't match the order
+// this ramp used to be in (Zone 1 was reading as blue, Zone 2 as green -- the first two were swapped
+// relative to the mockup). --am (amber) drops to the 6th slot, only reached by Pace's 6-zone scheme.
+const ZONE_TREND_BAR_COLORS=['--gr','--dur','--gold','--ign','--re','--am'];
 // v0.34.14 -- the original stacked-bar-per-week chart had no legend anywhere on the card itself (only
 // a title="..." hover tooltip on each colored segment, useless on a touchscreen), and Dylon called it
 // out directly with a screenshot of a single flat bar: "this is useless as is there is nothing that
@@ -3744,19 +3776,21 @@ function zoneTrendRangeLabel(type,i){
 // scheme+week instead of by activity id, and with a persistent legend list standing in for the old
 // per-activity chip row (a legend is the right call here since there's no fixed "Effort card" caption
 // underneath to spell out the selected zone the way the per-activity version has).
+// v0.34.22 -- split into three pieces (donut / legend / week picker) instead of one function that
+// concatenated weekPicker+donut+legend in a fixed order. Dylon sent a new mockup putting these in a
+// different order than v0.34.20 shipped (donut first, THEN the Heart Rate/Pace toggle, THEN the
+// legend, THEN the week picker at the very bottom, right above the caption) -- zoneTimeTrendCardHTML
+// now assembles them in whatever order the mockup calls for, with the Heart Rate/Pace toggle slotted
+// in between renderZoneTrendDonut's and zoneTrendLegendHTML's output. All three share the same
+// weekEntry/zones/selIdx resolution via zoneTrendResolvedWeek so they can never disagree about which
+// week or which zone is currently selected.
+function zoneTrendResolvedWeek(type,weeksData,wk){
+  const weekEntry=weeksData.find(w=>w.wk===wk)||weeksData[weeksData.length-1];
+  return {weekEntry,zones:zonesWithPct(weekEntry.zones),selIdx:ZONE_TREND_SELIDX[type]};
+}
 function renderZoneTrendDonut(type,weeksData,wk){
   if(!weeksData.length) return `<div style="font-size:11px;color:var(--t3);text-align:center;padding:20px 0">Not enough zone data yet — log HR or pace on a few more runs.</div>`;
-  const weekEntry=weeksData.find(w=>w.wk===wk)||weeksData[weeksData.length-1];
-  const zones=zonesWithPct(weekEntry.zones);
-  const selIdx=ZONE_TREND_SELIDX[type];
-  // v0.34.20 -- Dylon: "make the weekly zone card similar to the Race prediction card with the buttom
-  // bar that select the period week 1/ week 2/ etc. use this design for cards that have week / date
-  // filters." Reuses the exact rpred-range-bar/rpred-range-btn segmented-control style the Race
-  // Predictions trend chart's own 2W/4W/Block toggle already established, instead of the plain
-  // trend-pill row every other filter on this card (Total/Runs/Walks, Heart Rate/Pace) still uses --
-  // this one specifically picks a WEEK, the same kind of date-range navigation rpred-range-bar was
-  // built for, so it gets that look instead of a generic filter-pill look.
-  const weekPicker=weeksData.length>1?`<div class="rpred-range-bar" style="margin-bottom:10px">${weeksData.map(w=>`<button type="button" class="rpred-range-btn${w.wk===weekEntry.wk?' active':''}" onclick="selectZoneTrendWeek('${type}',${w.wk})">W${w.wk}</button>`).join('')}</div>`:'';
+  const {weekEntry,zones,selIdx}=zoneTrendResolvedWeek(type,weeksData,wk);
   // v0.34.21 -- same true stadium/race-track ring as activityHRZoneDonutSVG (see hrZoneStadiumGeom's
   // own comment) -- Dylon: "it should also look this way for the activity heart rate zones as well,"
   // meaning both this card's donut and the per-activity Effort card's donut need to match.
@@ -3798,8 +3832,12 @@ function renderZoneTrendDonut(type,weeksData,wk){
       callout=`<div class="hrzone-callout" style="left:${xPct.toFixed(1)}%;top:${yPct.toFixed(1)}%">${escAttr(zones[selIdx].name)} ${fmtDurationSec(zones[selIdx].sec)}</div>`;
     }
   }
-  const donut=`<div class="hrzone-donut-wrap"><svg class="hrzone-pie${hasSel}" width="100%" height="100%" viewBox="0 0 ${w} ${h}">${paths}</svg>${center}${callout}</div>`;
-  const legend=zones.map((z,i)=>{
+  return `<div class="hrzone-donut-wrap"><svg class="hrzone-pie${hasSel}" width="100%" height="100%" viewBox="0 0 ${w} ${h}">${paths}</svg>${center}${callout}</div>`;
+}
+function zoneTrendLegendHTML(type,weeksData,wk){
+  if(!weeksData.length) return '';
+  const {zones,selIdx}=zoneTrendResolvedWeek(type,weeksData,wk);
+  const rows=zones.map((z,i)=>{
     const color=ZONE_TREND_BAR_COLORS[i]||'--accent';
     const sel=selIdx===i;
     const range=zoneTrendRangeLabel(type,i);
@@ -3815,7 +3853,16 @@ function renderZoneTrendDonut(type,weeksData,wk){
       </div>
     </div>`;
   }).join('');
-  return `${weekPicker}${donut}<div class="zonewk-legend">${legend}</div>`;
+  return `<div class="zonewk-legend">${rows}</div>`;
+}
+// v0.34.20 -- Dylon: "make the weekly zone card similar to the Race prediction card with the buttom
+// bar that select the period week 1/ week 2/ etc." Reuses the exact rpred-range-bar/rpred-range-btn
+// segmented-control style the Race Predictions trend chart's own 2W/4W/Block toggle already
+// established. v0.34.22 moved this from sitting above the donut to sitting below the legend, per
+// Dylon's newer mockup -- the picker itself is unchanged, just relocated.
+function zoneTrendWeekPickerHTML(type,weeksData,wk){
+  if(weeksData.length<=1) return '';
+  return `<div class="rpred-range-bar" style="margin-top:12px">${weeksData.map(w=>`<button type="button" class="rpred-range-btn${w.wk===wk?' active':''}" onclick="selectZoneTrendWeek('${type}',${w.wk})">W${w.wk}</button>`).join('')}</div>`;
 }
 // Card wrapper for the Progress tab, its own section below Activity Trends -- HR/Pace toggle pills
 // only show when both schemes actually have at least one week of data, same gating pattern the Best
@@ -3827,6 +3874,19 @@ function renderZoneTrendDonut(type,weeksData,wk){
 // zoneTimeTrendWeeks(). Only shown once there's real Walk zone data to actually split out -- otherwise
 // "Runs" would just be a redundant copy of "Total" for anyone who's never logged a walk with HR data,
 // same "don't offer a toggle to an empty view" reasoning the HR/Pace toggle itself already uses.
+// v0.34.22 -- Dylon sent a full redesign mockup for this card and called out that the stadium-donut
+// shape from v0.34.21 was the only part that had actually landed right: "you got the stadium donut
+// right but didnt redesign the rest of the card like i showed in my design with the location of the
+// total, runs walks heart rate and pace buttons ... even the zones them self the colour idicator isnt
+// how i asked." Two fixes: (1) reordered to match the mockup exactly -- Total/Running/Walking pills at
+// the very top, then the donut, THEN the Heart Rate/Pace toggle (was above the donut before), then the
+// always-visible legend, then the week picker (was above the donut before, now sits below the legend),
+// then the caption at the bottom. (2) both pill rows got their own dedicated styling instead of reusing
+// generic .trend-pill -- Total/Running/Walking now match the mockup's black-outline pill look
+// (.zonewk-acttype-pill), and Heart Rate/Pace now match its solid-blue-when-active capsule look
+// (.zonewk-scheme-btn) -- see each class's own CSS comment. The zone color-order fix (Zone 1 green,
+// Zone 2 blue, ...) lives in ZONE_TREND_BAR_COLORS itself, not here, since the donut/legend both read
+// from that single shared array.
 function zoneTimeTrendCardHTML(){
   const actType=CURR_ZONE_TREND_ACTTYPE;
   const hrWeeks=zoneTimeTrendWeeks('hr',8,actType);
@@ -3840,17 +3900,19 @@ function zoneTimeTrendCardHTML(){
   const actLabel=actType==='run'?'Runs':actType==='walk'?'Walks':'Total';
   return `<div class="section-lbl" style="margin-top:14px">Weekly Zone Time</div>
     <div class="card">
-      ${hasWalkData?`<div class="trend-pills" style="margin-bottom:8px">
-        <button class="trend-pill${actType==='all'?' active':''}" onclick="selectZoneTrendActType('all')">Total</button>
-        <button class="trend-pill${actType==='run'?' active':''}" onclick="selectZoneTrendActType('run')">Runs</button>
-        <button class="trend-pill${actType==='walk'?' active':''}" onclick="selectZoneTrendActType('walk')">Walks</button>
-      </div>`:''}
-      ${showToggle?`<div class="trend-pills">
-        <button class="trend-pill${type==='hr'?' active':''}" onclick="selectZoneTrendType('hr')">Heart Rate</button>
-        <button class="trend-pill${type==='pace'?' active':''}" onclick="selectZoneTrendType('pace')">Pace</button>
+      ${hasWalkData?`<div class="zonewk-acttype-pills">
+        <button class="zonewk-acttype-pill${actType==='all'?' active':''}" onclick="selectZoneTrendActType('all')">Total</button>
+        <button class="zonewk-acttype-pill${actType==='run'?' active':''}" onclick="selectZoneTrendActType('run')">Running</button>
+        <button class="zonewk-acttype-pill${actType==='walk'?' active':''}" onclick="selectZoneTrendActType('walk')">Walking</button>
       </div>`:''}
       ${renderZoneTrendDonut(type,weeksData,wk)}
-      <div style="font-size:10.5px;color:var(--t3);margin-top:8px;line-height:1.4">Time spent in each ${type==='pace'?'pace':'heart rate'} zone during Week ${wk}${hasWalkData?` (${actLabel})`:''}, out of your last ${weeksData.length} logged week${weeksData.length===1?'':'s'}. Tap a zone for its share of that week.</div>
+      ${showToggle?`<div class="zonewk-scheme-toggle">
+        <button class="zonewk-scheme-btn${type==='hr'?' active':''}" onclick="selectZoneTrendType('hr')">Heart Rate</button>
+        <button class="zonewk-scheme-btn${type==='pace'?' active':''}" onclick="selectZoneTrendType('pace')">Pace</button>
+      </div>`:''}
+      ${zoneTrendLegendHTML(type,weeksData,wk)}
+      ${zoneTrendWeekPickerHTML(type,weeksData,wk)}
+      <div style="font-size:10.5px;color:var(--t3);margin-top:10px;line-height:1.4">Time spent in each ${type==='pace'?'pace':'heart rate'} zone during Week ${wk}${hasWalkData?` (${actLabel})`:''}, out of your last ${weeksData.length} logged week${weeksData.length===1?'':'s'}. Tap a zone for its share of that week.</div>
     </div>`;
 }
 // A 0..1 "how hard/fast" fraction -> an interpolated color, across the same five-stop low-to-high
@@ -9882,6 +9944,29 @@ function selectTrendMetric(m){ CURR_TREND_METRIC=m; CURR_TREND_WK=null; renderPr
    existing currentStreak()/longestStreak()/dayHasActivity() streak math untouched -- this is purely a
    new view onto numbers the app already computed correctly, not a new streak-counting rule. */
 let STREAK_CAL_Y=null, STREAK_CAL_M=null;
+// v0.34.22 -- mini 7-col dot-grid calendar preview for the wide Progress streak card (see its own CSS
+// comment on .stat-card-streak for the mockup this came from). A simplified, non-interactive version
+// of the Streak page's own real calendar grid: one dot per day of the CURRENT real month, aligned the
+// same Monday-first way, filled (.active, solid --am) for a day dayHasActivity() considers active, pale
+// (--am2, the same "empty" background the badge/legend use elsewhere) for a past-or-today day with
+// nothing logged, and fully transparent (.empty) for both the leading blank cells before day 1 and any
+// day still in the future -- there's nothing to show for a day that hasn't happened yet, so it stays
+// blank rather than rendering a misleading "not done" dot.
+function streakMiniCalDotsHTML(){
+  const now=new Date();
+  const y=now.getFullYear(),m=now.getMonth();
+  const daysInMonth=new Date(y,m+1,0).getDate();
+  const firstWd=(new Date(y,m,1).getDay()+6)%7; // Monday-based, matching every other calendar in the app
+  const todayIso=todayISO();
+  let dots='';
+  for(let i=0;i<firstWd;i++) dots+='<span class="smcal-dot empty"></span>';
+  for(let d=1;d<=daysInMonth;d++){
+    const iso=isoDate(new Date(y,m,d));
+    if(iso>todayIso){ dots+='<span class="smcal-dot empty"></span>'; continue; }
+    dots+=`<span class="smcal-dot${dayHasActivity(iso)?' active':''}"></span>`;
+  }
+  return dots;
+}
 function openStreakPage(){
   const now=new Date();
   STREAK_CAL_Y=now.getFullYear();
@@ -16115,23 +16200,30 @@ function renderProgress(){
   // Stat grid -- v0.34.6 first shipped the streak card as a full-width standalone hero card, matching
   // the visual design (icon badge, "N DAYS", divider, "N WEEKS", chevron) Dylon sent as a mockup. Dylon:
   // "the streak card is too wide it should be the same size as the other grid items without changeing
-  // the design." v0.34.7 puts it back as the grid's 8th cell -- same footprint as every other stat-card
-  // -- while keeping every element of that design (badge, gradient, divider, chevron), just scaled down
-  // to fit (see .stat-card-streak's own CSS comment for the exact sizing).
+  // the design." v0.34.7 put it back as a normal grid cell. v0.34.22 -- a new mockup: "redesign the
+  // streaks card in the grid...extend the streaks card the width of two items in the grid," adding a
+  // "View This Month's Streak" link and a small dot-grid calendar preview on the card's right half
+  // (see streakMiniCalDotsHTML/.stat-card-streak's own CSS comment). Same request also removed the
+  // separate "Block mileage complete %" cell entirely -- it was redundant with the progress bar
+  // already on the Current Block card below, and the streak card now needs the freed-up row space.
   left+=`<div class="stat-grid">
     <div class="stat-card"><div class="stat-num">${done}/${tot}</div><div class="stat-lbl">Sessions logged</div></div>
     <div class="stat-card"><div class="stat-num">${missed}</div><div class="stat-lbl">Missed</div></div>
     <div class="stat-card"><div class="stat-num">${fmtDistNum(cum)}</div><div class="stat-lbl">${distUnit()} logged / ${fmtDistNum(planTotal,0)} planned</div>${runsWalksLine}</div>
-    <div class="stat-card"><div class="stat-num">${Math.round(cum/planTotal*100)||0}%</div><div class="stat-lbl">Block mileage complete</div></div>
     <div class="stat-card"><div class="stat-num">${totalTimeSec?fmtHoursMin(totalTimeSec):'—'}</div><div class="stat-lbl">Total time logged</div></div>
     <div class="stat-card stat-card-streak" onclick="openStreakPage()">
-      <div class="streak-hero-badge">${STREAK_ICON}</div>
-      <div class="streak-hero-info">
-        <div class="streak-hero-days">${curStreak} ${curStreak===1?'DAY':'DAYS'}</div>
-        <div class="streak-hero-div"></div>
-        <div class="streak-hero-weeks">${curWeekStreak} ${curWeekStreak===1?'WEEK':'WEEKS'}</div>
+      <div class="streak-hero-left">
+        <div class="streak-hero-badge">${STREAK_ICON}</div>
+        <div class="streak-hero-info">
+          <div class="streak-hero-days">${curStreak} ${curStreak===1?'DAY':'DAYS'}</div>
+          <div class="streak-hero-div"></div>
+          <div class="streak-hero-weeks">${curWeekStreak} ${curWeekStreak===1?'WEEK':'WEEKS'}</div>
+        </div>
       </div>
-      <svg class="streak-hero-chevron" viewBox="0 -960 960 960" style="fill:currentColor;stroke:none"><path d="M504-480 320-664l56-56 240 240-240 240-56-56 184-184Z"/></svg>
+      <div class="streak-hero-cal">
+        <div class="streak-hero-cal-link">View This Month's Streak <svg class="streak-hero-chevron" viewBox="0 -960 960 960" style="fill:currentColor;stroke:none"><path d="M504-480 320-664l56-56 240 240-240 240-56-56 184-184Z"/></svg></div>
+        <div class="streak-hero-cal-dots">${streakMiniCalDotsHTML()}</div>
+      </div>
     </div>
     ${fitnessTrendStatChipHTML()}
     ${consistencyStatChipHTML()}
@@ -16870,7 +16962,16 @@ function savePlanEdits(id){
   // recalcBlockDerived() recomputes the right block's mileagePlan.
   const owner=BLOCKS.find(b=>(b.sessions||[]).includes(s))||getActiveBlock();
   if(owner) recalcBlockDerived(owner);
-  saveSeasonsBlocks();
+  // v0.34.22 -- Dylon: "now that we can edit distance and pace targets ensure that overall plan
+  // distance calculates as well." recalcBlockDerived() reassigns owner.mileagePlan to a brand NEW
+  // object -- if owner is the active block, the global MILEAGE_PLAN (read by blockPlanTotal(), the
+  // "km logged / planned" stat, and the Current Block progress bar) still pointed at the OLD object
+  // from whenever setActiveBlock() last ran, so an edited session's distance silently never reached
+  // the plan-wide total. Same fix deleteSession()/shiftBlockSchedule() already use for this exact
+  // problem: re-run setActiveBlock() when the edited block is the active one (which also re-persists),
+  // otherwise just persist directly.
+  if(owner && owner.id===ACTIVE_BLOCK_ID) setActiveBlock(ACTIVE_BLOCK_ID);
+  else saveSeasonsBlocks();
   PLAN_EDIT_OPEN=false;
   showToast('Plan updated');
   renderAll();

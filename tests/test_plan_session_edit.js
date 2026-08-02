@@ -114,6 +114,19 @@ function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
   console.log('Test 8 (switching to a different session resets the edit form closed):',
     (wasOpen === true && resetAfterSwitch === false) ? 'PASS' : 'FAIL', { wasOpen, resetAfterSwitch });
 
+  // ---- Test 9: v0.34.22 -- Dylon: "now that we can edit distance and pace targets ensure that
+  // overall plan distance calculates as well." Root cause: recalcBlockDerived() reassigns
+  // owner.mileagePlan to a brand NEW object, but the global MILEAGE_PLAN (what blockPlanTotal() /
+  // the "km logged / planned" stat / the Current Block progress bar all actually read) was a stale
+  // snapshot only ever refreshed by setActiveBlock() -- so BLOCKS[0].mileagePlan (checked in Test 5)
+  // updated correctly, but the app-wide total silently didn't. Confirm blockPlanTotal() itself now
+  // reflects the same edit Test 5 already proved landed on the block object. ----
+  const planTotal = win.eval(`blockPlanTotal()`);
+  // Week 1 = 27 (12 edited + 15 unrelated Long Run) is the only week with any run mileage in this
+  // fixture, so the plan-wide total should be exactly that.
+  console.log('Test 9 (blockPlanTotal() reflects the edited distance, not a stale pre-edit snapshot):',
+    planTotal === 27 ? 'PASS' : 'FAIL', { planTotal });
+
   await wait(200);
   win.close();
 })();
