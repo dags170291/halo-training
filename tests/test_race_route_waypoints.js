@@ -243,6 +243,64 @@ function toWinBuf(win, varName, str) {
   console.log('Test 14 (updateRaceRouteDistLabel formats the distance readout as "X.XX / Y.YY km"):',
     t14 ? 'PASS' : 'FAIL', { labelText });
 
+  // ---- Test 15: raceAvgPaceSecPerKm averages targetMin/targetMax (fast/slow) the same way
+  // raceStrategyStepsFor already does, divided by the race's own recognized distance. ----
+  const paceFromTarget = win.eval(`raceAvgPaceSecPerKm({distance:'5K',targetMin:'25:00',targetMax:'27:30'})`);
+  // (25:00+27:30)/2 = 26:15 = 1575s over 5km = 315s/km
+  const t15 = Math.abs(paceFromTarget - 315) < 0.01;
+  console.log('Test 15 (raceAvgPaceSecPerKm averages targetMin/targetMax over the race distance):',
+    t15 ? 'PASS' : 'FAIL', { paceFromTarget });
+
+  // ---- Test 16: with no target set, raceAvgPaceSecPerKm falls back to a completed race's own
+  // actualTime instead -- e.g. for looking back at how a past race's route played out. ----
+  const paceFromActual = win.eval(`raceAvgPaceSecPerKm({distance:'10K',status:'done',actualTime:'50:00'})`);
+  const t16 = Math.abs(paceFromActual - 300) < 0.01; // 50:00 / 10km = 300s/km = 5:00/km
+  console.log('Test 16 (raceAvgPaceSecPerKm falls back to actualTime when no target is set):',
+    t16 ? 'PASS' : 'FAIL', { paceFromActual });
+
+  // ---- Test 17: with no recognizable distance at all, raceAvgPaceSecPerKm returns null rather than
+  // guessing or dividing by a bogus number. ----
+  const paceNoDistance = win.eval(`raceAvgPaceSecPerKm({targetMin:'25:00'})`);
+  console.log('Test 17 (raceAvgPaceSecPerKm returns null with no recognizable race distance):',
+    paceNoDistance === null ? 'PASS' : 'FAIL', { paceNoDistance });
+
+  // ---- Test 18: raceRouteBaseDurationMs derives the route-player's animation length from pace --
+  // Dylon: "add the ability to speed up the video based on running pace." A faster pace over the same
+  // distance means less real running time, so it should produce a SHORTER base animation than a slower
+  // pace over that same distance; with no pace data at all it falls back to the flat default; and
+  // extreme values clamp into [MIN,MAX] rather than producing an unwatchably short or long animation. ----
+  const durFastPace = win.eval(`raceRouteBaseDurationMs(240, 5000)`);  // 4:00/km over 5km = 1200s real
+  const durSlowPace = win.eval(`raceRouteBaseDurationMs(360, 5000)`);  // 6:00/km over 5km = 1800s real
+  const durNoData = win.eval(`raceRouteBaseDurationMs(null, 5000)`);
+  const durExtreme = win.eval(`raceRouteBaseDurationMs(1200, 100000)`); // ultra-long+slow -> should clamp to MAX
+  const minMs = win.eval(`RACE_ROUTE_MIN_DURATION_MS`), maxMs = win.eval(`RACE_ROUTE_MAX_DURATION_MS`), fallbackMs = win.eval(`RACE_ROUTE_BASE_DURATION_MS`);
+  const t18 = durFastPace < durSlowPace && durNoData === fallbackMs && durExtreme === maxMs && durFastPace >= minMs && durSlowPace <= maxMs;
+  console.log('Test 18 (raceRouteBaseDurationMs: faster pace -> shorter animation, no data -> flat fallback, extremes clamp):',
+    t18 ? 'PASS' : 'FAIL', { durFastPace, durSlowPace, durNoData, durExtreme, minMs, maxMs, fallbackMs });
+
+  // ---- Test 19: setRaceRouteSpeed updates RACE_ROUTE_PLAYER's speed and the three speed buttons'
+  // active styling -- tested directly against a hand-seeded player/DOM (bypassing the Leaflet-dependent
+  // initRaceRoutePlayer, same as positionAtDistance/updateRaceRouteDistLabel above, since Leaflet's CDN
+  // script never loads in this offline test harness). ----
+  win.eval(`
+    document.body.insertAdjacentHTML('beforeend','<button id="t19-route-speed-1"></button><button id="t19-route-speed-2"></button><button id="t19-route-speed-4"></button>');
+    RACE_ROUTE_PLAYER={idPrefix:'t19-',speed:1,playing:false,currentDistM:0,playStartDist:0,playStartTs:0};
+    setRaceRouteSpeed('t19-',4);
+  `);
+  const speedAfter = win.eval(`RACE_ROUTE_PLAYER.speed`);
+  const btn4Bg = win.eval(`document.getElementById('t19-route-speed-4').style.background`);
+  const btn1Bg = win.eval(`document.getElementById('t19-route-speed-1').style.background`);
+  const t19 = speedAfter === 4 && btn4Bg === 'var(--accent)' && btn1Bg === 'var(--s2)';
+  console.log('Test 19 (setRaceRouteSpeed updates player speed and highlights the active speed button):',
+    t19 ? 'PASS' : 'FAIL', { speedAfter, btn4Bg, btn1Bg });
+
+  // ---- Test 20: renderRaceRouteMapHTML includes the three speed buttons alongside the play/scrubber
+  // controls tested in Test 12. ----
+  const mapWithSpeed = win.eval(`renderRaceRouteMapHTML(RACES_LIST[0],'strat-')`);
+  const t20 = mapWithSpeed.includes('id="strat-route-speed-1"') && mapWithSpeed.includes('id="strat-route-speed-2"') && mapWithSpeed.includes('id="strat-route-speed-4"');
+  console.log('Test 20 (renderRaceRouteMapHTML includes the 1x/2x/4x speed buttons):',
+    t20 ? 'PASS' : 'FAIL');
+
   await wait(200);
   win.close();
 })();

@@ -964,6 +964,14 @@ main{flex:1;padding:14px 14px 24px;max-width:560px;width:100%;margin:0 auto}
      modal-appropriate sizing untouched. */
   #view-races .plans-split{flex:1;min-height:0;align-items:stretch}
   #view-races .plans-empty-detail{height:100%;min-height:0}
+  /* Dylon, second screenshot: the gap moved rather than closed -- the detail column now correctly
+     stretched (via align-items:stretch above), but .plans-col-list's own max-height:64vh, inherited
+     from the Plans/Shoes modal rule, capped the LIST column at a fixed viewport fraction regardless of
+     how tall the now-stretched row actually was, so the two columns no longer matched heights and the
+     leftover blank space just reappeared under the (shorter) list instead of under the detail pane.
+     Dropping the cap here lets align-items:stretch size both columns to the same row height; overflow-y:
+     auto still keeps a very long race list scrolling internally rather than pushing the row taller. */
+  #view-races .plans-col-list{max-height:none;height:100%}
 
   /* left summary / right chart split used in Progress */
   .progress-split{display:grid;grid-template-columns:1fr 1.3fr;gap:20px;align-items:start}
@@ -1610,7 +1618,7 @@ main{flex:1;padding:14px 14px 24px;max-width:560px;width:100%;margin:0 auto}
    session-style restyle, race-target connection, iOS install fix, icon redesign, onboarding flow).
    APP_STAGE is 'alpha.N' pre-launch, bump N each time you hand a build to a real tester (Dylon's
    sister counts); once launched, APP_VERSION resets to 1.0.0 and APP_STAGE becomes ''. */
-const APP_VERSION='0.34.27';
+const APP_VERSION='0.34.28';
 const APP_STAGE='alpha.1';
 const APP_VERSION_DATE='2026-08-02';
 /* ═══════════════════════════ DATA ═══════════════════════════ */
@@ -9096,6 +9104,23 @@ function timeStrToSec(t){
   if(parts.length===3) return parts[0]*3600+parts[1]*60+parts[2];
   return null;
 }
+// Best-guess overall pace for a race, reusing the exact same fastSec/slowSec-averaging convention
+// raceStrategyStepsFor already uses (targetMin is the faster/lower time, targetMax the slower/higher
+// one) -- prefers the target pace (what you're actually planning to run), falls back to actualTime for
+// an already-run race with no target set, null if there's simply no time/distance data at all to go on.
+// Dylon: "add the ability to speed up the video based on running pace" -- this is what
+// raceRouteBaseDurationMs (below) uses to scale the route-player animation's own timing.
+function raceAvgPaceSecPerKm(r){
+  const km=raceDistanceKm(r.distance);
+  if(!km) return null;
+  const minSec=timeStrToSec(r.targetMin), maxSec=timeStrToSec(r.targetMax);
+  if(minSec||maxSec){
+    const fastSec=minSec||maxSec, slowSec=maxSec||minSec;
+    return ((fastSec+slowSec)/2)/km;
+  }
+  const actualSec=timeStrToSec(r.actualTime);
+  return actualSec?actualSec/km:null;
+}
 function secToPaceStr(secPerKm){
   if(!secPerKm||!isFinite(secPerKm)||secPerKm<=0) return null;
   let m=Math.floor(secPerKm/60), s=Math.round(secPerKm%60);
@@ -9313,7 +9338,7 @@ function destroyRaceRouteLiveMap(){
   if(RACE_ROUTE_PLAYER){ if(RACE_ROUTE_PLAYER.rafId) cancelAnimationFrame(RACE_ROUTE_PLAYER.rafId); RACE_ROUTE_PLAYER=null; }
   if(RACE_ROUTE_LIVE_MAP){ try{ RACE_ROUTE_LIVE_MAP.remove(); }catch(e){} RACE_ROUTE_LIVE_MAP=null; }
 }
-function initRaceRouteLiveMap(points,idPrefix,waypoints){
+function initRaceRouteLiveMap(points,idPrefix,waypoints,paceSecPerKm){
   destroyRaceRouteLiveMap();
   if(typeof L==='undefined') return false; // Leaflet's CDN <script> never loaded -- offline, or the CDN itself was unreachable
   if(navigator.onLine===false) return false;
@@ -9379,28 +9404,66 @@ function initRaceRouteLiveMap(points,idPrefix,waypoints){
   map.fitBounds(L.latLngBounds(latlngs),{padding:[14,14]});
   map.invalidateSize();
   setTimeout(()=>{ if(RACE_ROUTE_LIVE_MAP===map) map.invalidateSize(); },300);
-  initRaceRoutePlayer(map,latlngs,idPrefix);
+  initRaceRoutePlayer(map,latlngs,idPrefix,paceSecPerKm);
   return true;
 }
 // "Play the route" -- Dylon, with a plotaroute.com route-viewer screenshot showing its own play button
-// + distance scrubber: "is it possible to... play the route as well like plotaroute?" These are
-// planned courses with no recorded pace/time data at all (see parseRaceRouteBuffer's own comment on
-// why a course export has no timestamps), so there's no real elapsed-time figure to play back at an
-// authentic speed -- RACE_ROUTE_PLAY_DURATION_MS is a flat "watch the whole course" replay length,
-// the practical stand-in, scaled proportionally if playback starts partway through (see
-// toggleRaceRoutePlay's remaining-distance math).
-const RACE_ROUTE_PLAY_DURATION_MS=18000;
-function initRaceRoutePlayer(map,latlngs,idPrefix){
+// + distance scrubber: "is it possible to... play the route as well like plotaroute?", then later:
+// "add the ability to speed up the video based on running pace." These are planned courses with no
+// recorded pace/time data of their own at all (see parseRaceRouteBuffer's own comment on why a course
+// export has no timestamps), so there's no real elapsed-time figure to play back at an authentic
+// wall-clock speed -- instead, raceRouteBaseDurationMs derives the animation's own length from the
+// race's TARGET (or, for an already-run race with no target set, actual) pace: a faster goal pace
+// covers the same route in less real-world time, so it plays back faster here too, same relative
+// relationship a real runner would experience. RACE_ROUTE_BASE_DURATION_MS is the fallback for a race
+// with no pace/distance data to go on at all (falls straight back to the original flat replay length).
+// RACE_ROUTE_PACE_COMPRESSION turns real running seconds into animation milliseconds at the default
+// 1x speed -- picked so a typical 5K plays in roughly 15-20s, clamped to MIN/MAX so a very short/fast
+// course never flashes by instantly and a marathon-length one never drags on for minutes.
+const RACE_ROUTE_BASE_DURATION_MS=18000;
+const RACE_ROUTE_MIN_DURATION_MS=8000;
+const RACE_ROUTE_MAX_DURATION_MS=32000;
+const RACE_ROUTE_PACE_COMPRESSION_SEC=90;
+function raceRouteBaseDurationMs(paceSecPerKm,totalDistM){
+  if(!paceSecPerKm||!totalDistM) return RACE_ROUTE_BASE_DURATION_MS;
+  const realTotalSec=paceSecPerKm*(totalDistM/1000);
+  const rawMs=(realTotalSec/RACE_ROUTE_PACE_COMPRESSION_SEC)*1000;
+  return Math.max(RACE_ROUTE_MIN_DURATION_MS,Math.min(RACE_ROUTE_MAX_DURATION_MS,rawMs));
+}
+function initRaceRoutePlayer(map,latlngs,idPrefix,paceSecPerKm){
   const cumDist=[0];
   for(let i=1;i<latlngs.length;i++) cumDist.push(cumDist[i-1]+haversineM(latlngs[i-1][0],latlngs[i-1][1],latlngs[i][0],latlngs[i][1]));
   const totalDistM=cumDist[cumDist.length-1]||0;
+  const baseDurationMs=raceRouteBaseDurationMs(paceSecPerKm,totalDistM);
   const marker=L.circleMarker(latlngs[0],{radius:7,color:'#fff',weight:2,fillColor:cssVar(document.documentElement,'--accent','#3F7BF2'),fillOpacity:1}).addTo(map);
-  RACE_ROUTE_PLAYER={idPrefix,points:latlngs,cumDist,totalDistM,marker,currentDistM:0,playing:false,rafId:null,playStartTs:null,playStartDist:0};
+  RACE_ROUTE_PLAYER={idPrefix,points:latlngs,cumDist,totalDistM,baseDurationMs,speed:1,marker,currentDistM:0,playing:false,rafId:null,playStartTs:null,playStartDist:0};
   const playerRow=document.getElementById(idPrefix+'route-player');
   if(playerRow && totalDistM>0) playerRow.style.display='flex';
   const scrubber=document.getElementById(idPrefix+'route-scrubber');
   if(scrubber) scrubber.max=String(Math.round(totalDistM));
   updateRaceRouteDistLabel(idPrefix,0,totalDistM);
+  setRaceRouteSpeedButtons(idPrefix,1);
+}
+// Speed buttons (1x/2x/4x) next to Play -- Dylon: "add the ability to speed up the video based on
+// running pace." The BASE speed (1x) already reflects pace (see raceRouteBaseDurationMs above); these
+// buttons are a further manual multiplier on top, the same "fast-forward" idea any video player's own
+// speed control has. Changing speed mid-playback restarts the animation loop from the current position
+// (not from the beginning) at the new speed, same mechanism a manual scrub uses.
+function setRaceRouteSpeedButtons(idPrefix,speed){
+  [1,2,4].forEach(s=>{
+    const btn=document.getElementById(idPrefix+'route-speed-'+s);
+    if(!btn) return;
+    const active=s===speed;
+    btn.style.background=active?'var(--accent)':'var(--s2)';
+    btn.style.color=active?'#0B0D12':'var(--t2)';
+  });
+}
+function setRaceRouteSpeed(idPrefix,speed){
+  const p=RACE_ROUTE_PLAYER;
+  if(!p||p.idPrefix!==idPrefix) return;
+  p.speed=speed;
+  setRaceRouteSpeedButtons(idPrefix,speed);
+  if(p.playing){ p.playStartDist=p.currentDistM; p.playStartTs=null; }
 }
 function updateRaceRouteDistLabel(idPrefix,distM,totalM){
   const label=document.getElementById(idPrefix+'route-dist-label');
@@ -9467,7 +9530,7 @@ function toggleRaceRoutePlay(idPrefix){
     if(p.playStartTs===null) p.playStartTs=ts;
     const elapsed=ts-p.playStartTs;
     const remainingDist=p.totalDistM-p.playStartDist;
-    const durationForRemaining=RACE_ROUTE_PLAY_DURATION_MS*(remainingDist/p.totalDistM);
+    const durationForRemaining=(p.baseDurationMs/p.speed)*(remainingDist/p.totalDistM);
     const frac=durationForRemaining>0?Math.min(1,elapsed/durationForRemaining):1;
     setRaceRoutePlayerDistance(p.playStartDist+remainingDist*frac);
     if(frac>=1){ stopRaceRoutePlayback(); return; }
@@ -9490,10 +9553,22 @@ function renderRaceRouteMapHTML(r,idPrefix){
   return `<div class="card" style="padding:0;overflow:hidden;flex-shrink:0;margin-bottom:14px">
     <div id="${idPrefix}route-live" style="width:100%;height:240px;display:none"></div>
     <div id="${idPrefix}route-svg" style="padding:8px">${svg}</div>
-    <div id="${idPrefix}route-player" style="display:none;align-items:center;gap:10px;padding:8px 10px;border-top:1px solid var(--b1)">
-      <button type="button" id="${idPrefix}route-play-btn" onclick="toggleRaceRoutePlay('${idPrefix}')" aria-label="Play route" style="width:30px;height:30px;border-radius:50%;border:none;background:var(--accent);color:#0B0D12;display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;font-size:12px">▶</button>
-      <input type="range" id="${idPrefix}route-scrubber" min="0" max="1000" value="0" step="1" oninput="scrubRaceRoute('${idPrefix}',this.value)" style="flex:1;accent-color:var(--accent)">
-      <span id="${idPrefix}route-dist-label" style="font-size:11px;color:var(--t3);white-space:nowrap;font-variant-numeric:tabular-nums">0.00 / 0.00 km</span>
+    <div id="${idPrefix}route-player" style="display:none;flex-direction:column;gap:8px;padding:8px 10px;border-top:1px solid var(--b1)">
+      <div style="display:flex;align-items:center;gap:10px">
+        <button type="button" id="${idPrefix}route-play-btn" onclick="toggleRaceRoutePlay('${idPrefix}')" aria-label="Play route" style="width:30px;height:30px;border-radius:50%;border:none;background:var(--accent);color:#0B0D12;display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;font-size:12px">▶</button>
+        <input type="range" id="${idPrefix}route-scrubber" min="0" max="1000" value="0" step="1" oninput="scrubRaceRoute('${idPrefix}',this.value)" style="flex:1;accent-color:var(--accent)">
+        <span id="${idPrefix}route-dist-label" style="font-size:11px;color:var(--t3);white-space:nowrap;font-variant-numeric:tabular-nums">0.00 / 0.00 km</span>
+      </div>
+      <!-- Speed multiplier -- Dylon: "add the ability to speed up the video based on running pace." The
+           1x baseline itself already reflects the race's target/actual pace (see
+           raceRouteBaseDurationMs) -- these three buttons are a further manual speed-up on top, same
+           idea as a video player's own playback-speed control. -->
+      <div style="display:flex;align-items:center;gap:6px;padding-left:40px">
+        <span style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.3px;margin-right:2px">Speed</span>
+        <button type="button" id="${idPrefix}route-speed-1" onclick="setRaceRouteSpeed('${idPrefix}',1)" style="border:none;border-radius:var(--r10);padding:3px 9px;font-size:11px;font-weight:700;cursor:pointer;background:var(--accent);color:#0B0D12">1×</button>
+        <button type="button" id="${idPrefix}route-speed-2" onclick="setRaceRouteSpeed('${idPrefix}',2)" style="border:none;border-radius:var(--r10);padding:3px 9px;font-size:11px;font-weight:700;cursor:pointer;background:var(--s2);color:var(--t2)">2×</button>
+        <button type="button" id="${idPrefix}route-speed-4" onclick="setRaceRouteSpeed('${idPrefix}',4)" style="border:none;border-radius:var(--r10);padding:3px 9px;font-size:11px;font-weight:700;cursor:pointer;background:var(--s2);color:var(--t2)">4×</button>
+      </div>
     </div>
     <div style="padding:8px 8px;display:flex;align-items:center;justify-content:center;gap:14px;font-size:10px;color:var(--t3);flex-wrap:wrap">
       <span style="display:inline-flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:50%;background:var(--gr);display:inline-block;flex-shrink:0"></span>Start</span>
@@ -9860,7 +9935,7 @@ function renderRaces(preserveScroll){
   // itself) -- otherwise closing the strategy view (or switching to a race with no route) would leave a
   // stale Leaflet instance holding onto DOM nodes that innerHTML just replaced out from under it.
   const stratRace=RACE_STRATEGY_KEY?RACES_LIST.find(r=>r.key===RACE_STRATEGY_KEY):null;
-  if(stratRace && stratRace.routePoints) initRaceRouteLiveMap(stratRace.routePoints,'strat-',stratRace.routeWaypoints);
+  if(stratRace && stratRace.routePoints) initRaceRouteLiveMap(stratRace.routePoints,'strat-',stratRace.routeWaypoints,raceAvgPaceSecPerKm(stratRace));
   else destroyRaceRouteLiveMap();
 }
 function saveRaceForm(){
