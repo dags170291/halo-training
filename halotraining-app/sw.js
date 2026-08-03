@@ -1644,7 +1644,7 @@
 // toggle already established; and both HR-zone donut charts (Weekly Zone Time + per-activity Effort
 // card) now stretch to a wide oval spanning the card's width via preserveAspectRatio="none", instead
 // of a fixed 132x132 square.
-const CACHE_NAME = 'halo-0.34.25-alpha.1';
+const CACHE_NAME = 'halo-0.34.26-alpha.1';
 const APP_SHELL = [
   './index.html',
   './manifest.webmanifest',

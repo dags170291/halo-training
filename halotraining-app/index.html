@@ -1592,7 +1592,7 @@ main{flex:1;padding:14px 14px 24px;max-width:560px;width:100%;margin:0 auto}
    session-style restyle, race-target connection, iOS install fix, icon redesign, onboarding flow).
    APP_STAGE is 'alpha.N' pre-launch, bump N each time you hand a build to a real tester (Dylon's
    sister counts); once launched, APP_VERSION resets to 1.0.0 and APP_STAGE becomes ''. */
-const APP_VERSION='0.34.25';
+const APP_VERSION='0.34.26';
 const APP_STAGE='alpha.1';
 const APP_VERSION_DATE='2026-08-02';
 /* ═══════════════════════════ DATA ═══════════════════════════ */
@@ -1985,6 +1985,15 @@ function normalizeRaceRecord(r,existingList){
     actualTime:r.actualTime||'',
     isPB:!!r.isPB,
     routeUrl:r.routeUrl||'',
+    // A separately-uploaded route FILE (.gpx/.tcx/.fit/.kml), distinct from routeUrl above (which is
+    // just an external link) -- Dylon, with a plotaroute.com course-download screenshot: "I will like
+    // to add a feature to import maps via gpx, Fit, tcx, KML files for races and show the race route
+    // in the app within the race card." routePoints is a plain [{lat,lon}] polyline (already
+    // downsampled to ROUTE_MAP_MAX_POINTS at upload time by parseRaceRouteBuffer -- see that function's
+    // own comment), null when no route file has been uploaded. routeFileName is purely for display
+    // ("course.gpx — 312 points") in the Add/Edit Race form; it isn't otherwise read anywhere.
+    routePoints:Array.isArray(r.routePoints)&&r.routePoints.length>1?r.routePoints:null,
+    routeFileName:r.routeFileName||'',
     // Some races (UWI-style) announce a future registration-opening date well ahead of the race
     // itself, separate from race day — this lets that date be recorded so the app can nudge you
     // when it's approaching. Optional; blank means "not announced yet" or "not applicable."
@@ -8689,10 +8698,62 @@ function setRaceFilter(f){ RACE_FILTER=f; RACE_EDIT_KEY=null; RACE_ADDING=false;
 // Fills #race-form-sh-body with the add/edit form + its Save/Cancel/Delete footer and opens the
 // overlay -- the one place that actually renders the form now that it's a popup rather than an inline
 // branch of the Races page. Called with null for a fresh Add Race, or a RACES_LIST record for Edit.
+// Route FILE upload state (distinct from the plain routeUrl text field, updateRouteLink() etc. above)
+// -- lives outside renderRaceFormHTML/saveRaceForm because parsing a route file is inherently async
+// (FileReader), unlike every other field on this form which is read synchronously straight off the DOM
+// at save time. Reset to whatever the race being edited (if any) already has every time the form opens;
+// handleRaceRouteFile()/removeRaceRouteFile() below are the only things that ever change it after that,
+// and saveRaceForm() just reads its current value directly -- so "leave it alone," "upload a new file,"
+// and "remove the existing route" are all just this object's current state at save time, no separate
+// dirty/sentinel tracking needed.
+let RACE_ROUTE_PENDING={points:null,fileName:''};
 function openRaceFormOverlay(editRace){
+  RACE_ROUTE_PENDING={points:(editRace&&editRace.routePoints)||null,fileName:(editRace&&editRace.routeFileName)||''};
   document.getElementById('race-form-sh-title').textContent=editRace?'Edit Race':'Add a Race';
   document.getElementById('race-form-sh-body').innerHTML=renderRaceFormHTML(editRace)+raceFormFooterHTML(editRace);
   document.getElementById('race-form-overlay').classList.add('open');
+}
+// Dylon: "I will like to add a feature to import maps via gpx, Fit, tcx, KML files for races and show
+// the race route in the app within the race card" -- with a plotaroute.com course-download screenshot.
+// parseRaceRouteBuffer (defined near the activity import parsers, reusing the GPX/TCX/FIT parsers plus
+// a new KML one) does the actual format detection/parsing; this just wires the file input to it and
+// updates the small status line + Remove button live, the same "show something immediately, don't wait
+// for Save" pattern updateRouteLink() already uses for the plain URL field just above.
+function raceRouteStatusText(pending){
+  if(!pending||!pending.points) return 'No route file uploaded yet.';
+  return `${escAttr(pending.fileName||'Route file')} — ${pending.points.length} point${pending.points.length===1?'':'s'} loaded.`;
+}
+function handleRaceRouteFile(evt){
+  const file=(evt.target.files||[])[0];
+  const inputEl=evt.target;
+  if(!file) return;
+  const statusEl=document.getElementById('race-route-status');
+  if(statusEl) statusEl.textContent='Reading route file…';
+  readFileAsArrayBuffer(file).then(buf=>{
+    inputEl.value='';
+    const result=parseRaceRouteBuffer(buf,file.name);
+    if(!result.ok){
+      if(statusEl) statusEl.textContent=raceRouteStatusText(RACE_ROUTE_PENDING);
+      showToast(result.error);
+      return;
+    }
+    RACE_ROUTE_PENDING={points:result.points,fileName:file.name};
+    if(statusEl) statusEl.textContent=raceRouteStatusText(RACE_ROUTE_PENDING);
+    const removeRow=document.getElementById('race-route-remove-row');
+    if(removeRow) removeRow.style.display='flex';
+    showToast('Route loaded');
+  }).catch(()=>{
+    inputEl.value='';
+    if(statusEl) statusEl.textContent=raceRouteStatusText(RACE_ROUTE_PENDING);
+    showToast('Could not read that file');
+  });
+}
+function removeRaceRouteFile(){
+  RACE_ROUTE_PENDING={points:null,fileName:''};
+  const statusEl=document.getElementById('race-route-status');
+  if(statusEl) statusEl.textContent=raceRouteStatusText(RACE_ROUTE_PENDING);
+  const removeRow=document.getElementById('race-route-remove-row');
+  if(removeRow) removeRow.style.display='none';
 }
 // Works from anywhere, not just the Races page -- this is also what the Add-Activity FAB's "Add Race"
 // item calls (see fabAddRace()) so a race can be logged without first navigating to the Races page.
@@ -8922,6 +8983,9 @@ function renderRaceFormHTML(editRace){
     <div class="field"><label>Pickup Notes <span style="text-transform:none;font-weight:400">(optional)</span></label><input type="text" id="race-pkg-notes" value="${isEdit?escAttr(editRace.pkgPickupNotes||''):''}" placeholder="Bring photo ID and your confirmation email, 10am-6pm"></div>
     <div class="field"><label>Route Link <span style="text-transform:none;font-weight:400">(optional)</span></label><input type="url" id="race-routeurl" value="${isEdit?escAttr(editRace.routeUrl||''):''}" placeholder="Paste a Strava or plotaroute.com route link" oninput="updateRouteLink()"></div>
     <div class="data-row" style="margin-top:0"><a id="race-route-link" class="btn btn-ghost btn-sm btn-block" href="${escAttr(normalizeUrlValue(isEdit?(editRace.routeUrl||''):''))}" target="_blank" rel="noopener noreferrer" style="display:${isEdit&&editRace.routeUrl?'inline-flex':'none'}">View Route →</a></div>
+    <div class="field"><label>Route File <span style="text-transform:none;font-weight:400">(optional — draws the course on a map)</span></label><input type="file" id="race-routefile" accept=".gpx,.tcx,.fit,.kml" onchange="handleRaceRouteFile(event)"></div>
+    <div id="race-route-status" style="font-size:11px;color:var(--t3);margin:-6px 0 10px">${raceRouteStatusText(RACE_ROUTE_PENDING)}</div>
+    <div class="data-row" id="race-route-remove-row" style="margin-top:0;display:${RACE_ROUTE_PENDING.points?'flex':'none'}"><button type="button" class="btn btn-ghost btn-sm btn-block" onclick="removeRaceRouteFile()">Remove Route File</button></div>
     <div class="field"><label>Link to Block <span style="text-transform:none;font-weight:400">(optional)</span></label>
       <select id="race-blockid">
         <option value=""${!prefillBlockId?' selected':''}>None — unscheduled</option>
@@ -9135,6 +9199,120 @@ function firstRaceGameplanSteps(){
     {type:'runline',text:'Have a one-line mantra ready for the hard middle stretch — something like "I trained for this" — and remind yourself how far you\'ve already come to get to the start line.'}
   ];
 }
+/* ── Race route map -- static thumbnail (race cards) + interactive Leaflet map (Race Day Strategy) ──
+   Mirrors activityRouteSVG/initActivityRouteLiveMap's exact Leaflet+CARTO+offline-SVG-fallback pattern
+   (see those functions' own comments for the reasoning behind container-visibility timing, tile CDN
+   choice, and the tileerror/5s-timeout fallback), just simplified: a race course has no recorded pace
+   or heart rate to color the line by, so this is always ONE flat color, not a per-segment gradient, and
+   there's no metric toggle. Kept as separate functions rather than generalizing
+   initActivityRouteLiveMap itself to take a raw points array, since that function's coloring logic
+   (activityRoutePointsColored) is genuinely activity-specific -- see the research this feature started
+   from for why forcing the two together read as more confusing than two small parallel functions. */
+// Single-color route + start/finish dots, same equirectangular-projection technique as activityRouteSVG
+// (longitude scaled by the route's own average latitude so the shape isn't stretched east-west, one
+// uniform scale for both axes so the course's true shape is preserved). h lets a compact race-card
+// thumbnail (shorter) and the full Race Day Strategy card (taller) share one function.
+function raceRouteSVG(points,h){
+  if(!points||points.length<2) return null;
+  h=h||220;
+  const avgLatRad=(points.reduce((s,p)=>s+p.lat,0)/points.length)*Math.PI/180;
+  const cosLat=Math.cos(avgLatRad)||1;
+  const xs=points.map(p=>p.lon*cosLat), ys=points.map(p=>-p.lat);
+  const minX=Math.min(...xs), maxX=Math.max(...xs), minY=Math.min(...ys), maxY=Math.max(...ys);
+  const rangeX=(maxX-minX)||0.0001, rangeY=(maxY-minY)||0.0001;
+  const W=300,pad=14;
+  const scale=Math.min((W-pad*2)/rangeX,(h-pad*2)/rangeY);
+  const offX=pad+((W-pad*2)-rangeX*scale)/2, offY=pad+((h-pad*2)-rangeY*scale)/2;
+  const toSvg=(x,y)=>({x:offX+(x-minX)*scale,y:offY+(y-minY)*scale});
+  const routeColor=cssVar(document.documentElement,'--dur','#3F7BF2');
+  const first=toSvg(xs[0],ys[0]);
+  let path=`M${first.x.toFixed(1)},${first.y.toFixed(1)} `;
+  for(let i=1;i<points.length;i++){ const p=toSvg(xs[i],ys[i]); path+=`L${p.x.toFixed(1)},${p.y.toFixed(1)} `; }
+  const start=first, end=toSvg(xs[xs.length-1],ys[ys.length-1]);
+  return `<svg viewBox="0 0 ${W} ${h}" style="width:100%;height:${h}px;display:block" preserveAspectRatio="xMidYMid meet">
+    <path d="${path.trim()}" fill="none" stroke="${routeColor}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="${start.x.toFixed(1)}" cy="${start.y.toFixed(1)}" r="5" fill="${cssVar(document.documentElement,'--gr','#4CAF6D')}" stroke="#fff" stroke-width="1.5"/>
+    <circle cx="${end.x.toFixed(1)}" cy="${end.y.toFixed(1)}" r="5" fill="${cssVar(document.documentElement,'--re','#EF5350')}" stroke="#fff" stroke-width="1.5"/>
+  </svg>`;
+}
+// Only one Race Day Strategy view is ever open at once (RACE_STRATEGY_KEY, same as
+// OPEN_ACTIVITY_ID for activities), so — same reasoning as ACTIVITY_LIVE_MAP — a single module-level
+// map reference is enough, kept separate from ACTIVITY_LIVE_MAP so an open activity popup and an open
+// race strategy view can never fight over which live map a stray destroy call is tearing down.
+let RACE_ROUTE_LIVE_MAP=null;
+function destroyRaceRouteLiveMap(){
+  if(RACE_ROUTE_LIVE_MAP){ try{ RACE_ROUTE_LIVE_MAP.remove(); }catch(e){} RACE_ROUTE_LIVE_MAP=null; }
+}
+function initRaceRouteLiveMap(points,idPrefix){
+  destroyRaceRouteLiveMap();
+  if(typeof L==='undefined') return false; // Leaflet's CDN <script> never loaded -- offline, or the CDN itself was unreachable
+  if(navigator.onLine===false) return false;
+  idPrefix=idPrefix||'';
+  const container=document.getElementById(idPrefix+'route-live');
+  const svgWrap=document.getElementById(idPrefix+'route-svg');
+  if(!container||!points||points.length<2) return false;
+  // Container must be visible (display !== 'none') BEFORE L.map() is constructed -- Leaflet measures
+  // its container's real pixel size at construction time; a display:none container measures 0x0 and
+  // the tile layer never paints even though the map object itself constructs without error. Same fix
+  // initActivityRouteLiveMap's own comment documents finding the hard way.
+  container.style.display='';
+  if(svgWrap) svgWrap.style.display='none';
+  let map;
+  try{
+    map=L.map(container,{zoomControl:false,attributionControl:true,scrollWheelZoom:false});
+  }catch(e){
+    container.style.display='none';
+    if(svgWrap) svgWrap.style.display='';
+    return false;
+  }
+  RACE_ROUTE_LIVE_MAP=map;
+  const isDark=document.documentElement.classList.contains('theme-dark');
+  const tileUrl=isDark
+    ?'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+    :'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
+  const tiles=L.tileLayer(tileUrl,{
+    subdomains:'abcd',maxZoom:19,
+    attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+  });
+  let fellBack=false;
+  const fallbackToSvg=()=>{
+    if(fellBack) return;
+    fellBack=true;
+    destroyRaceRouteLiveMap();
+    container.style.display='none';
+    if(svgWrap) svgWrap.style.display='';
+  };
+  tiles.on('tileerror',fallbackToSvg);
+  const failTimer=setTimeout(fallbackToSvg,5000);
+  tiles.on('load',()=>clearTimeout(failTimer));
+  tiles.addTo(map);
+  const latlngs=points.map(p=>[p.lat,p.lon]);
+  const routeColor=cssVar(document.documentElement,'--dur','#3F7BF2');
+  L.polyline(latlngs,{color:routeColor,weight:4,lineCap:'round',lineJoin:'round'}).addTo(map);
+  L.circleMarker(latlngs[0],{radius:6,color:'#fff',weight:1.5,fillColor:cssVar(document.documentElement,'--gr','#4CAF6D'),fillOpacity:1}).addTo(map);
+  L.circleMarker(latlngs[latlngs.length-1],{radius:6,color:'#fff',weight:1.5,fillColor:cssVar(document.documentElement,'--re','#EF5350'),fillOpacity:1}).addTo(map);
+  map.fitBounds(L.latLngBounds(latlngs),{padding:[14,14]});
+  map.invalidateSize();
+  setTimeout(()=>{ if(RACE_ROUTE_LIVE_MAP===map) map.invalidateSize(); },300);
+  return true;
+}
+// The Route card for the Race Day Strategy view — same two-stacked-layers pattern as
+// renderActivityRouteMapHTML (SVG rendered synchronously so there's never a blank flash; the live map
+// is a later, best-effort upgrade). Returns '' when this race has no uploaded route, same as the
+// activity version returns '' for a session with no usable GPS.
+function renderRaceRouteMapHTML(r,idPrefix){
+  idPrefix=idPrefix||'';
+  if(!r||!r.routePoints||r.routePoints.length<2) return '';
+  const svg=raceRouteSVG(r.routePoints,240);
+  return `<div class="card" style="padding:0;overflow:hidden;flex-shrink:0;margin-bottom:14px">
+    <div id="${idPrefix}route-live" style="width:100%;height:240px;display:none"></div>
+    <div id="${idPrefix}route-svg" style="padding:8px">${svg}</div>
+    <div style="padding:0 8px 8px;display:flex;align-items:center;justify-content:center;gap:14px;font-size:10px;color:var(--t3)">
+      <span style="display:inline-flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:50%;background:var(--gr);display:inline-block;flex-shrink:0"></span>Start</span>
+      <span style="display:inline-flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:50%;background:var(--re);display:inline-block;flex-shrink:0"></span>Finish</span>
+    </div>
+  </div>`;
+}
 // Read-only strategy view for a race in the active block — the default thing a race-card tap now
 // shows (see openRaceCard), with "Edit Details" as the secondary pop-out action instead of the
 // old behavior of jumping straight into the edit form. Deliberately styled to match a real race-day
@@ -9163,6 +9341,12 @@ function renderRaceStrategyHTML(r){
   if(shoeName) chips.push(shoeName);
   if(r.location) chips.push(r.location);
   body+=`<div class="equip-row">${chips.map(c=>`<span class="equip-chip">${escAttr(c)}</span>`).join('')}</div>`;
+
+  // Route map -- right up top, same "map first, details below" positioning Dylon asked for on the
+  // activity detail screen (activityAnalyticsHTML's own comment). renderRaceRouteMapHTML returns '' (no
+  // stray empty/margined div left behind) when this race has no uploaded route file -- its own
+  // margin-bottom is baked into the card markup it returns, not added here.
+  body+=renderRaceRouteMapHTML(r,'strat-');
 
   if(r.goal){
     body+=`<div style="margin-bottom:14px;padding:10px 12px;background:var(--s2);border-radius:var(--r10)">
@@ -9292,6 +9476,12 @@ function raceCardHTML(r,isNext,today,isSelected){
       ${r.resultNotes?`<div style="font-size:11px;color:var(--t3);margin-top:${resultStatsBits.length||resultPosBits.length?'4px':'0'}">${escAttr(r.resultNotes)}</div>`:''}
     </div>`:'';
   const routeLinkHTML=r.routeUrl?`<a href="${escAttr(normalizeUrlValue(r.routeUrl))}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="font-size:11px;color:var(--accent);font-weight:700;text-decoration:none;margin-top:8px;display:inline-block">View Route →</a>`:'';
+  // A small static route preview (no live Leaflet map here -- the Races list can show many cards at
+  // once, and a live tile-fetching map per card would be both slow and visually busy; the full
+  // interactive map lives in Race Day Strategy instead, one race at a time, see renderRaceStrategyHTML).
+  // '' when this race has no uploaded route file.
+  const routeThumbSVG=r.routePoints&&r.routePoints.length>1?raceRouteSVG(r.routePoints,90):null;
+  const routeThumbHTML=routeThumbSVG?`<div style="margin-top:8px;border-radius:var(--r10);overflow:hidden;border:1px solid var(--b1)">${routeThumbSVG}</div>`:'';
   const shoeName=r.shoeKey&&SHOES[r.shoeKey]?SHOES[r.shoeKey].name:'';
   // Tied to isNext (the single soonest non-done upcoming race across the whole list), not a fixed
   // days-out cutoff — a cutoff meant the badge could vanish entirely once the current next race was
@@ -9353,6 +9543,7 @@ function raceCardHTML(r,isNext,today,isSelected){
           ${shoeName?`<span class="pill" style="${tagPillStyle}">${escAttr(shoeName)}</span>`:''}
           <span class="pill" style="${tagPillStyle}">${blockName?escAttr(blockName):'Unscheduled'}</span>
         </div>
+        ${routeThumbHTML}
         ${routeLinkHTML}
         ${targetSectionHTML}
         ${resultSectionHTML}
@@ -9472,6 +9663,16 @@ function renderRaces(preserveScroll){
     const newScrollEl=el.querySelector('.plans-col-list');
     if(newScrollEl) newScrollEl.scrollTop=prevScrollTop;
   }
+  // The #strat-route-live/#strat-route-svg containers (see renderRaceRouteMapHTML) are already in the
+  // DOM by this point, same ordering openActivityDetail relies on for initActivityRouteLiveMap -- safe
+  // to try upgrading to a live map right away. Only ever one Race Day Strategy view open at a time
+  // (RACE_STRATEGY_KEY), so this always tears down any previous live map first regardless of which
+  // branch runs below (destroyRaceRouteLiveMap is also called at the top of initRaceRouteLiveMap
+  // itself) -- otherwise closing the strategy view (or switching to a race with no route) would leave a
+  // stale Leaflet instance holding onto DOM nodes that innerHTML just replaced out from under it.
+  const stratRace=RACE_STRATEGY_KEY?RACES_LIST.find(r=>r.key===RACE_STRATEGY_KEY):null;
+  if(stratRace && stratRace.routePoints) initRaceRouteLiveMap(stratRace.routePoints,'strat-');
+  else destroyRaceRouteLiveMap();
 }
 function saveRaceForm(){
   const name=(document.getElementById('race-name').value||'').trim();
@@ -9494,6 +9695,13 @@ function saveRaceForm(){
   const pkgPickupLocation=(document.getElementById('race-pkg-location').value||'').trim();
   const pkgPickupNotes=(document.getElementById('race-pkg-notes').value||'').trim();
   const routeUrl=normalizeUrlValue(document.getElementById('race-routeurl').value);
+  // Route FILE, not the plain link above -- read straight off RACE_ROUTE_PENDING (set by
+  // openRaceFormOverlay/handleRaceRouteFile/removeRaceRouteFile), not the DOM, since a <input
+  // type="file"> element has no synchronously-readable "value" beyond a filename and parsing it is
+  // async -- see RACE_ROUTE_PENDING's own comment for why this is the single source of truth by save
+  // time regardless of whether it was left alone, replaced, or cleared during this form session.
+  const routePoints=RACE_ROUTE_PENDING.points||null;
+  const routeFileName=RACE_ROUTE_PENDING.fileName||'';
   const blockId=document.getElementById('race-blockid').value||null;
   const resultPace=(document.getElementById('race-resultpace').value||'').trim();
   const resultHR=(document.getElementById('race-resulthr').value||'').trim();
@@ -9510,10 +9718,10 @@ function saveRaceForm(){
       // A changed pickup start date means any earlier "reminder already fired" flag no longer
       // applies to the new date — reset it so the 3-day-out check can fire again for the correction.
       const pkgReminderFired=(pkgPickupStart&&pkgPickupStart!==r.pkgPickupStart)?false:r.pkgReminderFired;
-      Object.assign(r,{name,date,dateTBD,time,regOpenDate,distance,priority,shoeKey,status,goal,targetMin,targetMax,actualTime,isPB,location,routeUrl,blockId,resultPace,resultHR,resultPos,resultGPos,resultAPos,resultNotes,pkgPickupStart,pkgPickupEnd,pkgPickupLocation,pkgPickupNotes,pkgReminderFired});
+      Object.assign(r,{name,date,dateTBD,time,regOpenDate,distance,priority,shoeKey,status,goal,targetMin,targetMax,actualTime,isPB,location,routeUrl,routePoints,routeFileName,blockId,resultPace,resultHR,resultPos,resultGPos,resultAPos,resultNotes,pkgPickupStart,pkgPickupEnd,pkgPickupLocation,pkgPickupNotes,pkgReminderFired});
     }
   } else {
-    RACES_LIST.push(normalizeRaceRecord({name,date,dateTBD,time,regOpenDate,distance,priority,shoeKey,status,goal,targetMin,targetMax,actualTime,isPB,location,routeUrl,blockId,resultPace,resultHR,resultPos,resultGPos,resultAPos,resultNotes,pkgPickupStart,pkgPickupEnd,pkgPickupLocation,pkgPickupNotes}));
+    RACES_LIST.push(normalizeRaceRecord({name,date,dateTBD,time,regOpenDate,distance,priority,shoeKey,status,goal,targetMin,targetMax,actualTime,isPB,location,routeUrl,routePoints,routeFileName,blockId,resultPace,resultHR,resultPos,resultGPos,resultAPos,resultNotes,pkgPickupStart,pkgPickupEnd,pkgPickupLocation,pkgPickupNotes}));
   }
   RACE_EDIT_KEY=null; RACE_ADDING=false;
   saveRacesList();
@@ -11704,6 +11912,89 @@ function readFileAsArrayBuffer(file){
 // routing decision lives, instead of two separate flows that could drift out of sync with each other.
 function parseActivityBuffer(buf,filename){
   return isFitBuffer(buf,filename)?importActivityBinary(buf,filename):importActivityText(new TextDecoder('utf-8').decode(buf),filename);
+}
+/* ── Race route file import (.gpx/.tcx/.fit/.kml) ──
+   Dylon, with a plotaroute.com course-download screenshot: "I will like to add a feature to import
+   maps via gpx, Fit, tcx, KML files for races and show the race route in the app within the race
+   card." A race's route is just a lat/lon polyline -- no time/HR/pace like a logged activity has -- so
+   this reuses the existing GPX/TCX/FIT parsers' stream.lat/stream.lon output (parseGPXString/
+   parseTCXString/parseFITBuffer, all defined above) rather than duplicating three format parsers, and
+   adds ONE new one (parseKMLString) for the one format those don't cover. A course export commonly has
+   no <time>/timestamps at all (it's a planned route, not a recorded activity) -- confirmed safe: GPX's
+   own distance is computed via haversineM() independent of time, and TCX/FIT simply store null for any
+   missing per-point time, so none of the three existing parsers depend on timestamps being present. */
+// Pulls a flat [{lat,lon}] polyline out of a parsed stream object (the same {lat:[],lon:[],...} shape
+// parseGPXString/parseTCXString/parseFITBuffer all already produce), dropping any point missing either
+// coordinate, then downsamples with the exact same stride technique activityRoutePointsColored already
+// uses for a logged activity's own route -- a plotaroute.com/Strava course export can easily be a few
+// thousand points for a solid week's worth of visual detail no route thumbnail actually needs.
+function extractRoutePoints(stream){
+  if(!stream||!stream.lat||!stream.lon) return [];
+  const pts=[];
+  for(let i=0;i<stream.lat.length;i++){
+    if(stream.lat[i]==null||stream.lon[i]==null) continue;
+    pts.push({lat:stream.lat[i],lon:stream.lon[i]});
+  }
+  if(pts.length>ROUTE_MAP_MAX_POINTS){
+    const stride=Math.ceil(pts.length/ROUTE_MAP_MAX_POINTS);
+    const sampled=[];
+    for(let i=0;i<pts.length;i+=stride) sampled.push(pts[i]);
+    if(sampled[sampled.length-1]!==pts[pts.length-1]) sampled.push(pts[pts.length-1]);
+    return sampled;
+  }
+  return pts;
+}
+// KML's route geometry lives in <LineString><coordinates>lon,lat[,alt] lon,lat[,alt] ...</coordinates>
+// -- note the coordinate ORDER is lon,lat (opposite of the lat,lon this app uses everywhere else,
+// straight out of the KML spec) and tuples are whitespace-separated, not comma-separated, mirroring
+// how a real plotaroute.com/Google Earth/Garmin Connect KML export actually formats the element. A KML
+// file can contain more than one <LineString> (a short access-road spur alongside the real course,
+// route alternates, etc.) -- the one with the most points wins, the same "biggest wins" heuristic as
+// picking the real track out of multiple candidates would use anywhere else.
+function parseKMLString(kmlText){
+  const doc=new DOMParser().parseFromString(kmlText,'application/xml');
+  if(doc.getElementsByTagName('parsererror').length) throw new Error('Could not read this KML file — it may be corrupted.');
+  const lineStrings=Array.from(doc.getElementsByTagName('LineString'));
+  if(!lineStrings.length) throw new Error('No route track found in this KML file.');
+  let bestPts=[];
+  lineStrings.forEach(ls=>{
+    const coordEl=ls.getElementsByTagName('coordinates')[0];
+    if(!coordEl) return;
+    const raw=(coordEl.textContent||'').trim();
+    if(!raw) return;
+    const pts=raw.split(/\s+/).map(tuple=>{
+      const parts=tuple.split(',');
+      const lon=parseFloat(parts[0]), lat=parseFloat(parts[1]);
+      return (isNaN(lat)||isNaN(lon))?null:{lat,lon};
+    }).filter(Boolean);
+    if(pts.length>bestPts.length) bestPts=pts;
+  });
+  if(bestPts.length<2) throw new Error('No usable route track found in this KML file.');
+  return bestPts;
+}
+// Race-route counterpart to parseActivityBuffer above -- same {ok,...}/{ok:false,error} shape, same
+// content-sniffing-over-trusting-the-extension approach, just returning a bare points array (route:
+// no calories/sport/laps concept) instead of a full activity record, and covering KML too (which
+// activity import deliberately doesn't accept -- a race COURSE is commonly exported as KML by mapping
+// tools; a real recorded activity essentially never is).
+function parseRaceRouteBuffer(buf,filename){
+  try{
+    if(isFitBuffer(buf,filename)){
+      const points=extractRoutePoints(parseFITBuffer(buf).stream);
+      if(points.length<2) throw new Error('No usable GPS track found in this FIT file.');
+      return {ok:true,points};
+    }
+    const text=new TextDecoder('utf-8').decode(buf);
+    let points;
+    if(/<TrainingCenterDatabase/i.test(text)) points=extractRoutePoints(parseTCXString(text).stream);
+    else if(/<gpx[\s>]/i.test(text)) points=extractRoutePoints(parseGPXString(text).stream);
+    else if(/<kml[\s>]/i.test(text)) points=parseKMLString(text);
+    else return {ok:false,error:'Unrecognized file — expected a .gpx, .tcx, .fit, or .kml route export.'};
+    if(points.length<2) throw new Error('No usable GPS track found in this file.');
+    return {ok:true,points};
+  }catch(e){
+    return {ok:false,error:e.message||'Could not read this file.'};
+  }
 }
 // A single file keeps the exact original one-card confirm flow (confirmActivityImport) unchanged --
 // including the from-a-planned-session auto-link via PENDING_IMPORT_SESSION_ID, which only ever makes
