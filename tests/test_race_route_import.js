@@ -67,9 +67,12 @@ function toBuf(str) { return new TextEncoder().encode(str).buffer; }
   win.eval(`window.renderAll = function(){};`);
 
   // ---- Test 1: parseKMLString picks the LineString with the most points (the real course, not a
-  // short spur), returning {lat,lon} pairs correctly de-swizzled from KML's lon,lat coordinate order. ----
+  // short spur), returning {lat,lon} pairs correctly de-swizzled from KML's lon,lat coordinate order.
+  // As of the waypoints round, parseKMLString returns {points,waypoints} (not a bare array) since it
+  // now also pulls Placemark/Point markers out alongside the route line -- see test_race_route_waypoints.js
+  // for that half of it. ----
   const kmlResult = JSON.parse(win.eval(`JSON.stringify(parseKMLString(${JSON.stringify(KML_TEXT)}))`));
-  const t1 = kmlResult.length === 4 && kmlResult[0].lat === 10.6549 && kmlResult[0].lon === -61.5019;
+  const t1 = kmlResult.points.length === 4 && kmlResult.points[0].lat === 10.6549 && kmlResult.points[0].lon === -61.5019;
   console.log('Test 1 (parseKMLString picks the longest LineString and de-swizzles lon,lat -> {lat,lon}):',
     t1 ? 'PASS' : 'FAIL', { kmlResult });
 

@@ -903,6 +903,16 @@ main{flex:1;padding:14px 14px 24px;max-width:560px;width:100%;margin:0 auto}
   .topbar{display:none}
   .bottom-nav{display:none}
   main{flex:1;min-width:0;max-width:none;margin:0;padding:24px 28px 40px;display:flex;flex-direction:column}
+  /* Dylon: "on desktop the race screen cuts off way too high on the page" -- a .view was a plain
+     display:block flex item inside main's flex-column, so it only ever took its own natural content
+     height and left main's remaining 100vh-tall space empty below it (with #footer-note, main's other
+     flex child, floating in that void rather than sitting right under the content). Races is the page
+     this shows up worst on -- a short toolbar + a couple of race cards is nowhere near a full
+     viewport tall. flex:1 here makes whichever .view is active grow to fill that leftover space
+     instead of leaving it blank; min-height:0 is the standard flex fix so a view whose own content
+     genuinely IS taller than the space available still scrolls via #app rather than forcing main to
+     overflow its 100vh box.  */
+  .view.active{flex:1;display:flex;flex-direction:column;min-height:0}
   /* no bottom nav to clear on desktop -- just a plain corner offset */
   .activity-fab-wrap{bottom:32px;right:32px}
 
@@ -946,6 +956,14 @@ main{flex:1;padding:14px 14px 24px;max-width:560px;width:100%;margin:0 auto}
   .plans-empty-detail{font-size:12.5px;color:var(--t3);text-align:center;padding:50px 16px;border:1px dashed var(--b2);border-radius:var(--r14);min-height:320px;display:flex;align-items:center;justify-content:center}
   .plans-list-card-desk{cursor:pointer}
   .plans-list-card-desk.selected{border-color:var(--accent) !important}
+  /* Races-page-only: same .plans-split markup as the Plans/Shoes sheets above, but Races is a full
+     standalone page (not a max-height:85vh modal), so unlike those two it has real room to fill --
+     stretching it into view.active's newly-available flex:1 height (see .view.active above) instead
+     of leaving the empty-state box a short 320px placeholder floating over a blank void. Scoped to
+     #view-races specifically so the Plans block list / Shoes sheet keep their original compact,
+     modal-appropriate sizing untouched. */
+  #view-races .plans-split{flex:1;min-height:0;align-items:stretch}
+  #view-races .plans-empty-detail{height:100%;min-height:0}
 
   /* left summary / right chart split used in Progress */
   .progress-split{display:grid;grid-template-columns:1fr 1.3fr;gap:20px;align-items:start}
@@ -1592,7 +1610,7 @@ main{flex:1;padding:14px 14px 24px;max-width:560px;width:100%;margin:0 auto}
    session-style restyle, race-target connection, iOS install fix, icon redesign, onboarding flow).
    APP_STAGE is 'alpha.N' pre-launch, bump N each time you hand a build to a real tester (Dylon's
    sister counts); once launched, APP_VERSION resets to 1.0.0 and APP_STAGE becomes ''. */
-const APP_VERSION='0.34.26';
+const APP_VERSION='0.34.27';
 const APP_STAGE='alpha.1';
 const APP_VERSION_DATE='2026-08-02';
 /* ═══════════════════════════ DATA ═══════════════════════════ */
@@ -1994,6 +2012,13 @@ function normalizeRaceRecord(r,existingList){
     // ("course.gpx — 312 points") in the Add/Edit Race form; it isn't otherwise read anywhere.
     routePoints:Array.isArray(r.routePoints)&&r.routePoints.length>1?r.routePoints:null,
     routeFileName:r.routeFileName||'',
+    // Named waypoints pulled out of that same uploaded file (GPX <wpt>, TCX <CoursePoint>, KML
+    // <Placemark><Point> -- see parseRaceRouteBuffer) -- mile markers, aid stations, turn cues, etc.
+    // Dylon, with a plotaroute.com route-viewer screenshot: "is it possible to load markers and
+    // waypoints for the route as seen on the website... like plotaroute?" Always [] rather than null
+    // when empty (unlike routePoints' null) since it's iterated directly wherever it's used, never
+    // truthiness-checked as "has a route or not" the way routePoints is.
+    routeWaypoints:Array.isArray(r.routeWaypoints)?r.routeWaypoints.filter(w=>w&&typeof w.lat==='number'&&typeof w.lon==='number'):[],
     // Some races (UWI-style) announce a future registration-opening date well ahead of the race
     // itself, separate from race day — this lets that date be recorded so the app can nudge you
     // when it's approaching. Optional; blank means "not announced yet" or "not applicable."
@@ -4011,6 +4036,11 @@ function routeMapGradientColor(frac){
 // beyond this cap is stride-sampled down (always keeping the very first and last real point so the
 // route's true start/finish never shifts).
 const ROUTE_MAP_MAX_POINTS=300;
+// Named waypoints (mile markers, aid stations, turn cues) are naturally sparse -- a real course export
+// rarely has more than a couple dozen -- but this caps it anyway rather than trusting an arbitrary file
+// not to have hundreds, same defensive spirit as ROUTE_MAP_MAX_POINTS above just with a much smaller
+// number, since each one becomes its own Leaflet marker rather than a point on a single polyline.
+const ROUTE_WAYPOINT_MAX=60;
 // Shared GPS-point + per-point-color computation used by BOTH the offline SVG route (activityRouteSVG,
 // just below) and the online live map (initActivityRouteLiveMap, further down) -- pulled out into one
 // place so the two renderers can never drift out of sync on downsampling or coloring logic. Returns
@@ -4793,9 +4823,19 @@ function parseFITBuffer(buf){
 function parseTCXString(tcxText){
   const doc=new DOMParser().parseFromString(tcxText,'application/xml');
   if(doc.getElementsByTagName('parsererror').length) throw new Error('Could not read this TCX file — it may be corrupted.');
+  // TCX has two entirely separate top-level schemas: <Activities><Activity> for something a device
+  // actually recorded, and <Courses><Course> for a planned route with no recording behind it at all --
+  // confirmed via research while wiring up race route uploads (Dylon: "load markers and waypoints...
+  // and play the route as well like plotaroute") since a plotaroute.com/Garmin Connect TCX COURSE
+  // export uses the second schema, which this used to reject outright with "No activity found" even
+  // though its own <Trackpoint>/<Lap> elements are structurally identical either way. Only the
+  // outer container differs, so falling back to <Course> here (rather than duplicating the whole
+  // function) is all that's needed -- everything below already reads Trackpoint/Lap globally, not
+  // scoped under Activity specifically.
   const activityEl=doc.getElementsByTagName('Activity')[0];
-  if(!activityEl) throw new Error('No activity found in this TCX file.');
-  const sport=(activityEl.getAttribute('Sport')||'').toLowerCase();
+  const courseEl=activityEl?null:doc.getElementsByTagName('Course')[0];
+  if(!activityEl && !courseEl) throw new Error('No activity or course found in this TCX file.');
+  const sport=activityEl?(activityEl.getAttribute('Sport')||'').toLowerCase():'';
   const tpEls=doc.getElementsByTagName('Trackpoint');
   const stream={t:[],lat:[],lon:[],alt:[],distM:[],hr:[],cadence:[],power:[],vertOsc:[],vertRatio:[],strideLen:[],temp:[]};
   for(let i=0;i<tpEls.length;i++){
@@ -4852,7 +4892,18 @@ function parseTCXString(tcxText){
     if(avgHr===null && hrCount) avgHr=Math.round(hrSum/hrCount);
     if(durSec||distM) laps.push({startTime,durSec:durSec||null,distM:distM||null,avgHr,elevGainM:Math.round(elevGainM)});
   });
-  return {sport,stream,calories,laps};
+  // <CoursePoint> is the Course schema's own named-waypoint element (mile markers, aid stations, turn
+  // cues) -- an Activity-schema TCX essentially never has these (nothing to mark on something already
+  // recorded), so this simply comes back empty for a normal recorded-activity import, same as it
+  // always has.
+  const waypoints=Array.from(doc.getElementsByTagName('CoursePoint')).map(cp=>{
+    const posEl=cp.getElementsByTagName('Position')[0];
+    const lat=posEl?xmlNum(posEl.getElementsByTagName('LatitudeDegrees')[0]):null;
+    const lon=posEl?xmlNum(posEl.getElementsByTagName('LongitudeDegrees')[0]):null;
+    const name=xmlText(cp.getElementsByTagName('Name')[0])||'';
+    return (lat!=null&&lon!=null)?{lat,lon,name}:null;
+  }).filter(Boolean);
+  return {sport,stream,calories,laps,waypoints};
 }
 function parseGPXString(gpxText){
   const doc=new DOMParser().parseFromString(gpxText,'application/xml');
@@ -4881,7 +4932,17 @@ function parseGPXString(gpxText){
     stream.strideLen.push(xmlNum(firstDescendantByLocalName(tp,'StepLength')||firstDescendantByLocalName(tp,'StrideLength')));
     stream.temp.push(xmlNum(firstDescendantByLocalName(tp,'atemp')));
   }
-  return {sport,stream,calories:0};
+  // <wpt> is GPX's own standalone-waypoint element -- structurally a lone lat/lon+name pin, distinct
+  // from (and a direct child of <gpx>, not nested inside) the <trk><trkseg><trkpt> track line above.
+  // This is exactly the numbered marker/aid-station data a plotaroute.com course export carries
+  // (Dylon: "load markers and waypoints for the route as seen on the website") -- previously ignored
+  // entirely, since every existing loop here only ever looked at <trkpt>.
+  const waypoints=Array.from(doc.getElementsByTagName('wpt')).map(wp=>{
+    const lat=parseFloat(wp.getAttribute('lat')), lon=parseFloat(wp.getAttribute('lon'));
+    if(isNaN(lat)||isNaN(lon)) return null;
+    return {lat,lon,name:xmlText(wp.getElementsByTagName('name')[0])||''};
+  }).filter(Boolean);
+  return {sport,stream,calories:0,waypoints};
 }
 // Maps a TCX Sport attribute / GPX <type> text to one of ACTIVITY_TYPES. Real gap Dylon reported:
 // Google Health/some watches export a blank or generic Sport label for a walk (nothing containing
@@ -8706,9 +8767,9 @@ function setRaceFilter(f){ RACE_FILTER=f; RACE_EDIT_KEY=null; RACE_ADDING=false;
 // and saveRaceForm() just reads its current value directly -- so "leave it alone," "upload a new file,"
 // and "remove the existing route" are all just this object's current state at save time, no separate
 // dirty/sentinel tracking needed.
-let RACE_ROUTE_PENDING={points:null,fileName:''};
+let RACE_ROUTE_PENDING={points:null,fileName:'',waypoints:[]};
 function openRaceFormOverlay(editRace){
-  RACE_ROUTE_PENDING={points:(editRace&&editRace.routePoints)||null,fileName:(editRace&&editRace.routeFileName)||''};
+  RACE_ROUTE_PENDING={points:(editRace&&editRace.routePoints)||null,fileName:(editRace&&editRace.routeFileName)||'',waypoints:(editRace&&editRace.routeWaypoints)||[]};
   document.getElementById('race-form-sh-title').textContent=editRace?'Edit Race':'Add a Race';
   document.getElementById('race-form-sh-body').innerHTML=renderRaceFormHTML(editRace)+raceFormFooterHTML(editRace);
   document.getElementById('race-form-overlay').classList.add('open');
@@ -8721,7 +8782,9 @@ function openRaceFormOverlay(editRace){
 // for Save" pattern updateRouteLink() already uses for the plain URL field just above.
 function raceRouteStatusText(pending){
   if(!pending||!pending.points) return 'No route file uploaded yet.';
-  return `${escAttr(pending.fileName||'Route file')} — ${pending.points.length} point${pending.points.length===1?'':'s'} loaded.`;
+  const wpCount=(pending.waypoints||[]).length;
+  const wpPart=wpCount?`, ${wpCount} waypoint${wpCount===1?'':'s'}`:'';
+  return `${escAttr(pending.fileName||'Route file')} — ${pending.points.length} point${pending.points.length===1?'':'s'}${wpPart} loaded.`;
 }
 function handleRaceRouteFile(evt){
   const file=(evt.target.files||[])[0];
@@ -8737,7 +8800,7 @@ function handleRaceRouteFile(evt){
       showToast(result.error);
       return;
     }
-    RACE_ROUTE_PENDING={points:result.points,fileName:file.name};
+    RACE_ROUTE_PENDING={points:result.points,fileName:file.name,waypoints:result.waypoints||[]};
     if(statusEl) statusEl.textContent=raceRouteStatusText(RACE_ROUTE_PENDING);
     const removeRow=document.getElementById('race-route-remove-row');
     if(removeRow) removeRow.style.display='flex';
@@ -8749,7 +8812,7 @@ function handleRaceRouteFile(evt){
   });
 }
 function removeRaceRouteFile(){
-  RACE_ROUTE_PENDING={points:null,fileName:''};
+  RACE_ROUTE_PENDING={points:null,fileName:'',waypoints:[]};
   const statusEl=document.getElementById('race-route-status');
   if(statusEl) statusEl.textContent=raceRouteStatusText(RACE_ROUTE_PENDING);
   const removeRow=document.getElementById('race-route-remove-row');
@@ -9240,10 +9303,17 @@ function raceRouteSVG(points,h){
 // map reference is enough, kept separate from ACTIVITY_LIVE_MAP so an open activity popup and an open
 // race strategy view can never fight over which live map a stray destroy call is tearing down.
 let RACE_ROUTE_LIVE_MAP=null;
+// Dylon, with a plotaroute.com route-viewer screenshot: "is it possible to load markers and waypoints
+// for the route as seen on the website and play the route as well like plotaroute?" RACE_ROUTE_PLAYER
+// holds the "play the route" animation state -- a single module-level reference, same one-open-at-once
+// reasoning as RACE_ROUTE_LIVE_MAP itself, since a route's playback state (current scrub position,
+// whether it's mid-animation) has no meaning once its own map is torn down.
+let RACE_ROUTE_PLAYER=null;
 function destroyRaceRouteLiveMap(){
+  if(RACE_ROUTE_PLAYER){ if(RACE_ROUTE_PLAYER.rafId) cancelAnimationFrame(RACE_ROUTE_PLAYER.rafId); RACE_ROUTE_PLAYER=null; }
   if(RACE_ROUTE_LIVE_MAP){ try{ RACE_ROUTE_LIVE_MAP.remove(); }catch(e){} RACE_ROUTE_LIVE_MAP=null; }
 }
-function initRaceRouteLiveMap(points,idPrefix){
+function initRaceRouteLiveMap(points,idPrefix,waypoints){
   destroyRaceRouteLiveMap();
   if(typeof L==='undefined') return false; // Leaflet's CDN <script> never loaded -- offline, or the CDN itself was unreachable
   if(navigator.onLine===false) return false;
@@ -9274,6 +9344,7 @@ function initRaceRouteLiveMap(points,idPrefix){
     subdomains:'abcd',maxZoom:19,
     attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
   });
+  const playerRow=document.getElementById(idPrefix+'route-player');
   let fellBack=false;
   const fallbackToSvg=()=>{
     if(fellBack) return;
@@ -9281,6 +9352,7 @@ function initRaceRouteLiveMap(points,idPrefix){
     destroyRaceRouteLiveMap();
     container.style.display='none';
     if(svgWrap) svgWrap.style.display='';
+    if(playerRow) playerRow.style.display='none';
   };
   tiles.on('tileerror',fallbackToSvg);
   const failTimer=setTimeout(fallbackToSvg,5000);
@@ -9291,10 +9363,117 @@ function initRaceRouteLiveMap(points,idPrefix){
   L.polyline(latlngs,{color:routeColor,weight:4,lineCap:'round',lineJoin:'round'}).addTo(map);
   L.circleMarker(latlngs[0],{radius:6,color:'#fff',weight:1.5,fillColor:cssVar(document.documentElement,'--gr','#4CAF6D'),fillOpacity:1}).addTo(map);
   L.circleMarker(latlngs[latlngs.length-1],{radius:6,color:'#fff',weight:1.5,fillColor:cssVar(document.documentElement,'--re','#EF5350'),fillOpacity:1}).addTo(map);
+  // Named waypoints (mile markers, aid stations, turn cues) parsed out of the same uploaded file --
+  // see parseRaceRouteBuffer/routeWaypoints. Simple numbered pins, tap for the point's own name --
+  // Dylon's answer when asked how detailed these should be ("simple named pins" over trying to
+  // distinguish water-stop/aid-station/turn icon types, since that "type" data is inconsistently
+  // populated across GPX/TCX/KML export tools anyway).
+  (waypoints||[]).forEach((wp,i)=>{
+    const icon=L.divIcon({
+      className:'',
+      html:`<div style="width:20px;height:20px;border-radius:50%;background:${cssVar(document.documentElement,'--s1','#1B1F29')};border:2px solid ${routeColor};display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:${cssVar(document.documentElement,'--t1','#fff')};box-shadow:0 1px 3px rgba(0,0,0,.35)">${i+1}</div>`,
+      iconSize:[20,20],iconAnchor:[10,10]
+    });
+    L.marker([wp.lat,wp.lon],{icon}).addTo(map).bindPopup(escAttr(wp.name||`Waypoint ${i+1}`));
+  });
   map.fitBounds(L.latLngBounds(latlngs),{padding:[14,14]});
   map.invalidateSize();
   setTimeout(()=>{ if(RACE_ROUTE_LIVE_MAP===map) map.invalidateSize(); },300);
+  initRaceRoutePlayer(map,latlngs,idPrefix);
   return true;
+}
+// "Play the route" -- Dylon, with a plotaroute.com route-viewer screenshot showing its own play button
+// + distance scrubber: "is it possible to... play the route as well like plotaroute?" These are
+// planned courses with no recorded pace/time data at all (see parseRaceRouteBuffer's own comment on
+// why a course export has no timestamps), so there's no real elapsed-time figure to play back at an
+// authentic speed -- RACE_ROUTE_PLAY_DURATION_MS is a flat "watch the whole course" replay length,
+// the practical stand-in, scaled proportionally if playback starts partway through (see
+// toggleRaceRoutePlay's remaining-distance math).
+const RACE_ROUTE_PLAY_DURATION_MS=18000;
+function initRaceRoutePlayer(map,latlngs,idPrefix){
+  const cumDist=[0];
+  for(let i=1;i<latlngs.length;i++) cumDist.push(cumDist[i-1]+haversineM(latlngs[i-1][0],latlngs[i-1][1],latlngs[i][0],latlngs[i][1]));
+  const totalDistM=cumDist[cumDist.length-1]||0;
+  const marker=L.circleMarker(latlngs[0],{radius:7,color:'#fff',weight:2,fillColor:cssVar(document.documentElement,'--accent','#3F7BF2'),fillOpacity:1}).addTo(map);
+  RACE_ROUTE_PLAYER={idPrefix,points:latlngs,cumDist,totalDistM,marker,currentDistM:0,playing:false,rafId:null,playStartTs:null,playStartDist:0};
+  const playerRow=document.getElementById(idPrefix+'route-player');
+  if(playerRow && totalDistM>0) playerRow.style.display='flex';
+  const scrubber=document.getElementById(idPrefix+'route-scrubber');
+  if(scrubber) scrubber.max=String(Math.round(totalDistM));
+  updateRaceRouteDistLabel(idPrefix,0,totalDistM);
+}
+function updateRaceRouteDistLabel(idPrefix,distM,totalM){
+  const label=document.getElementById(idPrefix+'route-dist-label');
+  if(label) label.textContent=`${(distM/1000).toFixed(2)} / ${(totalM/1000).toFixed(2)} km`;
+}
+// Linear-interpolates a lat/lon along the route at a given cumulative distance -- a plain linear scan
+// over cumDist rather than a binary search since routePoints is capped at ROUTE_MAP_MAX_POINTS=300,
+// nowhere near enough points for the difference to matter.
+function positionAtDistance(latlngs,cumDist,distM){
+  if(distM<=0) return latlngs[0];
+  const total=cumDist[cumDist.length-1];
+  if(distM>=total) return latlngs[latlngs.length-1];
+  for(let i=1;i<cumDist.length;i++){
+    if(cumDist[i]>=distM){
+      const segLen=cumDist[i]-cumDist[i-1];
+      const t=segLen>0?(distM-cumDist[i-1])/segLen:0;
+      const [lat1,lon1]=latlngs[i-1], [lat2,lon2]=latlngs[i];
+      return [lat1+(lat2-lat1)*t,lon1+(lon2-lon1)*t];
+    }
+  }
+  return latlngs[latlngs.length-1];
+}
+function setRaceRoutePlayerDistance(distM){
+  const p=RACE_ROUTE_PLAYER;
+  if(!p) return;
+  const clamped=Math.max(0,Math.min(distM,p.totalDistM));
+  const pos=positionAtDistance(p.points,p.cumDist,clamped);
+  if(p.marker) p.marker.setLatLng(pos);
+  const scrubber=document.getElementById(p.idPrefix+'route-scrubber');
+  if(scrubber) scrubber.value=String(Math.round(clamped));
+  updateRaceRouteDistLabel(p.idPrefix,clamped,p.totalDistM);
+  p.currentDistM=clamped;
+}
+// Dragging the scrubber always pauses any running animation first -- the standard "scrubbing takes
+// manual control" behavior any video/audio player scrubber has.
+function scrubRaceRoute(idPrefix,valueM){
+  const p=RACE_ROUTE_PLAYER;
+  if(!p||p.idPrefix!==idPrefix) return;
+  stopRaceRoutePlayback();
+  setRaceRoutePlayerDistance(Number(valueM));
+}
+function stopRaceRoutePlayback(){
+  const p=RACE_ROUTE_PLAYER;
+  if(!p) return;
+  if(p.rafId){ cancelAnimationFrame(p.rafId); p.rafId=null; }
+  p.playing=false;
+  const btn=document.getElementById(p.idPrefix+'route-play-btn');
+  if(btn) btn.textContent='▶';
+}
+function toggleRaceRoutePlay(idPrefix){
+  const p=RACE_ROUTE_PLAYER;
+  if(!p||p.idPrefix!==idPrefix||!p.totalDistM) return;
+  if(p.playing){ stopRaceRoutePlayback(); return; }
+  // Pressing Play again once already at (or essentially at) the end restarts from the beginning
+  // instead of doing nothing -- the useful behavior for "watch the route again."
+  const startDist=(p.currentDistM>=p.totalDistM-1)?0:(p.currentDistM||0);
+  p.playing=true;
+  p.playStartTs=null;
+  p.playStartDist=startDist;
+  const btn=document.getElementById(idPrefix+'route-play-btn');
+  if(btn) btn.textContent='⏸';
+  const step=(ts)=>{
+    if(!p.playing) return;
+    if(p.playStartTs===null) p.playStartTs=ts;
+    const elapsed=ts-p.playStartTs;
+    const remainingDist=p.totalDistM-p.playStartDist;
+    const durationForRemaining=RACE_ROUTE_PLAY_DURATION_MS*(remainingDist/p.totalDistM);
+    const frac=durationForRemaining>0?Math.min(1,elapsed/durationForRemaining):1;
+    setRaceRoutePlayerDistance(p.playStartDist+remainingDist*frac);
+    if(frac>=1){ stopRaceRoutePlayback(); return; }
+    p.rafId=requestAnimationFrame(step);
+  };
+  p.rafId=requestAnimationFrame(step);
 }
 // The Route card for the Race Day Strategy view — same two-stacked-layers pattern as
 // renderActivityRouteMapHTML (SVG rendered synchronously so there's never a blank flash; the live map
@@ -9304,12 +9483,22 @@ function renderRaceRouteMapHTML(r,idPrefix){
   idPrefix=idPrefix||'';
   if(!r||!r.routePoints||r.routePoints.length<2) return '';
   const svg=raceRouteSVG(r.routePoints,240);
+  const hasWaypoints=r.routeWaypoints&&r.routeWaypoints.length>0;
+  // Play/scrubber row -- hidden by default (display:none), only ever revealed by initRaceRoutePlayer
+  // once the live Leaflet map (not the static SVG fallback) is actually up and running, since playback
+  // needs a real map layer to animate a marker across. See initRaceRouteLiveMap/initRaceRoutePlayer.
   return `<div class="card" style="padding:0;overflow:hidden;flex-shrink:0;margin-bottom:14px">
     <div id="${idPrefix}route-live" style="width:100%;height:240px;display:none"></div>
     <div id="${idPrefix}route-svg" style="padding:8px">${svg}</div>
-    <div style="padding:0 8px 8px;display:flex;align-items:center;justify-content:center;gap:14px;font-size:10px;color:var(--t3)">
+    <div id="${idPrefix}route-player" style="display:none;align-items:center;gap:10px;padding:8px 10px;border-top:1px solid var(--b1)">
+      <button type="button" id="${idPrefix}route-play-btn" onclick="toggleRaceRoutePlay('${idPrefix}')" aria-label="Play route" style="width:30px;height:30px;border-radius:50%;border:none;background:var(--accent);color:#0B0D12;display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;font-size:12px">▶</button>
+      <input type="range" id="${idPrefix}route-scrubber" min="0" max="1000" value="0" step="1" oninput="scrubRaceRoute('${idPrefix}',this.value)" style="flex:1;accent-color:var(--accent)">
+      <span id="${idPrefix}route-dist-label" style="font-size:11px;color:var(--t3);white-space:nowrap;font-variant-numeric:tabular-nums">0.00 / 0.00 km</span>
+    </div>
+    <div style="padding:8px 8px;display:flex;align-items:center;justify-content:center;gap:14px;font-size:10px;color:var(--t3);flex-wrap:wrap">
       <span style="display:inline-flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:50%;background:var(--gr);display:inline-block;flex-shrink:0"></span>Start</span>
       <span style="display:inline-flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:50%;background:var(--re);display:inline-block;flex-shrink:0"></span>Finish</span>
+      ${hasWaypoints?`<span style="display:inline-flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:50%;border:2px solid var(--dur);display:inline-block;flex-shrink:0"></span>${r.routeWaypoints.length} waypoint${r.routeWaypoints.length===1?'':'s'}</span>`:''}
     </div>
   </div>`;
 }
@@ -9671,7 +9860,7 @@ function renderRaces(preserveScroll){
   // itself) -- otherwise closing the strategy view (or switching to a race with no route) would leave a
   // stale Leaflet instance holding onto DOM nodes that innerHTML just replaced out from under it.
   const stratRace=RACE_STRATEGY_KEY?RACES_LIST.find(r=>r.key===RACE_STRATEGY_KEY):null;
-  if(stratRace && stratRace.routePoints) initRaceRouteLiveMap(stratRace.routePoints,'strat-');
+  if(stratRace && stratRace.routePoints) initRaceRouteLiveMap(stratRace.routePoints,'strat-',stratRace.routeWaypoints);
   else destroyRaceRouteLiveMap();
 }
 function saveRaceForm(){
@@ -9702,6 +9891,7 @@ function saveRaceForm(){
   // time regardless of whether it was left alone, replaced, or cleared during this form session.
   const routePoints=RACE_ROUTE_PENDING.points||null;
   const routeFileName=RACE_ROUTE_PENDING.fileName||'';
+  const routeWaypoints=RACE_ROUTE_PENDING.waypoints||[];
   const blockId=document.getElementById('race-blockid').value||null;
   const resultPace=(document.getElementById('race-resultpace').value||'').trim();
   const resultHR=(document.getElementById('race-resulthr').value||'').trim();
@@ -9718,10 +9908,10 @@ function saveRaceForm(){
       // A changed pickup start date means any earlier "reminder already fired" flag no longer
       // applies to the new date — reset it so the 3-day-out check can fire again for the correction.
       const pkgReminderFired=(pkgPickupStart&&pkgPickupStart!==r.pkgPickupStart)?false:r.pkgReminderFired;
-      Object.assign(r,{name,date,dateTBD,time,regOpenDate,distance,priority,shoeKey,status,goal,targetMin,targetMax,actualTime,isPB,location,routeUrl,routePoints,routeFileName,blockId,resultPace,resultHR,resultPos,resultGPos,resultAPos,resultNotes,pkgPickupStart,pkgPickupEnd,pkgPickupLocation,pkgPickupNotes,pkgReminderFired});
+      Object.assign(r,{name,date,dateTBD,time,regOpenDate,distance,priority,shoeKey,status,goal,targetMin,targetMax,actualTime,isPB,location,routeUrl,routePoints,routeFileName,routeWaypoints,blockId,resultPace,resultHR,resultPos,resultGPos,resultAPos,resultNotes,pkgPickupStart,pkgPickupEnd,pkgPickupLocation,pkgPickupNotes,pkgReminderFired});
     }
   } else {
-    RACES_LIST.push(normalizeRaceRecord({name,date,dateTBD,time,regOpenDate,distance,priority,shoeKey,status,goal,targetMin,targetMax,actualTime,isPB,location,routeUrl,routePoints,routeFileName,blockId,resultPace,resultHR,resultPos,resultGPos,resultAPos,resultNotes,pkgPickupStart,pkgPickupEnd,pkgPickupLocation,pkgPickupNotes}));
+    RACES_LIST.push(normalizeRaceRecord({name,date,dateTBD,time,regOpenDate,distance,priority,shoeKey,status,goal,targetMin,targetMax,actualTime,isPB,location,routeUrl,routePoints,routeFileName,routeWaypoints,blockId,resultPace,resultHR,resultPos,resultGPos,resultAPos,resultNotes,pkgPickupStart,pkgPickupEnd,pkgPickupLocation,pkgPickupNotes}));
   }
   RACE_EDIT_KEY=null; RACE_ADDING=false;
   saveRacesList();
@@ -11970,28 +12160,62 @@ function parseKMLString(kmlText){
     if(pts.length>bestPts.length) bestPts=pts;
   });
   if(bestPts.length<2) throw new Error('No usable route track found in this KML file.');
-  return bestPts;
+  // A <Placemark> that wraps a <Point> (as opposed to the route's own <Placemark><LineString> handled
+  // above) is KML's own standalone-waypoint element -- one coordinate tuple, not whitespace-separated
+  // like a LineString's, same lon,lat[,alt] ORDER either way. getElementsByTagName('Point') deliberately
+  // scopes to <Point> specifically (never matches <LineString>) so this can never double-count the
+  // route line itself as a waypoint.
+  const waypoints=Array.from(doc.getElementsByTagName('Placemark')).map(pm=>{
+    const pointEl=pm.getElementsByTagName('Point')[0];
+    if(!pointEl) return null;
+    const coordEl=pointEl.getElementsByTagName('coordinates')[0];
+    const raw=coordEl?(coordEl.textContent||'').trim():'';
+    if(!raw) return null;
+    const parts=raw.split(',');
+    const lon=parseFloat(parts[0]), lat=parseFloat(parts[1]);
+    if(isNaN(lat)||isNaN(lon)) return null;
+    return {lat,lon,name:xmlText(pm.getElementsByTagName('name')[0])||''};
+  }).filter(Boolean);
+  return {points:bestPts,waypoints};
+}
+// Trims a waypoints array down to ROUTE_WAYPOINT_MAX (simple truncation, not stride-sampling like
+// extractRoutePoints -- waypoints are already sparse and each one is individually meaningful, so
+// keeping the first N in file order beats thinning them out evenly).
+function capWaypoints(wps){
+  return (Array.isArray(wps)?wps:[]).slice(0,ROUTE_WAYPOINT_MAX);
 }
 // Race-route counterpart to parseActivityBuffer above -- same {ok,...}/{ok:false,error} shape, same
 // content-sniffing-over-trusting-the-extension approach, just returning a bare points array (route:
 // no calories/sport/laps concept) instead of a full activity record, and covering KML too (which
 // activity import deliberately doesn't accept -- a race COURSE is commonly exported as KML by mapping
-// tools; a real recorded activity essentially never is).
+// tools; a real recorded activity essentially never is). Also pulls out named waypoints (mile markers,
+// aid stations, turn cues) alongside the route line itself -- Dylon, with a plotaroute.com route-viewer
+// screenshot: "is it possible to load markers and waypoints for the route as seen on the website...
+// like plotaroute?" FIT's course_point message (the FIT equivalent of GPX <wpt>/TCX <CoursePoint>) is
+// deliberately NOT parsed here -- its exact field-number layout couldn't be confirmed with real
+// confidence, and silently mislabeling or mispositioning a waypoint from a guessed field number would
+// be worse than just not showing one; a FIT route still gets its route line correctly either way.
 function parseRaceRouteBuffer(buf,filename){
   try{
     if(isFitBuffer(buf,filename)){
       const points=extractRoutePoints(parseFITBuffer(buf).stream);
       if(points.length<2) throw new Error('No usable GPS track found in this FIT file.');
-      return {ok:true,points};
+      return {ok:true,points,waypoints:[]};
     }
     const text=new TextDecoder('utf-8').decode(buf);
-    let points;
-    if(/<TrainingCenterDatabase/i.test(text)) points=extractRoutePoints(parseTCXString(text).stream);
-    else if(/<gpx[\s>]/i.test(text)) points=extractRoutePoints(parseGPXString(text).stream);
-    else if(/<kml[\s>]/i.test(text)) points=parseKMLString(text);
-    else return {ok:false,error:'Unrecognized file — expected a .gpx, .tcx, .fit, or .kml route export.'};
+    let points,waypoints=[];
+    if(/<TrainingCenterDatabase/i.test(text)){
+      const parsed=parseTCXString(text);
+      points=extractRoutePoints(parsed.stream); waypoints=parsed.waypoints||[];
+    }else if(/<gpx[\s>]/i.test(text)){
+      const parsed=parseGPXString(text);
+      points=extractRoutePoints(parsed.stream); waypoints=parsed.waypoints||[];
+    }else if(/<kml[\s>]/i.test(text)){
+      const parsed=parseKMLString(text);
+      points=parsed.points; waypoints=parsed.waypoints||[];
+    }else return {ok:false,error:'Unrecognized file — expected a .gpx, .tcx, .fit, or .kml route export.'};
     if(points.length<2) throw new Error('No usable GPS track found in this file.');
-    return {ok:true,points};
+    return {ok:true,points,waypoints:capWaypoints(waypoints)};
   }catch(e){
     return {ok:false,error:e.message||'Could not read this file.'};
   }
