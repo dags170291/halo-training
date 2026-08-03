@@ -1589,21 +1589,36 @@ main{flex:1;padding:14px 14px 24px;max-width:560px;width:100%;margin:0 auto}
 
 <!-- Cloud sync client — only used if a Supabase project URL/key is configured below; loads from
      CDN so this stays a single portable HTML file with no build step. Harmless if unreachable
-     (e.g. offline) since every sync function below checks SB is set before using it. -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+     (e.g. offline) since every sync function below checks SB is set before using it.
+     `defer` + onload (v0.34.30): these three CDN tags used to be plain blocking <script src>
+     tags sitting in the middle of <body>, ahead of the single giant inline <script> that is the
+     entire rest of this app. A blocking script tag stalls the parser (and the whole page's first
+     paint, so on an installed PWA the OS-level splash screen just sits there) until that request
+     either finishes or errors -- normally fast, but a VPN/ad-blocker/firewall that silently
+     black-holes a request (rather than cleanly refusing it) can make it hang indefinitely, which
+     is exactly what happened to a tester on mobile data with a VPN active: the app never got past
+     its splash screen at all, on a device that had never even reached the point of checking any of
+     these three optional dependencies. `defer` lets the browser keep parsing/painting/running the
+     rest of the page immediately regardless of how long (or whether) each of these ever finishes
+     loading, so a slow/blocked CDN now only disables that one optional feature instead of the
+     entire app. -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer onload="initSupabaseClient()"></script>
 <!-- Client-side PDF generation for the generic "Download Plan" feature (any block, not just
      Block 5's hand-baked PDF). Also loaded from CDN, also harmless if unreachable — downloadPlanPDF()
-     below checks window.jspdf is actually present before using it, and Download Markdown never
-     depends on it at all. -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+     below checks window.jspdf is actually present before using it (at click time, not at page load),
+     and Download Markdown never depends on it at all. -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
 <!-- Real interactive map tiles for the Route card, used only when online -- Leaflet + CARTO's free,
      keyless Positron/Dark Matter basemap tiles (picked to match HALO's own light/dark theme rather
      than always showing the same colorful map regardless of theme). Loaded from CDN so this stays a
      single portable HTML file with no build step; harmless if unreachable (e.g. offline) since
-     initActivityRouteLiveMap() below checks window.L is actually present before using it, and always
-     falls back to the self-contained offline SVG route (activityRouteSVG) otherwise. -->
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+     initActivityRouteLiveMap() below checks window.L is actually present before using it (at map-open
+     time, not at page load), and always falls back to the self-contained offline SVG route
+     (activityRouteSVG) otherwise. The stylesheet uses the standard "media=print, swap to all
+     onload" trick so it never blocks first paint either — a <link rel=stylesheet> has no defer
+     attribute of its own. -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" media="print" onload="this.media='all'">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
 <script>
 /* App version shown in Settings → About, so you can always tell which build is on a given device
    (handy for confirming a fresh deploy actually landed vs. an old cached copy). Bump this alongside
@@ -1618,7 +1633,7 @@ main{flex:1;padding:14px 14px 24px;max-width:560px;width:100%;margin:0 auto}
    session-style restyle, race-target connection, iOS install fix, icon redesign, onboarding flow).
    APP_STAGE is 'alpha.N' pre-launch, bump N each time you hand a build to a real tester (Dylon's
    sister counts); once launched, APP_VERSION resets to 1.0.0 and APP_STAGE becomes ''. */
-const APP_VERSION='0.34.29';
+const APP_VERSION='0.34.30';
 const APP_STAGE='alpha.1';
 const APP_VERSION_DATE='2026-08-03';
 /* ═══════════════════════════ DATA ═══════════════════════════ */
@@ -5095,11 +5110,25 @@ const SUPABASE_ANON_KEY='sb_publishable_k4UVmX3GoqZmIxFdIqnM-g_r8CRq9M8';
 const SYNCK='b5_last_sync';
 const LCK='b5_local_change';
 let SB=null;
-try{
-  if(SUPABASE_URL && SUPABASE_ANON_KEY && window.supabase){
-    SB=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
-  }
-}catch(e){ SB=null; }
+// The Supabase CDN <script> tag near the top of <body> is now `defer`red (v0.34.30, so a slow/
+// blocked CDN can never freeze the whole app on its splash screen — see that tag's own comment),
+// which means window.supabase may not exist yet by the time this line first runs. Pulled into its
+// own function so it can be retried from that same tag's onload once the script actually finishes
+// — safe to call more than once (the `!SB` guard makes every call after the first a no-op).
+function initSupabaseClient(){
+  try{
+    if(SUPABASE_URL && SUPABASE_ANON_KEY && window.supabase && !SB){
+      SB=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+      // The one-time boot sequence below calls initSyncSession() unconditionally, but with the
+      // Supabase script now deferred it almost always runs before SB exists yet (that call is a
+      // harmless no-op in that case, see its own `if(!SB) return`). Re-run it here so a returning
+      // Cloud Sync user's session still actually gets restored once SB is genuinely ready, however
+      // long the CDN script took to load.
+      initSyncSession();
+    }
+  }catch(e){ SB=null; }
+}
+initSupabaseClient();
 let SYNC_SESSION=null;
 let SYNC_BUSY=false;
 let AUTO_PUSH_TIMER=null;

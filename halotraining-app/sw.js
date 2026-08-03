@@ -1657,7 +1657,20 @@
 // intervalStepsFromReps() replaces the generic "intervals" step text with the actual work+rest
 // sequence for any session with reps entered -- additive, so a session with nothing entered in the
 // new Intervals card behaves exactly as before.
-const CACHE_NAME = 'halo-0.34.29-alpha.1';
+// v0.34.30 -- fixed a real bug, not a user/network issue: Dylon reported "the app isnt accessible
+// outside my network nor by my sister," stuck on the install splash screen on mobile data with a
+// VPN active. Both the live github.io URL and the old netlify.app URL turned out to load fine from
+// completely outside his network, ruling out hosting/DNS. Root cause: the Supabase/jsPDF/Leaflet CDN
+// dependencies were loaded as plain blocking <script src> tags sitting ahead of the entire app's own
+// single giant inline <script> -- a VPN/firewall that silently black-holes (rather than cleanly
+// refuses) a request to one of those CDNs can hang the browser's fetch indefinitely, and a blocking
+// script tag stalls parsing/first paint until its request resolves, freezing the whole app on its
+// splash screen even though none of these three dependencies were ever actually needed yet. Added
+// `defer` to all three <script> tags and the media=print/onload swap trick to the Leaflet stylesheet
+// so none of them can ever block first paint again; pulled Supabase client creation into its own
+// initSupabaseClient(), callable safely more than once, wired to that tag's own onload so a slow CDN
+// still eventually creates the real client and retries the boot-time session-restore check.
+const CACHE_NAME = 'halo-0.34.30-alpha.1';
 const APP_SHELL = [
   './index.html',
   './manifest.webmanifest',
