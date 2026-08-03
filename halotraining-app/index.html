@@ -1633,7 +1633,7 @@ main{flex:1;padding:14px 14px 24px;max-width:560px;width:100%;margin:0 auto}
    session-style restyle, race-target connection, iOS install fix, icon redesign, onboarding flow).
    APP_STAGE is 'alpha.N' pre-launch, bump N each time you hand a build to a real tester (Dylon's
    sister counts); once launched, APP_VERSION resets to 1.0.0 and APP_STAGE becomes ''. */
-const APP_VERSION='0.34.30';
+const APP_VERSION='0.34.31';
 const APP_STAGE='alpha.1';
 const APP_VERSION_DATE='2026-08-03';
 /* ═══════════════════════════ DATA ═══════════════════════════ */
@@ -2089,11 +2089,21 @@ function raceStatusLabel(s){ return s==='done'?'Complete':s==='tentative'?'Tenta
 // as most urgent of all — as a banner at the top of Today, so it's seen without having to dig into
 // the Race Calendar. Only considers races not yet marked registered/done (once you register there's
 // nothing left to be reminded about), and only within a 14-day lookahead window so it doesn't nag
-// about registrations that are still months away.
+// about registrations that are still months away. Dylon: "registration open soon notification dont
+// disapear or is un moveable" -- there was genuinely no way to get rid of this one (unlike its sibling
+// tbdRaceNudgeHTML() below, which already had a "Remind me later" snooze) -- once registration opened
+// it had no upper bound at all and would show every single day forever until the race was manually
+// marked Registered. Asked via AskUserQuestion whether the fix should be a snooze button, a quick
+// "Mark as Registered" shortcut, or both -- Dylon chose the snooze button, matching the exact pattern
+// tbdRaceNudgeHTML()/dismissTBDNudge() already established. Snoozed per-race (PROFILE.regNudgeSnoozed,
+// keyed by race key, not one shared flag) so dismissing one race's nudge doesn't also hide a
+// DIFFERENT race's reg-open nudge if one becomes the most urgent later.
 function raceRegNudgeHTML(){
   const t=todayISO();
+  const snoozed=PROFILE.regNudgeSnoozed||{};
   const candidates=RACES_LIST
     .filter(r=>r.regOpenDate && r.status!=='registered' && r.status!=='done')
+    .filter(r=>!(snoozed[r.key] && daysBetween(snoozed[r.key],t)<7))
     .map(r=>({r,daysToOpen:daysBetween(t,r.regOpenDate)}))
     .filter(x=>x.daysToOpen<=14)
     .sort((a,b)=>a.daysToOpen-b.daysToOpen);
@@ -2110,9 +2120,14 @@ function raceRegNudgeHTML(){
     <div class="notice-banner-body">
       <div class="notice-banner-title">${title}</div>
       <div class="notice-banner-msg">${msg}</div>
-      <div class="notice-banner-actions"><button class="primary" onclick="openRaceDetail('${r.key}')">View race</button></div>
+      <div class="notice-banner-actions"><button class="primary" onclick="openRaceDetail('${r.key}')">View race</button><button class="secondary" onclick="dismissRegNudge('${r.key}')">Remind me later</button></div>
     </div>
   </div>`;
+}
+function dismissRegNudge(raceKey){
+  if(!PROFILE.regNudgeSnoozed) PROFILE.regNudgeSnoozed={};
+  PROFILE.regNudgeSnoozed[raceKey]=todayISO();
+  saveState(); renderAll();
 }
 // Races with no confirmed date yet (dateTBD) AND no known registration-open date either have nothing
 // for raceRegNudgeHTML above to count down to — there's simply no date on file to alert on. This is

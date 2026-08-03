@@ -1670,7 +1670,16 @@
 // so none of them can ever block first paint again; pulled Supabase client creation into its own
 // initSupabaseClient(), callable safely more than once, wired to that tag's own onload so a slow CDN
 // still eventually creates the real client and retries the boot-time session-restore check.
-const CACHE_NAME = 'halo-0.34.30-alpha.1';
+// v0.34.31 -- Dylon: "registration open soon notification dont disapear or is un moveable." The
+// "Registration opens soon"/"Registration is open" banner on Today (raceRegNudgeHTML) genuinely had
+// no dismiss button at all -- unlike its sibling "Check on unannounced races" banner, which already
+// had a "Remind me later" snooze. Once registration opened it had no upper bound and would show every
+// day forever until the race was manually marked Registered. Asked via AskUserQuestion whether the fix
+// should be a snooze button, a quick "Mark as Registered" shortcut, or both -- chose the snooze button,
+// matching the exact tbdRaceNudgeHTML()/dismissTBDNudge() pattern already used elsewhere. New
+// PROFILE.regNudgeSnoozed (keyed per-race by race key, not one shared flag, since only the single most
+// urgent race's nudge shows at a time) + new dismissRegNudge(raceKey) function.
+const CACHE_NAME = 'halo-0.34.31-alpha.1';
 const APP_SHELL = [
   './index.html',
   './manifest.webmanifest',
