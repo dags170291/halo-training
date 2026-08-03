@@ -1644,7 +1644,20 @@
 // toggle already established; and both HR-zone donut charts (Weekly Zone Time + per-activity Effort
 // card) now stretch to a wide oval spanning the card's width via preserveAspectRatio="none", instead
 // of a fixed 132x132 square.
-const CACHE_NAME = 'halo-0.34.28-alpha.1';
+// v0.34.29 -- Dylon: "intervals need more editing features, eg no of times to repeat a, or number of
+// reps. or pace each rep, distance vs time each rep etc. overall distance dont matter as much but the
+// app should be able to calculate based on the data entered." Quality/Interval sessions get a real
+// structured edit form: optional warm-up/cool-down (distance or time) plus a fully custom per-rep list
+// (each rep its own distance-or-time, optional pace, and its own rest), chosen over a uniform-reps
+// shape per Dylon's own AskUserQuestion answer. New s.warmup/s.cooldown/s.intervalReps fields; new
+// calc functions (intervalRepDistanceKm/intervalRepDurationSec/intervalSetTotals etc.) only ever
+// compute a segment's missing side from that same segment's own entered data -- rest/warmup/cooldown
+// entered as time never estimates a distance, per Dylon's second AskUserQuestion answer ("don't
+// estimate it"). savePlanEdits recalculates Distance Min/Max from real entered reps, and
+// intervalStepsFromReps() replaces the generic "intervals" step text with the actual work+rest
+// sequence for any session with reps entered -- additive, so a session with nothing entered in the
+// new Intervals card behaves exactly as before.
+const CACHE_NAME = 'halo-0.34.29-alpha.1';
 const APP_SHELL = [
   './index.html',
   './manifest.webmanifest',

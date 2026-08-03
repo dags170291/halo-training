@@ -1618,9 +1618,9 @@ main{flex:1;padding:14px 14px 24px;max-width:560px;width:100%;margin:0 auto}
    session-style restyle, race-target connection, iOS install fix, icon redesign, onboarding flow).
    APP_STAGE is 'alpha.N' pre-launch, bump N each time you hand a build to a real tester (Dylon's
    sister counts); once launched, APP_VERSION resets to 1.0.0 and APP_STAGE becomes ''. */
-const APP_VERSION='0.34.28';
+const APP_VERSION='0.34.29';
 const APP_STAGE='alpha.1';
-const APP_VERSION_DATE='2026-08-02';
+const APP_VERSION_DATE='2026-08-03';
 /* ═══════════════════════════ DATA ═══════════════════════════ */
 // Block 5's session list — now the seed content for its Block record rather than a global const.
 // The live, active-block-driven binding is `let DATA` further down (see SEASONS/BLOCKS section).
@@ -13674,6 +13674,112 @@ function genericQualStep(s){
   const hrLbl=sessionHRLabel(s); if(hrLbl) parts.push(hrLbl);
   return [{type:'group',label:s.ti||'Session'},{type:'runline',text:s.det||s.full||'See the session notes for details.',sub:parts.filter(Boolean).join(' · ')}];
 }
+/* ── Structured interval editing ──
+   Dylon: "intervals need more editing features, eg no of times to repeat a, or number of reps. or pace
+   each rep, distance vs time each rep etc. overall distance dont matter as much but the app should be
+   able to calculate based on the data entered." Asked via AskUserQuestion: (1) uniform reps vs a custom
+   per-rep list -- chose CUSTOM (each rep can have its own distance-or-time value, pace, and rest), which
+   is what s.intervalReps below models; (2) whether time-based rest should count toward total distance --
+   chose NOT to estimate it, since that would mean fabricating an assumed recovery pace the app doesn't
+   actually have. Every function below only ever calculates a number from data the user actually entered
+   (e.g. time ÷ real per-rep pace, or distance × real per-rep pace) -- never from an assumed/guessed pace.
+
+   Data shape, all stored directly on the plan session object (s), same "findSess() returns a live
+   reference, mutate directly" convention every other plan-edit feature already uses:
+     s.warmup / s.cooldown = {type:'distance'|'time', val:string} | undefined
+       -- val is a km number-as-string when type is 'distance' (e.g. "1.5"), or "mm:ss" when type is
+          'time' (e.g. "10:00") -- matches the existing Distance Min/Max (km) / mm:ss pace convention
+          used throughout the rest of the app rather than introducing a third unit system.
+     s.intervalReps = [{workType:'distance'|'time', workVal:string, pace:string|undefined,
+                        rest:{type:'distance'|'time', val:string}|null}, ...]
+       -- rest is null when there's no rest prescribed after that particular rep (e.g. the last rep
+          often goes straight into cooldown with nothing between).
+   This lives ALONGSIDE (not replacing) the pre-existing QUALITY_CFG lookup table and distMin/distMax
+   fields -- a Block-5 session that's never been edited through the new Intervals form still renders
+   from QUALITY_CFG exactly as it always has (see stepsFor's own qual branch below); only once a session
+   actually HAS s.intervalReps does the new structured path take over its step rendering and its
+   distance total. */
+function intervalRepDistanceKm(rep){
+  if(!rep) return null;
+  if(rep.workType==='distance'){ const km=parseFloat(rep.workVal); return isNaN(km)?null:km; }
+  if(rep.workType==='time'){
+    const sec=timeStrToSec(rep.workVal), paceSec=rep.pace?parsePaceSec(rep.pace):null;
+    return (sec&&paceSec)?sec/paceSec:null;
+  }
+  return null;
+}
+function intervalRepDurationSec(rep){
+  if(!rep) return null;
+  if(rep.workType==='time') return timeStrToSec(rep.workVal);
+  if(rep.workType==='distance'){
+    const km=parseFloat(rep.workVal), paceSec=rep.pace?parsePaceSec(rep.pace):null;
+    return (!isNaN(km)&&paceSec)?km*paceSec:null;
+  }
+  return null;
+}
+// Rest/warmup/cooldown distance only ever counts when entered AS a distance -- time-based rest/warmup/
+// cooldown contributes to the total DURATION only, never an estimated distance (see this section's own
+// top comment for why: no assumed recovery pace is baked in anywhere here).
+function intervalRestDistanceKm(rest){
+  if(!rest||rest.type!=='distance') return 0;
+  const km=parseFloat(rest.val);
+  return isNaN(km)?0:km;
+}
+function intervalRestDurationSec(rest){
+  if(!rest||rest.type!=='time') return 0;
+  return timeStrToSec(rest.val)||0;
+}
+function intervalSegDistanceKm(seg){
+  if(!seg||seg.type!=='distance') return 0;
+  const km=parseFloat(seg.val);
+  return isNaN(km)?0:km;
+}
+function intervalSegDurationSec(seg){
+  if(!seg||seg.type!=='time') return 0;
+  return timeStrToSec(seg.val)||0;
+}
+// Rolls a session's warmup/reps/cooldown into one {distKm,durSec,repsCount} totals object -- the single
+// source of truth savePlanEdits writes into s.distMin/s.distMax with (see there), and
+// intervalStepsFromReps' own per-rep step text draws from these same per-segment helpers so the two can
+// never disagree with each other.
+function intervalSetTotals(s){
+  const reps=(s&&s.intervalReps)||[];
+  let distKm=intervalSegDistanceKm(s&&s.warmup)+intervalSegDistanceKm(s&&s.cooldown);
+  let durSec=intervalSegDurationSec(s&&s.warmup)+intervalSegDurationSec(s&&s.cooldown);
+  reps.forEach(rep=>{
+    const rd=intervalRepDistanceKm(rep); if(rd!=null) distKm+=rd;
+    const rt=intervalRepDurationSec(rep); if(rt!=null) durSec+=rt;
+    distKm+=intervalRestDistanceKm(rep.rest);
+    durSec+=intervalRestDurationSec(rep.rest);
+  });
+  return {distKm,durSec,repsCount:reps.length};
+}
+function intervalSegLabel(seg){
+  if(!seg||!seg.val) return '';
+  return seg.type==='distance'?`${seg.val} km`:seg.val;
+}
+function intervalRepWorkLabel(rep){
+  const base=rep.workType==='distance'?`${rep.workVal} km`:rep.workVal;
+  return rep.pace?`${base} @ ${rep.pace}/km`:base;
+}
+// Real per-rep alternating work/rest steps, built directly from a session's own s.intervalReps --
+// unlike intervalStepsWithOverrides (a single generic work line applied to every rep uniformly, since
+// QUALITY_CFG only ever stores ONE rep shape for the whole session), this shows each rep's own actual
+// distance/time and pace, and only inserts a rest line where a rest was actually prescribed for that
+// specific rep.
+function intervalStepsFromReps(s){
+  const hrLbl=sessionHRLabel(s);
+  const rows=[];
+  if(s.warmup&&s.warmup.val){ rows.push({type:'group',label:'Warm Up'}); rows.push({type:'runline',text:intervalSegLabel(s.warmup)}); }
+  const reps=s.intervalReps||[];
+  rows.push({type:'group',label:'Main Set',repeat:reps.length,sets:reps.length+' rep'+(reps.length===1?'':'s')});
+  reps.forEach((rep,i)=>{
+    rows.push({type:'interval',kind:'work',text:`Rep ${i+1}: ${intervalRepWorkLabel(rep)}`+(hrLbl?' · '+hrLbl:'')});
+    if(rep.rest&&rep.rest.val) rows.push({type:'interval',kind:'rest',text:'Rest: '+intervalSegLabel(rep.rest)});
+  });
+  if(s.cooldown&&s.cooldown.val){ rows.push({type:'group',label:'Cool Down'}); rows.push({type:'runline',text:intervalSegLabel(s.cooldown)}); }
+  return rows;
+}
 function stepsFor(s){
   // A session's own structured steps (if the plan JSON supplied any) always win, for any block —
   // this is what lets an uploaded plan get the same rich warmup/main/cooldown breakdown Block 5's
@@ -13689,7 +13795,10 @@ function stepsFor(s){
   // neighbors: a race's own details living in one place (RACES_LIST) rather than per-block lookup
   // tables is what keeps Schedule/Today in sync with the Races tab for any race, old or new.
   if(s.ty==='race') return raceStepsFor(s);
-  if(s.ty==='qual') return (isBlock5&&QUALITY_CFG[s.id])?intervalStepsWithOverrides(s,QUALITY_CFG[s.id]):genericQualStep(s);
+  if(s.ty==='qual'){
+    if(s.intervalReps&&s.intervalReps.length) return intervalStepsFromReps(s);
+    return (isBlock5&&QUALITY_CFG[s.id])?intervalStepsWithOverrides(s,QUALITY_CFG[s.id]):genericQualStep(s);
+  }
   // Both rest and mobility days used to attach a fixed 7-move "Mobility Flow" card (mobilityStep())
   // with prescribed sets/durations here — that's exactly the kind of locked-in workout these days
   // are meant NOT to have. The suggestion theme already lives in the session's own det text (e.g.
@@ -17729,6 +17838,161 @@ function planEditFieldsHTML(s){
     ${autoHR?`<div style="font-size:10.5px;color:var(--t3);margin:-4px 0 10px;line-height:1.4">Leave HR blank to keep using your calculated range: ${escAttr(autoHR)}.</div>`:''}
     <div class="field"><label>Notes <span style="text-transform:none;font-weight:400">(optional)</span></label><textarea id="pe-det" placeholder="e.g. AM, flat route">${escAttr(notes)}</textarea></div>`;
 }
+/* ── Intervals editor (Quality/Interval sessions only) ──
+   Dylon: "intervals need more editing features, eg no of times to repeat a, or number of reps. or pace
+   each rep, distance vs time each rep etc." Sits alongside planEditFieldsHTML's own Distance Min/Max
+   fields above (not replacing them) -- once s.intervalReps has at least one rep, savePlanEdits below
+   OVERWRITES distMin/distMax with the calculated total from these intervals, same "one path wins, no
+   mixing" idea plan-session editing already uses elsewhere. A rep row has no stored id of its own --
+   same "read every row back positionally on save" convention the pre-existing logged-Rep-Breakdown
+   table (sessionLogFieldsHTML/captureLogFields) already uses -- so removing one row never disturbs the
+   others; the row's own current distance/time-or-rest type lives in a data-work-type/data-rest-type
+   attribute on the row element itself, kept in sync by setIntervalRowType below, not by re-rendering. */
+function intervalSegFieldsHTML(wrapperId,seg,labelText){
+  const type=(seg&&seg.type)||'distance';
+  const val=(seg&&seg.val)||'';
+  return `<div class="field" id="${wrapperId}" data-type="${type}">
+    <label>${labelText} <span style="text-transform:none;font-weight:400">(optional)</span></label>
+    <div class="run-subtabs" style="margin-bottom:6px">
+      <button type="button" class="trend-subtab${type==='distance'?' active':''}" onclick="setIntervalSegType('${wrapperId}','distance')">Distance</button>
+      <button type="button" class="trend-subtab${type==='time'?' active':''}" onclick="setIntervalSegType('${wrapperId}','time')">Time</button>
+    </div>
+    <input type="text" class="pe-seg-val" value="${escAttr(val)}" placeholder="${type==='distance'?'km, e.g. 1.5':'mm:ss, e.g. 10:00'}">
+  </div>`;
+}
+function setIntervalSegType(wrapperId,type){
+  const wrap=document.getElementById(wrapperId);
+  if(!wrap) return;
+  wrap.dataset.type=type;
+  const btns=wrap.querySelectorAll('.trend-subtab');
+  btns.forEach(b=>b.classList.remove('active'));
+  btns[type==='distance'?0:1].classList.add('active');
+  const input=wrap.querySelector('.pe-seg-val');
+  if(input) input.placeholder=type==='distance'?'km, e.g. 1.5':'mm:ss, e.g. 10:00';
+}
+function intervalRepRowHTML(rep){
+  rep=rep||{};
+  const workType=rep.workType||'time';
+  const restType=rep.rest?rep.rest.type:'none';
+  const restVal=(rep.rest&&rep.rest.val)||'';
+  return `<div class="pe-rep-row" data-work-type="${workType}" data-rest-type="${restType}" style="border:1px solid var(--b1);border-radius:var(--r10);padding:10px;margin-bottom:8px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <span style="font-size:11px;font-weight:800;color:var(--t3);text-transform:uppercase;letter-spacing:.3px">Rep</span>
+      <button type="button" class="btn btn-ghost btn-sm" onclick="this.closest('.pe-rep-row').remove()">Remove</button>
+    </div>
+    <div class="run-subtabs work-type-toggle" style="margin-bottom:6px">
+      <button type="button" class="trend-subtab${workType==='distance'?' active':''}" onclick="setIntervalRowType(this,'work','distance')">Distance</button>
+      <button type="button" class="trend-subtab${workType==='time'?' active':''}" onclick="setIntervalRowType(this,'work','time')">Time</button>
+    </div>
+    <div class="field-row">
+      <div class="field"><label class="work-val-label">${workType==='distance'?'Distance (km)':'Time (mm:ss)'}</label><input type="text" class="pe-rep-workval" value="${escAttr(rep.workVal||'')}" placeholder="${workType==='distance'?'e.g. 0.4':'e.g. 2:00'}"></div>
+      <div class="field"><label>Pace <span style="text-transform:none;font-weight:400">(mm:ss/km, optional)</span></label><input type="text" class="pe-rep-pace" value="${escAttr(rep.pace||'')}" placeholder="e.g. 4:50"></div>
+    </div>
+    <div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.3px;margin:8px 0 4px">Rest after this rep</div>
+    <div class="run-subtabs rest-type-toggle" style="margin-bottom:6px">
+      <button type="button" class="trend-subtab${restType==='none'?' active':''}" onclick="setIntervalRowType(this,'rest','none')">None</button>
+      <button type="button" class="trend-subtab${restType==='distance'?' active':''}" onclick="setIntervalRowType(this,'rest','distance')">Distance</button>
+      <button type="button" class="trend-subtab${restType==='time'?' active':''}" onclick="setIntervalRowType(this,'rest','time')">Time</button>
+    </div>
+    <input type="text" class="pe-rep-restval" value="${escAttr(restVal)}" placeholder="${restType==='distance'?'km, e.g. 0.2':restType==='time'?'mm:ss, e.g. 1:30':''}" style="display:${restType==='none'?'none':'block'}">
+  </div>`;
+}
+// this-based navigation (btn.closest(...)) rather than a generated per-row unique id string -- avoids
+// any id-collision risk across however many rep rows exist, and needs no bookkeeping to keep ids in
+// sync when rows are added/removed.
+function setIntervalRowType(btn,kind,type){
+  const row=btn.closest('.pe-rep-row');
+  if(!row) return;
+  const toggle=btn.closest(kind==='work'?'.work-type-toggle':'.rest-type-toggle');
+  if(toggle) Array.from(toggle.children).forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  if(kind==='work'){
+    row.dataset.workType=type;
+    const label=row.querySelector('.work-val-label');
+    const input=row.querySelector('.pe-rep-workval');
+    if(label) label.textContent=type==='distance'?'Distance (km)':'Time (mm:ss)';
+    if(input) input.placeholder=type==='distance'?'e.g. 0.4':'e.g. 2:00';
+  } else {
+    row.dataset.restType=type;
+    const input=row.querySelector('.pe-rep-restval');
+    if(input){
+      input.style.display=type==='none'?'none':'block';
+      input.placeholder=type==='distance'?'km, e.g. 0.2':type==='time'?'mm:ss, e.g. 1:30':'';
+    }
+  }
+}
+function addBlankIntervalRep(){
+  const list=document.getElementById('pe-reps-list');
+  if(list) list.insertAdjacentHTML('beforeend',intervalRepRowHTML({}));
+}
+// "Quick add" -- Dylon's own phrase was "no of times to repeat a[nd] ... number of reps"; the underlying
+// list is still a fully custom per-rep array (Dylon's chosen answer over a single uniform-reps shape),
+// so this is just a fast way to append N identical rows to that same list in one action rather than a
+// separate data concept -- each of the N rows can still be edited or removed individually afterward.
+// Distance vs time is auto-detected from the value's own shape (mm:ss -> time, otherwise a plain number
+// -> distance) rather than needing its own toggle in this compact quick-add row.
+function quickAddIntervalReps(){
+  const list=document.getElementById('pe-reps-list');
+  if(!list) return;
+  const TIME_RE=/^\d{1,2}:\d{2}$/;
+  const count=parseInt(document.getElementById('pe-qa-count').value,10);
+  const rawVal=(document.getElementById('pe-qa-val').value||'').trim();
+  const pace=(document.getElementById('pe-qa-pace').value||'').trim();
+  const rawRest=(document.getElementById('pe-qa-rest').value||'').trim();
+  if(!count||count<1||!rawVal){ showToast('Enter a rep count and a distance or time first'); return; }
+  const workType=TIME_RE.test(rawVal)?'time':'distance';
+  const rest=rawRest?{type:TIME_RE.test(rawRest)?'time':'distance',val:rawRest}:null;
+  let html='';
+  for(let i=0;i<count;i++) html+=intervalRepRowHTML({workType,workVal:rawVal,pace,rest});
+  list.insertAdjacentHTML('beforeend',html);
+  ['pe-qa-count','pe-qa-val','pe-qa-pace','pe-qa-rest'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+  showToast(`Added ${count} rep${count===1?'':'s'}`);
+}
+function intervalEditFieldsHTML(s){
+  const reps=s.intervalReps||[];
+  const rowsHTML=reps.map(r=>intervalRepRowHTML(r)).join('');
+  return `<div class="card" style="margin-top:10px">
+    <div style="font-size:12px;font-weight:800;color:var(--t1);margin-bottom:10px">Intervals</div>
+    ${intervalSegFieldsHTML('pe-warmup',s.warmup,'Warm Up')}
+    <div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.3px;margin:12px 0 4px">Reps</div>
+    <div id="pe-reps-list">${rowsHTML}</div>
+    <button type="button" class="btn btn-ghost btn-block" style="margin-bottom:10px" onclick="addBlankIntervalRep()">+ Add Rep</button>
+    <div class="card" style="padding:10px;margin-bottom:10px;background:var(--s2)">
+      <div style="font-size:11px;font-weight:800;color:var(--t3);text-transform:uppercase;letter-spacing:.3px;margin-bottom:6px">Quick add (repeat identical reps)</div>
+      <div class="field-row">
+        <div class="field"><label>Reps</label><input type="number" min="1" id="pe-qa-count" placeholder="e.g. 12"></div>
+        <div class="field"><label>Distance or time</label><input type="text" id="pe-qa-val" placeholder="e.g. 2:00 or 0.4"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Pace <span style="text-transform:none;font-weight:400">(optional)</span></label><input type="text" id="pe-qa-pace" placeholder="e.g. 4:50"></div>
+        <div class="field"><label>Rest <span style="text-transform:none;font-weight:400">(optional)</span></label><input type="text" id="pe-qa-rest" placeholder="e.g. 1:00 or 0.2"></div>
+      </div>
+      <button type="button" class="btn btn-ghost btn-block" onclick="quickAddIntervalReps()">+ Add Reps</button>
+    </div>
+    ${intervalSegFieldsHTML('pe-cooldown',s.cooldown,'Cool Down')}
+    <div style="font-size:10.5px;color:var(--t3);margin-top:6px;line-height:1.4">Distance Min/Max above will be set automatically from these intervals when you save (only distance-based segments count toward it -- a rest/warmup/cooldown entered as time alone isn't guessed into a distance).</div>
+  </div>`;
+}
+function captureIntervalSeg(wrapperId){
+  const wrap=document.getElementById(wrapperId);
+  if(!wrap) return undefined;
+  const input=wrap.querySelector('.pe-seg-val');
+  const val=input?input.value.trim():'';
+  if(!val) return undefined;
+  return {type:wrap.dataset.type||'distance',val};
+}
+function captureIntervalReps(){
+  const list=document.getElementById('pe-reps-list');
+  if(!list) return [];
+  return Array.from(list.querySelectorAll('.pe-rep-row')).map(row=>{
+    const workType=row.dataset.workType||'time';
+    const restType=row.dataset.restType||'none';
+    const workVal=((row.querySelector('.pe-rep-workval')||{}).value||'').trim();
+    const pace=((row.querySelector('.pe-rep-pace')||{}).value||'').trim();
+    const restVal=((row.querySelector('.pe-rep-restval')||{}).value||'').trim();
+    return {workType,workVal,pace:pace||undefined,rest:(restType==='none'||!restVal)?null:{type:restType,val:restVal}};
+  }).filter(r=>r.workVal);
+}
 function savePlanEdits(id){
   const s=findSess(id);
   if(!s) return;
@@ -17747,6 +18011,23 @@ function savePlanEdits(id){
   s.targetHRMin=isNaN(hrMinVal)?undefined:hrMinVal;
   s.targetHRMax=isNaN(hrMaxVal)?undefined:hrMaxVal;
   s.det=val('pe-det').trim();
+  // Intervals (Quality/Interval sessions only) -- captured AFTER the manual Distance Min/Max above so
+  // that, once a session actually has real reps, the calculated total OVERWRITES whatever was in those
+  // two fields rather than the other way around. A qual session with no reps defined yet (i.e. one
+  // that's never been touched by the new Intervals editor) just keeps using the manual distMin/distMax
+  // exactly as before -- this only takes over once real interval data exists.
+  if(s.ty==='qual'){
+    s.warmup=captureIntervalSeg('pe-warmup');
+    s.cooldown=captureIntervalSeg('pe-cooldown');
+    s.intervalReps=captureIntervalReps();
+    if(s.intervalReps.length){
+      const totals=intervalSetTotals(s);
+      if(totals.distKm>0){
+        const rounded=Math.round(totals.distKm*100)/100;
+        s.distMin=rounded; s.distMax=rounded;
+      }
+    }
+  }
   // Keep the legacy s.dist STRING in sync with the new distMin/distMax -- dozens of other read sites
   // across the app (recalcBlockDerived's mileage total, the Main step text for a session that ISN'T
   // on the new structured display path yet, quickStatsHTML, PDF/Markdown plan export, week day rows,
@@ -17967,9 +18248,16 @@ function openLog(id){
     // mutates b.sessions directly), so the edit is immediately reflected everywhere this session's
     // data is read (Schedule, Today, this same Details view) on the very next render.
     if(s.ty==='easy'||s.ty==='long'||s.ty==='qual'){
+      // Dylon: "intervals need more editing features, eg no of times to repeat a, or number of reps.
+      // or pace each rep, distance vs time each rep etc." -- a Quality/Interval session gets the same
+      // Distance/Pace/HR card as Easy/Long PLUS a dedicated Intervals card (intervalEditFieldsHTML)
+      // right below it, sharing the one Save Changes button; see savePlanEdits' own comment for why
+      // the two never conflict (the interval total simply overwrites Distance Min/Max once real reps
+      // exist, rather than needing the two forms reconciled some other way).
       body+=`<button class="btn btn-ghost btn-block" style="margin-top:10px" onclick="togglePlanEdit('${id}')">${PLAN_EDIT_OPEN?'Hide Edit Target':'Edit Distance / Pace / HR'}</button>`;
       if(PLAN_EDIT_OPEN){
         body+=`<div class="card" style="margin-top:10px">${planEditFieldsHTML(s)}</div>`;
+        if(s.ty==='qual') body+=intervalEditFieldsHTML(s);
         body+=`<button class="btn btn-primary btn-block" style="margin-top:10px" onclick="savePlanEdits('${id}')">Save Changes</button>`;
       }
     }
