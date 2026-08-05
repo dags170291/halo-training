@@ -1633,9 +1633,9 @@ main{flex:1;padding:14px 14px 24px;max-width:560px;width:100%;margin:0 auto}
    session-style restyle, race-target connection, iOS install fix, icon redesign, onboarding flow).
    APP_STAGE is 'alpha.N' pre-launch, bump N each time you hand a build to a real tester (Dylon's
    sister counts); once launched, APP_VERSION resets to 1.0.0 and APP_STAGE becomes ''. */
-const APP_VERSION='0.34.31';
+const APP_VERSION='0.34.32';
 const APP_STAGE='alpha.1';
-const APP_VERSION_DATE='2026-08-03';
+const APP_VERSION_DATE='2026-08-05';
 /* ═══════════════════════════ DATA ═══════════════════════════ */
 // Block 5's session list — now the seed content for its Block record rather than a global const.
 // The live, active-block-driven binding is `let DATA` further down (see SEASONS/BLOCKS section).
@@ -11290,6 +11290,18 @@ function weekAvgPaceSpeed(wk){
     const n=NOTES[s.id];
     return n&&n.pace?parsePaceSec(n.pace):null;
   }).filter(v=>v!==null);
+  // Imported/logged run Activities count toward the same weekly pace average too -- weekEF() right
+  // above already got this exact Phase 1b treatment, but this function never did, which is why a
+  // week made up entirely of imported GPS runs (nothing manually typed into a planned session's own
+  // NOTES.pace) showed as a gap on the "Pace by Distance" chart even with real runs logged that week.
+  // Dylon: "i notice pace by distant has empty data even 3 weeks into the plan" -- his real runs were
+  // all imported Activities (TCX files), never manually-entered session pace, so this was silently
+  // empty for him from week 1 onward.
+  activitiesForWeek(wk).forEach(a=>{
+    if(a.type!=='run'||!a.avgPace) return;
+    const paceSec=parsePaceSec(a.avgPace);
+    if(paceSec) secs.push(paceSec);
+  });
   if(!secs.length) return null;
   const avgSec=secs.reduce((a,b)=>a+b,0)/secs.length;
   return avgSec>0?3600/avgSec:null;
@@ -11481,17 +11493,31 @@ function renderBestEffortsByDistance(){
   return html;
 }
 function renderEffDayRows(wk){
-  const sessions=weekSessionsFull(wk)
-    .filter(isRunTypeSession).slice().sort((a,b)=>a.date.localeCompare(b.date));
-  if(!sessions.length) return `<div class="trend-days"><div class="trend-day-row" style="color:var(--t3)"><span>No run sessions this week</span><span></span></div></div>`;
-  let h=`<div class="trend-days">`;
-  sessions.forEach(s=>{
+  const sessions=weekSessionsFull(wk).filter(isRunTypeSession);
+  const entries=sessions.map(s=>{
     const n=NOTES[s.id]||{};
-    const ef=sessionEF(s);
+    return {date:s.date,wd:s.wd,pace:n.pace||'',hr:n.hr||'',ef:sessionEF(s),onclick:`openLog('${s.id}')`};
+  });
+  // Imported/logged run Activities show up in this breakdown too now -- weekAvgPaceSpeed()/weekEF()
+  // (the numbers driving the chart above) already count these, but this per-week list underneath
+  // never did, so it kept saying "No run sessions this week" even once the chart itself had real
+  // data. Dylon: "i notice pace by distant has empty data even 3 weeks into the plan" -- his actual
+  // runs were all imported Activities, never manually-typed session pace, so both the chart and this
+  // list were silently empty for him from week 1 on. Each row is clickable straight into its source,
+  // matching the pattern renderTrendDayRows() already established for imported Activities elsewhere
+  // in this same card.
+  activitiesForWeek(wk).forEach(a=>{
+    if(a.type!=='run') return;
+    entries.push({date:a.date,wd:PLAN_WD[new Date(a.date+'T12:00:00').getDay()],pace:a.avgPace||'',hr:a.avgHr||'',ef:activityEF(a),onclick:`openActivityDetail('${a.id}')`});
+  });
+  entries.sort((a,b)=>a.date.localeCompare(b.date));
+  if(!entries.length) return `<div class="trend-days"><div class="trend-day-row" style="color:var(--t3)"><span>No run sessions this week</span><span></span></div></div>`;
+  let h=`<div class="trend-days">`;
+  entries.forEach(e=>{
     const bits=[];
-    if(n.pace) bits.push(n.pace+'/km');
-    if(n.hr) bits.push(n.hr+'bpm');
-    h+=`<div class="trend-day-row" style="color:${ef===null?'var(--t3)':'var(--t1)'}"><span>${s.wd} · ${fmtDate(s.date)}${bits.length?' · '+bits.join(' · '):''}</span><span style="font-weight:${ef===null?400:700}">${ef===null?'—':ef.toFixed(2)+' EF'}</span></div>`;
+    if(e.pace) bits.push(e.pace+'/km');
+    if(e.hr) bits.push(e.hr+'bpm');
+    h+=`<div class="trend-day-row" style="color:${e.ef===null?'var(--t3)':'var(--t1)'};cursor:pointer" onclick="${e.onclick}"><span>${e.wd} · ${fmtDate(e.date)}${bits.length?' · '+bits.join(' · '):''}</span><span style="font-weight:${e.ef===null?400:700}">${e.ef===null?'—':e.ef.toFixed(2)+' EF'}</span></div>`;
   });
   h+='</div>';
   return h;

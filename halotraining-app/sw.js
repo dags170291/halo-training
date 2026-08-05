@@ -1679,7 +1679,17 @@
 // matching the exact tbdRaceNudgeHTML()/dismissTBDNudge() pattern already used elsewhere. New
 // PROFILE.regNudgeSnoozed (keyed per-race by race key, not one shared flag, since only the single most
 // urgent race's nudge shows at a time) + new dismissRegNudge(raceKey) function.
-const CACHE_NAME = 'halo-0.34.31-alpha.1';
+// v0.34.32 -- Dylon: "i notice pace by distant has empty data even 3 weeks into the plan." Root
+// cause: weekEF() (the "Pace vs HR" chart) already got the Phase 1b treatment of counting imported
+// Activities toward its weekly average, but its sibling weekAvgPaceSpeed() (the "Pace by Distance"
+// chart right below it) never did -- a week made up entirely of imported GPS runs (nothing manually
+// typed into a planned session's own NOTES.pace, exactly Dylon's real situation) showed as a gap on
+// the chart even with real runs logged that week. renderEffDayRows() (the "Week N runs" list shown
+// when you tap a week on either chart) had the identical gap, still saying "No run sessions this
+// week" even once the chart itself had data. Both now also read activitiesForWeek(wk), matching
+// weekEF()'s existing pattern; each Activity's row in the breakdown list is clickable straight to its
+// own detail page, same as renderTrendDayRows() already does elsewhere in this same card.
+const CACHE_NAME = 'halo-0.34.32-alpha.1';
 const APP_SHELL = [
   './index.html',
   './manifest.webmanifest',
