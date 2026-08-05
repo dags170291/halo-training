@@ -1708,7 +1708,21 @@
 // performance dated AFTER the most recent race now counts too, alongside every race result -- races
 // stay the anchor when they're the newest thing logged, but a genuine effort since the last race is
 // real signal about current fitness, not noise to discard.
-const CACHE_NAME = 'halo-0.34.34-alpha.1';
+// v0.34.35 -- immediate follow-up: v0.34.34's fix let a logged Quality/Interval workout's own
+// blended pace (its total distance over its total elapsed time, warm-up + reps + built-in rest +
+// cool-down all averaged together) count as a "recent training performance" too -- which is exactly
+// how it dragged Dylon's Current 5K estimate DOWN to 35:09 after logging his 12x2min session, not up.
+// Dylon: "can you research how strava, garmin, coros and other major players handle race / time
+// predictions and use that." None of them do this: Strava's predictor is an ML model over real
+// activity history plus VO2max/HR-pace trends; Garmin's Race Predictor is VO2max-based (pace-vs-HR
+// over sustained steady segments); COROS explicitly weights workout TYPE differently (a threshold run
+// feeds 10K/Half, a long run feeds marathon) rather than ever averaging a broken-up interval workout's
+// total distance over its total elapsed time including rest. New isContinuousEffortSource() excludes a
+// hand-logged Quality/Interval session (or an EXTRALOGS "intervals"-subtype entry)'s own blended
+// aggregate from knownPerformances() entirely -- a real Activity's GPS stream (already correctly
+// isolated to its genuine work-pace segment via activityBestEffort()'s rolling-window search) and a
+// hand-logged Tempo/continuous effort are both unaffected.
+const CACHE_NAME = 'halo-0.34.35-alpha.1';
 const APP_SHELL = [
   './index.html',
   './manifest.webmanifest',

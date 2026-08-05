@@ -1660,7 +1660,7 @@ main{flex:1;padding:14px 14px 24px;max-width:560px;width:100%;margin:0 auto}
    session-style restyle, race-target connection, iOS install fix, icon redesign, onboarding flow).
    APP_STAGE is 'alpha.N' pre-launch, bump N each time you hand a build to a real tester (Dylon's
    sister counts); once launched, APP_VERSION resets to 1.0.0 and APP_STAGE becomes ''. */
-const APP_VERSION='0.34.34';
+const APP_VERSION='0.34.35';
 const APP_STAGE='alpha.1';
 const APP_VERSION_DATE='2026-08-05';
 /* ═══════════════════════════ DATA ═══════════════════════════ */
@@ -5735,6 +5735,7 @@ function openSettings(){
    to keep this array from growing unbounded and because anything older than that is no longer "what's
    new" in any useful sense. */
 const APP_CHANGELOG=[
+  {v:'0.34.35',d:'2026-08-05',items:["Fixed: a logged Interval/Quality workout's own blended pace (work + built-in rest) could drag Race Predictions' \"Current\" figure down — that pace is never a valid race-time signal on its own, matching how Strava/Garmin/COROS handle it."]},
   {v:'0.34.34',d:'2026-08-05',items:["Fixed: Race Predictions' \"Current\"/hero time could freeze forever after your first real race, ignoring every training run logged since. Now also counts training logged after your most recent race."]},
   {v:'0.34.33',d:'2026-08-05',items:["New: the sidebar now shows the app version — tap/click it (or Settings &gt; About &gt; Version) to see this changelog."]},
   {v:'0.34.32',d:'2026-08-05',items:["Fixed: Pace by Distance chart (and its \"Week N runs\" breakdown list) now includes imported Activities, not just hand-typed session notes."]},
@@ -10905,6 +10906,31 @@ function riegelPredictSec(fromSec,fromKm,toKm){
 // skew it) and the existing quality/tempo/interval pace-based estimate are still gathered too
 // (tagged source:'training'), so there's still something to project from before any real race has
 // ever been logged.
+// A hand-logged Quality/Interval workout's own aggregate distance-over-duration blends real work
+// pace with its own built-in recovery jogs into one misleadingly slow (or, depending on the mix,
+// misleadingly fast) number -- never a genuine continuous effort, so never a valid race-time signal.
+// Dylon, after logging a 12x2min interval session with warm-up/cool-down: "the entire interval
+// session with warm up and cool down [dragged the prediction way down]. can you research how strava,
+// garmin, coros and other major players handle race / time predictions and use that." They don't:
+// Strava's predictor is an ML model over real activity history plus VO2max/HR-pace data, not raw
+// workout totals; Garmin's Race Predictor is VO2max-based (pace-vs-HR over sustained, steady
+// segments); COROS explicitly weights workout TYPE differently (a 60-min threshold run feeds 10K/Half,
+// a 30K+ long run feeds marathon) rather than ever averaging a broken-up interval workout's total
+// distance over its total elapsed time including rest. HALO's own Fitness Trend/EF (which already
+// drives the separate forward "In N weeks" projection, and correctly reacted to this exact session)
+// is that same kind of derived-fitness signal; a real Activity's GPS stream already gets this right
+// too, since activityBestEffort()'s rolling-window search finds the genuine fastest sustained segment
+// inside it, ignoring rest, regardless of how the workout was structured. The gap was specifically
+// hand-typed sessions/extra-logs with only a flat total distance + duration (or a blended pace field)
+// and no real stream to search inside -- there's no way to separate work from rest in a single number,
+// so a Quality/Interval-typed one is excluded here rather than trusted as a literal race-pace data
+// point. A hand-logged Tempo/continuous effort (no built-in rest) is unaffected.
+function isContinuousEffortSource(source){
+  if(!source) return true;
+  if(source.kind==='session'){ const s=findSess(source.id); return !s || s.ty!=='qual'; }
+  if(source.kind==='extra') return source.subtype!=='intervals';
+  return true;
+}
 // `cutoffDate` (v0.32.11, optional) -- see bestEffortsByDistance()'s own note above.
 function knownPerformances(cutoffDate){
   const out=[];
@@ -10918,7 +10944,8 @@ function knownPerformances(cutoffDate){
   });
   bestEffortsByDistance(cutoffDate).forEach(g=>{
     if(g.km<2||!g.runs.length) return;
-    const fastest=g.runs[0];
+    const fastest=g.runs.find(r=>isContinuousEffortSource(r.source));
+    if(!fastest) return;
     out.push({km:fastest.dist||g.km,sec:fastest.sec,date:fastest.date,source:'training'});
   });
   const qualityEst=estimateRaceTime(cutoffDate);
