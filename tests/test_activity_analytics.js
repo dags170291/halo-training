@@ -433,12 +433,18 @@ const STREAM_ALT = [100,101,102,102,101,103,104,105,106,107];
 
   // ==== Pace zones time-in-zone bar chart (Task 74) ====
 
-  // A clean 15K race result is the ONLY known performance for this block (RACES_LIST reset first) so
-  // predictedRaceTimeSec(15) -- and therefore the estimated threshold pace -- comes out to an exact,
-  // hand-checkable number: riegelPredictSec(sec,15,15) is just sec itself (same distance, no
-  // scaling), so the projected midpoint is raceSec * 1.005 (the average of the *0.97/*1.04 spread
-  // predictedRaceTimeSec always applies) -- 301.5 sec/km for a 75:00 (4500s) 15K.
-  win.eval(`RACES_LIST=[{key:'r2',name:'Test 15K',distance:'15K',status:'done',actualTime:'1:15:00',date:'2026-06-01'}];`);
+  // A clean 15K race result is the ONLY known performance for this block so predictedRaceTimeSec(15)
+  // -- and therefore the estimated threshold pace -- comes out to an exact, hand-checkable number:
+  // riegelPredictSec(sec,15,15) is just sec itself (same distance, no scaling), so the projected
+  // midpoint is raceSec * 1.005 (the average of the *0.97/*1.04 spread predictedRaceTimeSec always
+  // applies) -- 301.5 sec/km for a 75:00 (4500s) 15K. Also clears EXTRALOGS/DATA/STATUS/NOTES/
+  // ACTIVITIES left over from earlier tests in this file, not just RACES_LIST -- since v0.34.34, any
+  // training performance dated AFTER the most recent race counts toward predictedRaceTimeSec() too
+  // (Dylon: "i just ran an interval session today ... my current prediction didnt update" -- races
+  // no longer silently freeze out every later training run forever), so a stray leftover EXTRALOGS
+  // entry dated after this race's 2026-06-01 would now dilute what's meant to be an isolated,
+  // race-only check of the Riegel math itself.
+  win.eval(`EXTRALOGS=[]; DATA=[]; STATUS={}; NOTES={}; ACTIVITIES=[]; RACES_LIST=[{key:'r2',name:'Test 15K',distance:'15K',status:'done',actualTime:'1:15:00',date:'2026-06-01'}];`);
   const t40 = win.eval(`estimatedThresholdPaceSecPerKm()`);
   console.log('Test 40 (estimated threshold pace derives from a real 15K race result via the existing Riegel race-projection engine):',
     Math.abs(t40 - 301.5) < 0.1 ? 'PASS' : 'FAIL', { t40 });

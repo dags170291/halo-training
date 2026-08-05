@@ -1660,7 +1660,7 @@ main{flex:1;padding:14px 14px 24px;max-width:560px;width:100%;margin:0 auto}
    session-style restyle, race-target connection, iOS install fix, icon redesign, onboarding flow).
    APP_STAGE is 'alpha.N' pre-launch, bump N each time you hand a build to a real tester (Dylon's
    sister counts); once launched, APP_VERSION resets to 1.0.0 and APP_STAGE becomes ''. */
-const APP_VERSION='0.34.33';
+const APP_VERSION='0.34.34';
 const APP_STAGE='alpha.1';
 const APP_VERSION_DATE='2026-08-05';
 /* ═══════════════════════════ DATA ═══════════════════════════ */
@@ -5735,6 +5735,7 @@ function openSettings(){
    to keep this array from growing unbounded and because anything older than that is no longer "what's
    new" in any useful sense. */
 const APP_CHANGELOG=[
+  {v:'0.34.34',d:'2026-08-05',items:["Fixed: Race Predictions' \"Current\"/hero time could freeze forever after your first real race, ignoring every training run logged since. Now also counts training logged after your most recent race."]},
   {v:'0.34.33',d:'2026-08-05',items:["New: the sidebar now shows the app version — tap/click it (or Settings &gt; About &gt; Version) to see this changelog."]},
   {v:'0.34.32',d:'2026-08-05',items:["Fixed: Pace by Distance chart (and its \"Week N runs\" breakdown list) now includes imported Activities, not just hand-typed session notes."]},
   {v:'0.34.31',d:'2026-08-03',items:["Fixed: the \"Registration opens soon\" banner can now be dismissed with a \"Remind me later\" button."]},
@@ -10925,10 +10926,19 @@ function knownPerformances(cutoffDate){
   return out;
 }
 // Projects a likely finish time at any target distance (km) from whatever known performances are
-// available, scaling each with Riegel's formula. If any real race results exist, only those are used
-// — diluting a real, verified race result by averaging it against cruder training-pace inference
-// would make the projection LESS accurate, not more robust, which is exactly the bug above. Training
-// data is only used as a fallback when there's no real race result at all yet. Returns null when
+// available, scaling each with Riegel's formula. Real race results are the most trustworthy signal —
+// diluting one against a crude training-pace guess made the projection LESS accurate, not more robust
+// (see knownPerformances()'s own note on the bug this fixed). But races-only-forever went too far the
+// other way: once you had a single race on record, EVERY later training run got silently ignored no
+// matter how much fitness changed, since the last race could be months old. Dylon, after a hard interval
+// session: "i just ran an interval session today and i only notice in 8 weeks i can run 26:5 sec but my
+// current prediction didnt update" -- the forward "In N weeks" figure reacts to new training instantly
+// (it's driven by the separate Fitness Trend/EF rate, not this function), but "Current"/the hero range
+// were frozen at whatever his last real race said, however stale. Now: any training performance dated
+// AFTER the most recent race counts too, alongside every race result -- a race remains the anchor for
+// accuracy when it's the newest thing you've got, but a genuine effort logged since your last race is
+// real, more current signal about where your fitness is today, not noise to be thrown away. Training
+// data is still the sole fallback when there's no real race result at all yet. Returns null when
 // there's nothing at all logged yet to project from. `cutoffDate` (v0.32.11, optional) -- see
 // bestEffortsByDistance()'s own note above; used by the Race Predictions trend chart to reconstruct
 // what this projection would have said as of a past date in the current block.
@@ -10937,7 +10947,11 @@ function predictedRaceTimeSec(targetKm,cutoffDate){
   const perfs=knownPerformances(cutoffDate);
   if(!perfs.length) return null;
   const raceResults=perfs.filter(p=>p.source==='race');
-  const usable=raceResults.length?raceResults:perfs;
+  let usable=perfs;
+  if(raceResults.length){
+    const mostRecentRaceDate=raceResults.reduce((max,p)=>(p.date>max?p.date:max),raceResults[0].date);
+    usable=perfs.filter(p=>p.source==='race'||(p.date&&p.date>mostRecentRaceDate));
+  }
   const preds=usable.map(p=>riegelPredictSec(p.sec,p.km,targetKm)).filter(v=>v!==null);
   if(!preds.length) return null;
   const avg=preds.reduce((a,b)=>a+b,0)/preds.length;

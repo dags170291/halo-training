@@ -1697,7 +1697,18 @@
 // last couple weeks of releases) rendered by renderChangelogBody(). The existing Settings > About >
 // Version row is now clickable to the same overlay too, since the desktop-only .sidebar doesn't exist
 // on mobile.
-const CACHE_NAME = 'halo-0.34.33-alpha.1';
+// v0.34.34 -- Dylon, after a hard interval session: "i just ran an interval session today and i only
+// notice in 8 weeks i can run 26:5 sec but my current prediction didnt update." Root cause:
+// predictedRaceTimeSec() -- feeding Race Predictions' hero range and "Current" figure -- switches to
+// using ONLY real race results once any exist, permanently ignoring every training run logged after
+// them (a deliberate earlier fix for a worse bug: diluting a real race against a crude training-pace
+// guess). But that meant "Current" froze at whatever the last real race said, however old, while the
+// separate "In N weeks" forward projection (driven by Fitness Trend/EF, not this function) kept
+// reacting to new training normally -- exactly the asymmetry Dylon noticed. Fixed: any training
+// performance dated AFTER the most recent race now counts too, alongside every race result -- races
+// stay the anchor when they're the newest thing logged, but a genuine effort since the last race is
+// real signal about current fitness, not noise to discard.
+const CACHE_NAME = 'halo-0.34.34-alpha.1';
 const APP_SHELL = [
   './index.html',
   './manifest.webmanifest',
