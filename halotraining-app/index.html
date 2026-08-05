@@ -1660,7 +1660,7 @@ main{flex:1;padding:14px 14px 24px;max-width:560px;width:100%;margin:0 auto}
    session-style restyle, race-target connection, iOS install fix, icon redesign, onboarding flow).
    APP_STAGE is 'alpha.N' pre-launch, bump N each time you hand a build to a real tester (Dylon's
    sister counts); once launched, APP_VERSION resets to 1.0.0 and APP_STAGE becomes ''. */
-const APP_VERSION='0.34.35';
+const APP_VERSION='0.34.36';
 const APP_STAGE='alpha.1';
 const APP_VERSION_DATE='2026-08-05';
 /* ═══════════════════════════ DATA ═══════════════════════════ */
@@ -2962,6 +2962,12 @@ function safeGet(k,d){ try{ const v=localStorage.getItem(k); return v===null?d:v
 // saveActivitiesList) need to know a save silently failed instead of assuming "no throw" means "on
 // disk." Every existing caller ignored the return value before this, so adding one is safe.
 function safeSet(k,v){ try{ localStorage.setItem(k,v); return true; }catch(e){ return false; } }
+// Actually removes the key (not just sets it to '') so a later safeGet(k, someDefault) correctly
+// falls back to that default -- safeGet only substitutes its default when the raw stored value is
+// exactly null (key entirely absent), so setting a key to '' would instead hand back that empty
+// string, silently breaking a caller that expects a real timestamp string as its fallback (see
+// saveActivitiesList's SYNCK-invalidation retry, its first use).
+function safeRemove(k){ try{ localStorage.removeItem(k); return true; }catch(e){ return false; } }
 function loadState(){
   try{STATUS=JSON.parse(safeGet(SK,'{}'));}catch(e){STATUS={};}
   try{NOTES=JSON.parse(safeGet(NK,'{}'));}catch(e){NOTES={};}
@@ -3108,6 +3114,11 @@ function normalizeActivityRecord(a){
 // still gets roughly one point every ~11 seconds, far finer than any of those need — while keeping
 // a single activity's own JSON well under 150KB instead of 600KB+.
 const STREAM_MAX_POINTS=1000;
+// Fallback cap tried only when even the normal 1000-point compaction still doesn't fit on this
+// device (see saveActivitiesList's retry below) — still plenty of points for splits/best-efforts/
+// route display at reduced fidelity, but a fraction of the bytes, to buy real headroom on a device
+// whose accumulated activity history has simply grown past what STREAM_MAX_POINTS alone can fit.
+const STREAM_MAX_POINTS_FALLBACK=200;
 // Caps a stream's parallel arrays (t/lat/lon/alt/distM/hr/cadence/power/vertOsc/vertRatio/strideLen/
 // temp — see normalizeActivityRecord) at a fixed point count via even decimation, using the SAME set
 // of indices across every array so points stay aligned with each other (can't downsample lat
@@ -3144,8 +3155,33 @@ function downsampleStreamArrays(stream,maxPoints){
 // worked, so this exact failure mode can never again cause silent, undiscovered data loss.
 function saveActivitiesList(skipSyncNote){
   const compact=ACTIVITIES.map(a=>(a&&a.stream)?Object.assign({},a,{stream:downsampleStreamArrays(a.stream)}):a);
-  const ok=safeSet(AK,JSON.stringify(compact));
-  if(!ok && typeof showToast==='function') showToast('Storage is full — some activity data may not survive a reload. Export a backup, then remove older activities to free up space.');
+  let ok=safeSet(AK,JSON.stringify(compact));
+  // Dylon: "I got a message saying storage full after uploading my run for today ? and now my run
+  // data is gone." Root cause: this device's accumulated activity history had simply grown past what
+  // the normal 1000-point-per-activity compaction could fit, so today's newly-added run never
+  // actually reached disk even though it stayed correct in memory for the rest of that session --
+  // once the tab reloaded, the on-disk (pre-failure) copy came back without it. Before giving up,
+  // retry once with every activity's stream squeezed down to STREAM_MAX_POINTS_FALLBACK -- real
+  // headroom, without needing the person to manually go delete anything first.
+  if(!ok){
+    const compactMore=ACTIVITIES.map(a=>(a&&a.stream)?Object.assign({},a,{stream:downsampleStreamArrays(a.stream,STREAM_MAX_POINTS_FALLBACK)}):a);
+    ok=safeSet(AK,JSON.stringify(compactMore));
+  }
+  if(!ok){
+    if(typeof showToast==='function') showToast('Storage is full — some activity data may not survive a reload. Export a backup, then remove older activities to free up space.');
+    // Even the aggressively-compacted retry didn't fit, so whatever's in memory right now (including
+    // anything just added) genuinely did not reach this device's disk. Cloud Sync's own push
+    // (syncPush(), queued a few seconds from now by noteLocalEdit() below) reads the live in-memory
+    // ACTIVITIES directly, not this failed local save, so if this device is online and signed in, the
+    // cloud copy can still end up correct even though the local one didn't. The danger is that
+    // SYNCK/LCK bookkeeping would otherwise still end up agreeing with each other after that push
+    // succeeds, silently masking that the actual on-disk content behind them fell out of sync with
+    // what got marked "synced" -- the next reload would keep loading the broken local copy forever,
+    // with no visible sign anything was ever wrong. Invalidating SYNCK here means the next time this
+    // device checks in, it can no longer assume it's already up to date with the cloud, so a real
+    // mismatch surfaces as an explicit "which version should win?" prompt instead of going unnoticed.
+    safeRemove(SYNCK);
+  }
   if(!skipSyncNote) noteLocalEdit();
 }
 // Applies whatever completion effect an activity's role implies — currently just "fulfillment marks
@@ -5735,6 +5771,7 @@ function openSettings(){
    to keep this array from growing unbounded and because anything older than that is no longer "what's
    new" in any useful sense. */
 const APP_CHANGELOG=[
+  {v:'0.34.36',d:'2026-08-05',items:["Fixed: importing a run could fail with \"Storage is full\" and vanish entirely. Saving now retries with smaller compaction before giving up, and a device that still can't save re-checks the cloud next time instead of silently staying out of sync."]},
   {v:'0.34.35',d:'2026-08-05',items:["Fixed: a logged Interval/Quality workout's own blended pace (work + built-in rest) could drag Race Predictions' \"Current\" figure down — that pace is never a valid race-time signal on its own, matching how Strava/Garmin/COROS handle it."]},
   {v:'0.34.34',d:'2026-08-05',items:["Fixed: Race Predictions' \"Current\"/hero time could freeze forever after your first real race, ignoring every training run logged since. Now also counts training logged after your most recent race."]},
   {v:'0.34.33',d:'2026-08-05',items:["New: the sidebar now shows the app version — tap/click it (or Settings &gt; About &gt; Version) to see this changelog."]},

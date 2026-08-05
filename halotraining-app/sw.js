@@ -1722,7 +1722,22 @@
 // aggregate from knownPerformances() entirely -- a real Activity's GPS stream (already correctly
 // isolated to its genuine work-pace segment via activityBestEffort()'s rolling-window search) and a
 // hand-logged Tempo/continuous effort are both unaffected.
-const CACHE_NAME = 'halo-0.34.35-alpha.1';
+// v0.34.36 -- Dylon: "I got a message saying storage full after uploading my run for today ? and now
+// my run data is gone." Confirmed only today's run was missing (not his whole history) and Cloud Sync
+// is signed in. Root cause: this device's accumulated activity history had grown past what the normal
+// 1000-point-per-activity compaction could fit in localStorage, so today's newly-added run stayed
+// correct in memory for that session but never reached disk -- the next reload came back without it.
+// Two-part fix: (1) saveActivitiesList() now retries once, before giving up, with every activity's
+// stream squeezed down to a much smaller STREAM_MAX_POINTS_FALLBACK -- real headroom without the
+// person needing to manually delete anything first. (2) If even that retry fails, this device's SYNCK
+// (last-known-synced timestamp) gets invalidated via a new safeRemove() helper (actually deletes the
+// key, rather than blanking it, so a later safeGet(k, someDefault) still falls back correctly) --
+// otherwise SYNCK/LCK bookkeeping would keep agreeing with each other after Cloud Sync's own push
+// (which reads live in-memory ACTIVITIES, unaffected by this device's local quota) succeeds, silently
+// masking that the actual on-disk content fell out of sync with what got marked "synced." Invalidating
+// SYNCK means the next time this device checks in, a real mismatch surfaces as an explicit "which
+// version should win?" prompt instead of the local copy quietly staying broken forever.
+const CACHE_NAME = 'halo-0.34.36-alpha.1';
 const APP_SHELL = [
   './index.html',
   './manifest.webmanifest',

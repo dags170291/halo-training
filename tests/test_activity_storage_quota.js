@@ -114,24 +114,24 @@ function fakeStream(points) {
   console.log('Test 5 (safeSet returns true on success, false on genuine quota failure):',
     (safeSetResults.ok1===true && safeSetResults.ok2===false) ? 'PASS' : `FAIL (${JSON.stringify(safeSetResults)})`);
 
-  // Test 6: if a save still fails even after compaction (a genuinely oversized total -- e.g. many
-  // months of real training, each activity already at the per-activity cap but hundreds of them),
-  // saveActivitiesList must warn the user via showToast rather than fail silently -- this is the
-  // actual behavioral fix for the bug: no more "looked saved, wasn't."
+  // Test 6: if a save still fails even after BOTH compaction passes (the normal 1000-point pass, and
+  // -- since v0.34.36 -- the more aggressive STREAM_MAX_POINTS_FALLBACK retry saveActivitiesList now
+  // tries before giving up), saveActivitiesList must warn the user via showToast rather than fail
+  // silently. A genuinely oversized total -- many months of real training, each activity already at
+  // the per-activity cap but a large number of them -- is used here specifically so it survives the
+  // new fallback retry too and still exceeds any real localStorage quota.
   win.eval(`
     window.__toasts=[];
     window.showToast=(m)=>{ window.__toasts.push(m); };
-    // 200 activities each already at the per-activity cap (~1000 pts) -- compaction can't shrink
-    // these further, and the total genuinely exceeds any real localStorage quota.
     ACTIVITIES=[];
-    for(let i=0;i<200;i++){
+    for(let i=0;i<1500;i++){
       ACTIVITIES.push(normalizeActivityRecord({type:'run',role:'unplanned',date:'2027-01-01',
         distanceKm:8,durationSec:1000,title:'Run '+i,stream:${JSON.stringify(fakeStream(1000))}}));
     }
     saveActivitiesList();
   `);
   const toasts = win.eval(`__toasts`);
-  console.log('Test 6 (a save that still fails after compaction surfaces a toast, not silence):',
+  console.log('Test 6 (a save that still fails after BOTH compaction passes surfaces a toast, not silence):',
     (toasts.length===1 && /storage/i.test(toasts[0])) ? 'PASS' : `FAIL (${JSON.stringify(toasts)})`);
 
   // Test 7: end-to-end -- restoring a backup whose activities carry full-resolution streams (the exact
