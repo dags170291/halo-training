@@ -876,6 +876,14 @@ main{flex:1;padding:14px 14px 24px;max-width:560px;width:100%;margin:0 auto}
   .sidebar-help-btn{margin-top:auto}
   .sidebar-btn .icon{width:19px;height:19px;flex-shrink:0}
   .sidebar-sep{height:1px;background:var(--b1);margin:10px 4px;flex-shrink:0}
+  /* Small, low-key version chip pinned under Profile/Settings at the very bottom of the desktop
+     sidebar -- Dylon: "can you put the version number in this area for quick viewing ? also make it
+     interactive where if i click i can see the changelog". Deliberately styled like a caption, not a
+     nav row, so it doesn't compete with Profile/Settings for attention -- it's a quick glance + an
+     escape hatch into openChangelog(), not a primary destination. */
+  .sidebar-version-btn{display:flex;align-items:center;justify-content:center;gap:6px;background:none;border:none;color:var(--t3);font-family:var(--font);font-size:11px;font-weight:700;padding:6px 10px;margin-top:2px;border-radius:var(--r10);cursor:pointer;white-space:nowrap}
+  .sidebar-version-btn:hover{background:var(--s2);color:var(--t2)}
+  .sidebar.collapsed .sidebar-version-btn{display:none}
 
   .calendar-rail{display:flex;flex-direction:column;width:250px;height:100vh;flex-shrink:0;background:var(--s1);border-right:1px solid var(--b1);overflow:hidden}
   .rail-hdr{display:flex;align-items:center;justify-content:space-between;padding:14px 14px 10px;flex-shrink:0;border-bottom:1px solid var(--b1)}
@@ -1086,6 +1094,7 @@ main{flex:1;padding:14px 14px 24px;max-width:560px;width:100%;margin:0 auto}
         <svg class="icon" viewBox="0 -960 960 960" style="fill:currentColor;stroke:none"><path d="m370-80-16-128q-13-5-24.5-12T307-235l-119 50L78-375l103-78q-1-7-1-13.5v-27q0-6.5 1-13.5L78-585l110-190 119 50q11-8 23-15t24-12l16-128h220l16 128q13 5 24.5 12t22.5 15l119-50 110 190-103 78q1 7 1 13.5v27q0 6.5-2 13.5l103 78-110 190-118-50q-11 8-23 15t-24 12L590-80H370Zm70-80h79l14-106q31-8 57.5-23.5T639-327l99 41 39-68-86-65q5-14 7-29.5t2-31.5q0-16-2-31.5t-7-29.5l86-65-39-68-99 42q-22-23-48.5-38.5T533-694l-13-106h-79l-14 106q-31 8-57.5 23.5T321-633l-99-41-39 68 86 64q-5 15-7 30t-2 32q0 16 2 31t7 30l-86 65 39 68 99-42q22 23 48.5 38.5T427-266l13 106Zm42-180q58 0 99-41t41-99q0-58-41-99t-99-41q-59 0-99.5 41T342-480q0 58 40.5 99t99.5 41Zm-2-140Z"/></svg>
         <span>Settings</span>
       </button>
+      <button class="sidebar-version-btn" id="sidebar-version-btn" onclick="openChangelog()" aria-label="View changelog"></button>
     </div>
   </nav>
 </div>
@@ -1287,6 +1296,24 @@ main{flex:1;padding:14px 14px 24px;max-width:560px;width:100%;margin:0 auto}
       </button>
     </div>
     <div class="sheet-body" id="settings-sh-body"></div>
+  </div>
+</div>
+
+<!-- CHANGELOG -- opened from the sidebar's version chip (desktop) or from Settings > About's Version
+     row (everywhere else). Sits above Settings in z-order the same way Guide Hub/Plan Guide sit above
+     their own launch points (see guidehub-overlay's own note on this pattern). -->
+<div class="overlay" id="changelog-overlay" style="z-index:230">
+  <div class="sheet">
+    <div class="sheet-hdr">
+      <div class="sh-ico" style="background:var(--s3);color:var(--t2)">
+        <svg class="icon" viewBox="0 -960 960 960" style="fill:currentColor;stroke:none"><path d="M480-80q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Zm40-120v-323L365-370l-56-57 171-171-171-171 56-57 155 153v-207h80v207l155-153 56 57-171 171 171 171-56 57-155-153v323h-80Z"/></svg>
+      </div>
+      <h3>What's New</h3>
+      <button class="sheet-close" onclick="closeOverlay('changelog-overlay')">
+        <svg class="icon icon-sm" viewBox="0 -960 960 960" style="fill:currentColor;stroke:none"><path d="m336-280-56-56 144-144-144-143 56-56 144 144 143-144 56 56-144 143 144 144-56 56-143-144-144 144Z"/></svg>
+      </button>
+    </div>
+    <div class="sheet-body" id="changelog-sh-body"></div>
   </div>
 </div>
 
@@ -1633,7 +1660,7 @@ main{flex:1;padding:14px 14px 24px;max-width:560px;width:100%;margin:0 auto}
    session-style restyle, race-target connection, iOS install fix, icon redesign, onboarding flow).
    APP_STAGE is 'alpha.N' pre-launch, bump N each time you hand a build to a real tester (Dylon's
    sister counts); once launched, APP_VERSION resets to 1.0.0 and APP_STAGE becomes ''. */
-const APP_VERSION='0.34.32';
+const APP_VERSION='0.34.33';
 const APP_STAGE='alpha.1';
 const APP_VERSION_DATE='2026-08-05';
 /* ═══════════════════════════ DATA ═══════════════════════════ */
@@ -5690,13 +5717,61 @@ function renderSettingsBody(){
   <div class="section-lbl">About</div><div class="card">
     <div class="data-row" style="margin-top:0"><button class="btn btn-ghost btn-sm btn-block" onclick="openPlanGuide()">How your plan is built</button></div>
     <div class="data-row"><button class="btn btn-ghost btn-sm btn-block" onclick="showShortcutsHelp()">Keyboard shortcuts</button></div>
-    <div class="data-row" style="justify-content:space-between"><span style="font-size:13px;color:var(--t2)">Version</span><span style="font-size:13px;font-weight:700;color:var(--t1)">${APP_VERSION}${APP_STAGE?` <span style="color:var(--accent)">${APP_STAGE}</span>`:''}</span></div>
+    <div class="data-row" style="justify-content:space-between;cursor:pointer" onclick="openChangelog()"><span style="font-size:13px;color:var(--t2)">Version</span><span style="font-size:13px;font-weight:700;color:var(--t1)">${APP_VERSION}${APP_STAGE?` <span style="color:var(--accent)">${APP_STAGE}</span>`:''} <span style="color:var(--t3);font-weight:400">— What's New ›</span></span></div>
     <div class="data-row" style="justify-content:space-between"><span style="font-size:13px;color:var(--t2)">Updated</span><span style="font-size:13px;color:var(--t1)">${APP_VERSION_DATE}</span></div>
   </div>`;
 }
 function openSettings(){
   document.getElementById('settings-sh-body').innerHTML=renderSettingsBody();
   document.getElementById('settings-overlay').classList.add('open');
+}
+/* ═══════════════════════════ CHANGELOG (in-app "What's New") ═══════════════════════════
+   Dylon: "can you put the version number in this area for quick viewing ? also make it interactive
+   where if i click i can see the changelog" -- pointing at the sidebar's Profile/Settings corner.
+   A hand-maintained, tester-facing subset of CHANGELOG.md (the full repo file has far more detail
+   than makes sense to ship inside the app itself) -- newest first, one short line per item. Update
+   this alongside CHANGELOG.md/DEVELOPMENT.md/HALO_Tester_Guide.md every time APP_VERSION bumps; it's
+   deliberately capped to roughly the last couple weeks of releases rather than the full history, both
+   to keep this array from growing unbounded and because anything older than that is no longer "what's
+   new" in any useful sense. */
+const APP_CHANGELOG=[
+  {v:'0.34.33',d:'2026-08-05',items:["New: the sidebar now shows the app version — tap/click it (or Settings &gt; About &gt; Version) to see this changelog."]},
+  {v:'0.34.32',d:'2026-08-05',items:["Fixed: Pace by Distance chart (and its \"Week N runs\" breakdown list) now includes imported Activities, not just hand-typed session notes."]},
+  {v:'0.34.31',d:'2026-08-03',items:["Fixed: the \"Registration opens soon\" banner can now be dismissed with a \"Remind me later\" button."]},
+  {v:'0.34.30',d:'2026-08-03',items:["Fixed: the app could get stuck forever on its splash screen on some networks (VPN/slow connections) — CDN scripts now load in the background instead of blocking first paint."]},
+  {v:'0.34.29',d:'2026-08-03',items:["New: Quality/Interval sessions can now be edited as a real structured workout — warm-up, cool-down, and a per-rep list with distance/time, target pace, and rest."]},
+  {v:'0.34.28',d:'2026-08-03',items:["New: the route player now speeds up or slows down based on the race's own pace, plus a manual 1×/2×/4× speed control.","Fixed: desktop Races page column-height gap (round 2)."]},
+  {v:'0.34.27',d:'2026-08-02',items:["New: uploaded race routes can show named waypoints and be \"played\" back with a distance scrubber.","Fixed: desktop Races page cutting off with empty space below the content."]},
+  {v:'0.34.26',d:'2026-08-02',items:["New: upload a route file (.gpx/.tcx/.fit/.kml) for a race and see the course on a map."]},
+  {v:'0.34.25',d:'2026-08-02',items:["Fixed: the Full Rest day after your race was on the wrong Sunday (one-time automatic correction)."]},
+  {v:'0.34.24',d:'2026-08-02',items:["Fixed: a week's Distance total on Schedule could undercount when a session used an approximate \"~5 km\" distance."]},
+  {v:'0.34.23',d:'2026-08-02',items:["New: distance, pace, and heart rate on a planned session are now real editable fields, not free text — now on Quality/Interval sessions too."]},
+  {v:'0.34.22',d:'2026-08-02',items:["Fixed: editing a planned session's distance now updates the overall plan total, not just that week.","Redesigned: streak card widened; Weekly Zone Time layout corrected to match the intended design."]},
+  {v:'0.34.21',d:'2026-08-02',items:["Redesigned: HR/pace zone donut charts are now a true stadium/race-track ring shape."]},
+  {v:'0.34.20',d:'2026-08-02',items:["Fixed: Weekly Zone Time now updates during the week, not just after it ends.","Fixed: the day after a race was scheduled as a Recovery Run instead of full rest."]},
+  {v:'0.34.19',d:'2026-07-31',items:["Fixed: training plan session sheets now show your real heart rate zone, not stale static text."]},
+  {v:'0.34.18',d:'2026-07-31',items:["Changed: the Heart Rate Zone Calculator shows \"Rest\"/\"Max\" at the open ends instead of a fabricated ceiling number."]},
+  {v:'0.34.17',d:'2026-07-31',items:["Fixed: a 1-bpm gap in the LTHR zone table that could silently mis-file real heart rate data into the wrong zone."]},
+  {v:'0.34.16',d:'2026-07-31',items:["New: Joe Friel's LTHR method added to the Heart Rate Zone Calculator."]},
+  {v:'0.34.15',d:'2026-07-30',items:["New: Weekly Zone Time can now be split by Total, Runs, or Walks."]},
+  {v:'0.34.14',d:'2026-07-30',items:["Redesigned: Weekly Zone Time is now an interactive donut with a legend, not a stacked bar."]}
+];
+function renderChangelogBody(){
+  return APP_CHANGELOG.map(rel=>`<div class="section-lbl"${rel===APP_CHANGELOG[0]?' style="margin-top:0"':''}>v${rel.v} <span style="font-weight:400;color:var(--t3)">· ${rel.d}</span></div><div class="card">${
+    rel.items.map(it=>`<div style="font-size:13px;color:var(--t1);line-height:1.5${it===rel.items[0]?'':';margin-top:8px'}">${it}</div>`).join('')
+  }</div>`).join('');
+}
+function openChangelog(){
+  document.getElementById('changelog-sh-body').innerHTML=renderChangelogBody();
+  document.getElementById('changelog-overlay').classList.add('open');
+}
+// Keeps the small version chip pinned under Profile/Settings at the bottom of the desktop sidebar in
+// sync -- called from renderTopbar() alongside renderAvatars(), same lifecycle. Hidden on mobile via
+// the .sidebar itself already being display:none under 768px, so no separate mobile wiring needed;
+// mobile reaches the same changelog through Settings > About > Version instead (see renderSettingsBody).
+function renderSidebarVersion(){
+  const el=document.getElementById('sidebar-version-btn');
+  if(el) el.textContent=`v${APP_VERSION}${APP_STAGE?' '+APP_STAGE:''}`;
 }
 /* ═══════════════════════════ SESSION REMINDERS (local Notification API) ═══════════════════════════
    No backend/push infra here, so this only works while HALO is actually open in a tab — a lightweight
@@ -13958,6 +14033,7 @@ function renderTopbar(){
   updatePageChrome();
   renderAvatars();
   renderTbBrand();
+  renderSidebarVersion();
 }
 // The tab title used to show the active block's literal name ("HALO · Block 5 · Durability →
 // Ignition") — internal plan jargon, not something a browser tab needs. It now reflects where you

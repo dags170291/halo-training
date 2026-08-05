@@ -1689,7 +1689,15 @@
 // week" even once the chart itself had data. Both now also read activitiesForWeek(wk), matching
 // weekEF()'s existing pattern; each Activity's row in the breakdown list is clickable straight to its
 // own detail page, same as renderTrendDayRows() already does elsewhere in this same card.
-const CACHE_NAME = 'halo-0.34.32-alpha.1';
+// v0.34.33 -- Dylon: "can you put the version number in this area for quick viewing ? also make it
+// interactive where if i click i can see the changelog", pointing at the desktop sidebar's Profile/
+// Settings corner. New small version chip pinned under Profile/Settings (synced from APP_VERSION via
+// renderSidebarVersion(), called from renderTopbar() alongside renderAvatars()) that opens a new
+// #changelog-overlay -- a hand-maintained APP_CHANGELOG array (newest first, capped to roughly the
+// last couple weeks of releases) rendered by renderChangelogBody(). The existing Settings > About >
+// Version row is now clickable to the same overlay too, since the desktop-only .sidebar doesn't exist
+// on mobile.
+const CACHE_NAME = 'halo-0.34.33-alpha.1';
 const APP_SHELL = [
   './index.html',
   './manifest.webmanifest',
