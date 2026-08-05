@@ -11,6 +11,15 @@
 // it's persisted, keeping the on-disk footprint small regardless of raw export resolution, and
 // (2) safeSet now reports success/failure so saveActivitiesList can warn the user via showToast instead
 // of pretending a failed save worked.
+//
+// ACTIVITIES now persists to IndexedDB by default (see idbSetActivities/initActivitiesStorage in
+// index.html), with localStorage kept only as a backstop for a device where IndexedDB itself is
+// unavailable or its write fails. This file deliberately does NOT wire a fake IndexedDB into its jsdom
+// windows, which means window.indexedDB stays undefined here exactly like it would on a browser
+// without IndexedDB support -- so every saveActivitiesList() call below exercises that localStorage
+// fallback path specifically (see test_activities_indexeddb_migration.js for the primary IndexedDB
+// path itself). saveActivitiesList() now kicks off that persistence asynchronously rather than
+// blocking synchronously, so a short wait() is needed between a save and reading its result back.
 const fs = require('fs');
 const path = require('path');
 const { JSDOM } = require('/tmp/node_modules/jsdom');
@@ -64,7 +73,7 @@ function fakeStream(points) {
 
   // Test 2: a stream over the cap gets decimated down to STREAM_MAX_POINTS, keeping every array
   // aligned to the SAME sampled indices (t[i] and hr[i] must describe the same original moment).
-  win.eval(`window.__big = ${JSON.stringify(fakeStream(4559))}; window.__down = downsampleStreamArrays(__big);`);
+  win.eval(`window.__big = ${JSON.stringify(fakeStream(8000))}; window.__down = downsampleStreamArrays(__big);`);
   const capLen = win.eval(`__down.t.length`);
   const maxPoints = win.eval(`STREAM_MAX_POINTS`);
   const alignedOk = win.eval(`
@@ -94,13 +103,14 @@ function fakeStream(points) {
     ],mileagePlan:{1:20}}];
     DATA=BLOCKS[0].sessions; ACTIVE_BLOCK_ID='b1'; STATUS={}; NOTES={}; RACES_LIST={};
     ACTIVITIES=[normalizeActivityRecord({type:'run',role:'fulfillment',linkedSessionId:'s1',date:'2027-06-05',
-      distanceKm:8.15,durationSec:4559,title:'Long Run',stream:${JSON.stringify(fakeStream(4559))}})];
+      distanceKm:8.15,durationSec:12000,title:'Long Run',stream:${JSON.stringify(fakeStream(12000))}})];
     saveActivitiesList();
   `);
+  await wait(50);
   const liveLen = win.eval(`ACTIVITIES[0].stream.t.length`);
   const persistedLen = win.eval(`JSON.parse(localStorage.getItem('b5_activities'))[0].stream.t.length`);
   console.log('Test 4 (live ACTIVITIES stays full-res, persisted copy is compacted):',
-    (liveLen === 4559 && persistedLen <= maxPoints) ? 'PASS' : `FAIL (live=${liveLen}, persisted=${persistedLen})`);
+    (liveLen === 12000 && persistedLen <= maxPoints) ? 'PASS' : `FAIL (live=${liveLen}, persisted=${persistedLen})`);
 
   // Test 5: safeSet reports success/failure instead of always silently returning undefined.
   const safeSetResults = win.eval(`
@@ -130,6 +140,7 @@ function fakeStream(points) {
     }
     saveActivitiesList();
   `);
+  await wait(50);
   const toasts = win.eval(`__toasts`);
   console.log('Test 6 (a save that still fails after BOTH compaction passes surfaces a toast, not silence):',
     (toasts.length===1 && /storage/i.test(toasts[0])) ? 'PASS' : `FAIL (${JSON.stringify(toasts)})`);
@@ -152,6 +163,7 @@ function fakeStream(points) {
     };
     applySyncPayload(backupPayload);
   `);
+  await wait(50);
   const keys = ['b5_status','b5_notes','b5_profile','b5_extralogs','b5_shoes','b5_dateoverrides',
     'b5_injuries','b5_wellness','b5_activities','b5_seasons','b5_blocks','b5_activeblock','b5_races'];
   const seed = {};

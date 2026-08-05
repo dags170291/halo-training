@@ -1660,7 +1660,7 @@ main{flex:1;padding:14px 14px 24px;max-width:560px;width:100%;margin:0 auto}
    session-style restyle, race-target connection, iOS install fix, icon redesign, onboarding flow).
    APP_STAGE is 'alpha.N' pre-launch, bump N each time you hand a build to a real tester (Dylon's
    sister counts); once launched, APP_VERSION resets to 1.0.0 and APP_STAGE becomes ''. */
-const APP_VERSION='0.34.36';
+const APP_VERSION='0.34.37';
 const APP_STAGE='alpha.1';
 const APP_VERSION_DATE='2026-08-05';
 /* ═══════════════════════════ DATA ═══════════════════════════ */
@@ -2986,7 +2986,10 @@ function loadState(){
   try{RACES_LIST=JSON.parse(safeGet(RK,'[]'));}catch(e){RACES_LIST=[];}
   try{INJURIES=JSON.parse(safeGet(IJK,'[]'));}catch(e){INJURIES=[];}
   try{WELLNESS_LOG=JSON.parse(safeGet(WLK,'[]'));}catch(e){WELLNESS_LOG=[];}
-  try{ACTIVITIES=JSON.parse(safeGet(AK,'[]'));}catch(e){ACTIVITIES=[];}
+  // ACTIVITIES is no longer loaded here -- it now lives in IndexedDB (much bigger quota than
+  // localStorage's ~5MB ceiling, see initActivitiesStorage), which has no synchronous read API.
+  // ACTIVITIES stays whatever it already was (empty on first boot, via its own `let ACTIVITIES=[]`)
+  // until initActivitiesStorage's async load resolves, a few lines after loadState() is called.
 }
 // skipSyncNote: true for startup-only writes (e.g. seeding placeholder profile fields on a
 // brand-new/empty file) that shouldn't count as a real edit a device made — otherwise opening a
@@ -3015,6 +3018,97 @@ function saveRacesList(skipSyncNote){ safeSet(RK,JSON.stringify(RACES_LIST)); if
 // create these lands in Phase 1; see ANALYTICS_ROADMAP.md for the full reasoning.
 const AK='b5_activities';
 let ACTIVITIES=[];
+// IndexedDB backend for ACTIVITIES. Dylon: "I got a message saying storage full after uploading my
+// run for today ? and now my run data is gone" (2026-08-04) was fixed at the time with a
+// fallback-retry compaction (STREAM_MAX_POINTS_FALLBACK, below) that bought real headroom but was
+// always just a backstop against localStorage's own hard ~5MB-per-origin ceiling. This is the actual
+// long-term fix underneath it: IndexedDB's quota is typically hundreds of MB+ (tied to available
+// disk), so the same "accumulated activity history eventually outgrows the box it's kept in" problem
+// stops being a near-term ceiling at all. ACTIVITIES itself stays exactly what it already was -- a
+// plain synchronous in-memory array every existing read site throughout the app (charts,
+// best-efforts search, HR/pace zone breakdowns, the Activities tab, Race Predictions, ...) can keep
+// reading completely unchanged. Only the persistence backend underneath saveActivitiesList() moves.
+const IDB_NAME='halo_activities_db';
+const IDB_VERSION=1;
+const IDB_STORE='activities';
+const IDB_KEY='all';
+function idbOpen(){
+  return new Promise((resolve,reject)=>{
+    if(!window.indexedDB){ reject(new Error('IndexedDB not available')); return; }
+    let req;
+    try{ req=indexedDB.open(IDB_NAME,IDB_VERSION); }catch(e){ reject(e); return; }
+    req.onupgradeneeded=()=>{ if(!req.result.objectStoreNames.contains(IDB_STORE)) req.result.createObjectStore(IDB_STORE); };
+    req.onsuccess=()=>resolve(req.result);
+    req.onerror=()=>reject(req.error||new Error('IndexedDB open failed'));
+    req.onblocked=()=>reject(new Error('IndexedDB open blocked'));
+  });
+}
+// The whole ACTIVITIES array is stored as one record under a fixed key -- same "one JSON blob"
+// shape localStorage used, since a single person's own activity history is nowhere near the size
+// that would call for real per-record indexing/cursors, and keeping this 1:1 with the old model
+// keeps the rest of the migration (this function's callers) simple.
+function idbGetActivities(){
+  return idbOpen().then(db=>new Promise((resolve,reject)=>{
+    let tx;
+    try{ tx=db.transaction(IDB_STORE,'readonly'); }catch(e){ reject(e); return; }
+    const req=tx.objectStore(IDB_STORE).get(IDB_KEY);
+    req.onsuccess=()=>resolve(req.result||null);
+    req.onerror=()=>reject(req.error||new Error('IndexedDB read failed'));
+  }));
+}
+function idbSetActivities(list){
+  return idbOpen().then(db=>new Promise((resolve,reject)=>{
+    let tx;
+    try{ tx=db.transaction(IDB_STORE,'readwrite'); }catch(e){ reject(e); return; }
+    tx.objectStore(IDB_STORE).put(list,IDB_KEY);
+    tx.oncomplete=()=>resolve(true);
+    tx.onerror=()=>reject(tx.error||new Error('IndexedDB write failed'));
+    tx.onabort=()=>reject(tx.error||new Error('IndexedDB write aborted'));
+  }));
+}
+// True once the very first load below has actually resolved -- boot awaits this (see
+// initSyncSession) before letting a cloud pull touch ACTIVITIES, so a pull landing unusually fast
+// can never race the local load and stomp real on-disk history with whatever ACTIVITIES happened to
+// be (empty, on a fresh boot) before this finished.
+let ACTIVITIES_IDB_READY=false;
+// Runs once at boot, right after loadState() -- which no longer touches AK/ACTIVITIES at all, since
+// IndexedDB has no synchronous read API to load it with. Loads this device's real activity history
+// from IndexedDB. A still-populated legacy AK localStorage key always wins over whatever IndexedDB
+// currently has: saveActivitiesList()'s own success path clears AK immediately after a save actually
+// lands in IndexedDB, so AK having data at all here can only mean either (a) this device predates
+// IndexedDB and has never migrated, or (b) the most recent save attempt had to fall back to
+// localStorage because IndexedDB itself failed that time -- either way AK is the freshest copy that
+// exists, newer than whatever's already in IndexedDB. Falls back to AK outright if IndexedDB isn't
+// available at all (very old browser, some locked-down private-browsing modes) rather than losing
+// anything.
+async function initActivitiesStorage(){
+  let legacy=[];
+  try{ legacy=JSON.parse(safeGet(AK,'[]')); }catch(e){ legacy=[]; }
+  const legacyHasData=!!(legacy && legacy.length);
+  try{
+    if(legacyHasData){
+      ACTIVITIES=legacy;
+      // Try to get IndexedDB caught back up right away rather than leaving this device stuck on the
+      // localStorage fallback until its next unrelated save.
+      try{
+        await idbSetActivities(ACTIVITIES);
+        const verify=await idbGetActivities();
+        if(verify && verify.length===legacy.length) safeRemove(AK);
+      }catch(e){ /* still stuck -- AK stays the source of truth until a later save succeeds */ }
+    } else {
+      const fromIDB=await idbGetActivities();
+      ACTIVITIES=fromIDB||[];
+    }
+  }catch(e){
+    ACTIVITIES=legacyHasData?legacy:[];
+  }
+  ACTIVITIES_IDB_READY=true;
+  // The very first paint (right after loadState()) may have shown zero activities everywhere --
+  // Activities tab, streaks, Race Predictions, Weekly Zone Time -- since none of this had landed yet
+  // at that point. Re-render now that it has, same pattern as a cloud pull finishing after the app's
+  // already on screen.
+  if(APP_BOOTED && typeof renderAll==='function') renderAll();
+}
 const ACTIVITY_TYPES=['run','walk','strength','yoga','mobility','workout'];
 // `role` is for completion-tracking ONLY — it must never gate analytics. Every weekly total, chart,
 // PB, or effort score sums across ALL activities regardless of role (see ANALYTICS_ROADMAP.md §2 —
@@ -3109,15 +3203,20 @@ function normalizeActivityRecord(a){
     createdAt:a.createdAt||new Date().toISOString()
   };
 }
-// 1000 points is plenty for every downstream consumer (km splits, GAP, best-efforts search,
-// walk-segment detection, the route map, HR-zone/pace-zone breakdowns) — even a 3-hour long run
-// still gets roughly one point every ~11 seconds, far finer than any of those need — while keeping
-// a single activity's own JSON well under 150KB instead of 600KB+.
-const STREAM_MAX_POINTS=1000;
-// Fallback cap tried only when even the normal 1000-point compaction still doesn't fit on this
-// device (see saveActivitiesList's retry below) — still plenty of points for splits/best-efforts/
-// route display at reduced fidelity, but a fraction of the bytes, to buy real headroom on a device
-// whose accumulated activity history has simply grown past what STREAM_MAX_POINTS alone can fit.
+// Raised from 1000 to 5000 once ACTIVITIES moved to IndexedDB (see idbSetActivities/
+// initActivitiesStorage above) — the old 1000-point cap existed specifically to keep a single
+// activity's JSON small enough that a whole history of them could still fit inside localStorage's
+// ~5MB-per-origin ceiling, a constraint that no longer applies now that IndexedDB (typically hundreds
+// of MB+, tied to available disk) is the real persistence backend. 5000 points gets even a 3-hour
+// long run down to roughly one point every ~2 seconds instead of ~11 — meaningfully finer km
+// splits/GAP/route-map fidelity — while a single activity's JSON still stays well under 1MB.
+// STREAM_MAX_POINTS_FALLBACK (below) still governs the rare localStorage-fallback save path, so this
+// increase only actually changes anything for the common IndexedDB path.
+const STREAM_MAX_POINTS=5000;
+// Fallback cap used only by the localStorage backstop path (see saveActivitiesList) when IndexedDB
+// itself is unavailable or its write fails — still plenty of points for splits/best-efforts/route
+// display at reduced fidelity, but a fraction of the bytes, to fit inside localStorage's own much
+// smaller quota.
 const STREAM_MAX_POINTS_FALLBACK=200;
 // Caps a stream's parallel arrays (t/lat/lon/alt/distM/hr/cadence/power/vertOsc/vertRatio/strideLen/
 // temp — see normalizeActivityRecord) at a fixed point count via even decimation, using the SAME set
@@ -3147,41 +3246,51 @@ function downsampleStreamArrays(stream,maxPoints){
 // 5,000,000 UTF-16 code units, and real browsers are in the same ballpark, Safari often stricter
 // still). safeSet's own catch(e){} swallowed the resulting QuotaExceededError with no visible error
 // -- saveActivitiesList() looked like it succeeded, but nothing after the quota was first crossed
-// ever actually reached disk. That's why it looked like "week one stays, week two moves": week 1's
-// smaller cumulative save had fit; by week 2 it didn't, so week 2's activities quietly failed to
-// persist and vanished on the next real reload. Fix is two-part: (1) always persist a downsampled
-// copy (below) so the on-disk footprint stays small regardless of how much raw stream data a device
-// exports, and (2) if a save still fails, tell the person immediately instead of pretending it
-// worked, so this exact failure mode can never again cause silent, undiscovered data loss.
+// ever actually reached disk. A fallback-retry compaction bought real headroom after Dylon hit this a
+// second time (2026-08-04: "I got a message saying storage full after uploading my run for today ?
+// and now my run data is gone"), but was always just a backstop against localStorage's own hard
+// ceiling. This is the real fix: ACTIVITIES now persists to IndexedDB (see idbSetActivities/
+// initActivitiesStorage above), whose quota is typically hundreds of MB+ instead of ~5MB, so the same
+// "accumulated history eventually outgrows the box it's kept in" problem stops being a near-term
+// ceiling at all. Still always persists a downsampled copy (below) rather than the raw per-second
+// stream -- no reason to store more than every downstream consumer (splits/GAP/best-efforts/route
+// map/zone breakdowns) can actually use, even with room to spare.
 function saveActivitiesList(skipSyncNote){
-  const compact=ACTIVITIES.map(a=>(a&&a.stream)?Object.assign({},a,{stream:downsampleStreamArrays(a.stream)}):a);
-  let ok=safeSet(AK,JSON.stringify(compact));
-  // Dylon: "I got a message saying storage full after uploading my run for today ? and now my run
-  // data is gone." Root cause: this device's accumulated activity history had simply grown past what
-  // the normal 1000-point-per-activity compaction could fit, so today's newly-added run never
-  // actually reached disk even though it stayed correct in memory for the rest of that session --
-  // once the tab reloaded, the on-disk (pre-failure) copy came back without it. Before giving up,
-  // retry once with every activity's stream squeezed down to STREAM_MAX_POINTS_FALLBACK -- real
-  // headroom, without needing the person to manually go delete anything first.
-  if(!ok){
-    const compactMore=ACTIVITIES.map(a=>(a&&a.stream)?Object.assign({},a,{stream:downsampleStreamArrays(a.stream,STREAM_MAX_POINTS_FALLBACK)}):a);
-    ok=safeSet(AK,JSON.stringify(compactMore));
-  }
-  if(!ok){
-    if(typeof showToast==='function') showToast('Storage is full — some activity data may not survive a reload. Export a backup, then remove older activities to free up space.');
-    // Even the aggressively-compacted retry didn't fit, so whatever's in memory right now (including
-    // anything just added) genuinely did not reach this device's disk. Cloud Sync's own push
-    // (syncPush(), queued a few seconds from now by noteLocalEdit() below) reads the live in-memory
-    // ACTIVITIES directly, not this failed local save, so if this device is online and signed in, the
-    // cloud copy can still end up correct even though the local one didn't. The danger is that
-    // SYNCK/LCK bookkeeping would otherwise still end up agreeing with each other after that push
-    // succeeds, silently masking that the actual on-disk content behind them fell out of sync with
-    // what got marked "synced" -- the next reload would keep loading the broken local copy forever,
-    // with no visible sign anything was ever wrong. Invalidating SYNCK here means the next time this
-    // device checks in, it can no longer assume it's already up to date with the cloud, so a real
-    // mismatch surfaces as an explicit "which version should win?" prompt instead of going unnoticed.
-    safeRemove(SYNCK);
-  }
+  const snapshot=ACTIVITIES.map(a=>(a&&a.stream)?Object.assign({},a,{stream:downsampleStreamArrays(a.stream)}):a);
+  idbSetActivities(snapshot).then(()=>{
+    // A successful IndexedDB write is this device's source of truth from here on — clear any
+    // leftover localStorage fallback copy so a later load (see initActivitiesStorage) never mistakes
+    // a stale fallback for something newer than what's actually on disk.
+    safeRemove(AK);
+  }).catch(()=>{
+    // IndexedDB unavailable (very old browser, some locked-down private-browsing modes) or its own
+    // write itself failed (would need actual disk exhaustion — IndexedDB's quota is typically
+    // hundreds of MB+) -- fall back to the same localStorage compaction retry this app used
+    // exclusively before IndexedDB existed, as a backstop rather than losing anything outright.
+    // Leaving AK populated here (rather than also trying and possibly failing to clear it) is itself
+    // the signal initActivitiesStorage uses on the next load to know this copy is the freshest one.
+    let ok=safeSet(AK,JSON.stringify(snapshot));
+    if(!ok){
+      const compactMore=ACTIVITIES.map(a=>(a&&a.stream)?Object.assign({},a,{stream:downsampleStreamArrays(a.stream,STREAM_MAX_POINTS_FALLBACK)}):a);
+      ok=safeSet(AK,JSON.stringify(compactMore));
+    }
+    if(!ok){
+      if(typeof showToast==='function') showToast('Storage is full — some activity data may not survive a reload. Export a backup, then remove older activities to free up space.');
+      // Even the aggressively-compacted localStorage retry didn't fit, so whatever's in memory right
+      // now (including anything just added) genuinely did not reach this device's disk. Cloud Sync's
+      // own push (syncPush(), queued a few seconds from now by noteLocalEdit() below) reads the live
+      // in-memory ACTIVITIES directly, not this failed local save, so if this device is online and
+      // signed in, the cloud copy can still end up correct even though the local one didn't. The
+      // danger is that SYNCK/LCK bookkeeping would otherwise still end up agreeing with each other
+      // after that push succeeds, silently masking that the actual on-disk content behind them fell
+      // out of sync with what got marked "synced" -- the next reload would keep loading the broken
+      // local copy forever, with no visible sign anything was ever wrong. Invalidating SYNCK here
+      // means the next time this device checks in, it can no longer assume it's already up to date
+      // with the cloud, so a real mismatch surfaces as an explicit "which version should win?" prompt
+      // instead of going unnoticed.
+      safeRemove(SYNCK);
+    }
+  });
   if(!skipSyncNote) noteLocalEdit();
 }
 // Applies whatever completion effect an activity's role implies — currently just "fulfillment marks
@@ -5236,6 +5345,12 @@ function noteLocalEdit(){
 }
 async function initSyncSession(){
   if(!SB) return;
+  // Don't let a cloud pull below (via autoSyncCheck -> applySyncPayload) overwrite ACTIVITIES before
+  // the local IndexedDB load/migration (see initActivitiesStorage) has actually finished resolving
+  // what "this device's local copy" even is yet -- in practice IndexedDB resolves long before any
+  // real network round-trip to Supabase would, but this makes that ordering guaranteed rather than
+  // just likely.
+  await ACTIVITIES_READY;
   try{
     const {data}=await SB.auth.getSession();
     SYNC_SESSION=(data&&data.session)?data.session:null;
@@ -5440,6 +5555,11 @@ function seedProfileDefaultsIfNeeded(){
   if(changed) saveState(true);
 }
 loadState();
+// Kicks off the async IndexedDB load/migration for ACTIVITIES (see initActivitiesStorage above) --
+// captured here so initSyncSession (right below) can await it before letting a cloud pull touch
+// ACTIVITIES; every other boot step here is synchronous and reads/writes completely different state,
+// so nothing else needs to wait on this.
+const ACTIVITIES_READY=initActivitiesStorage();
 seedProfileDefaultsIfNeeded();
 loadSeasonsBlocks();
 initSyncSession();
@@ -5771,6 +5891,7 @@ function openSettings(){
    to keep this array from growing unbounded and because anything older than that is no longer "what's
    new" in any useful sense. */
 const APP_CHANGELOG=[
+  {v:'0.34.37',d:'2026-08-05',items:["Changed: your activity history (routes, splits, heart rate/pace data) now saves to a much bigger on-device storage space instead of the small one browsers give regular saved data — the same \"Storage is full\" risk from before can't happen again, and it also means richer route/split detail can be kept per run."]},
   {v:'0.34.36',d:'2026-08-05',items:["Fixed: importing a run could fail with \"Storage is full\" and vanish entirely. Saving now retries with smaller compaction before giving up, and a device that still can't save re-checks the cloud next time instead of silently staying out of sync."]},
   {v:'0.34.35',d:'2026-08-05',items:["Fixed: a logged Interval/Quality workout's own blended pace (work + built-in rest) could drag Race Predictions' \"Current\" figure down — that pace is never a valid race-time signal on its own, matching how Strava/Garmin/COROS handle it."]},
   {v:'0.34.34',d:'2026-08-05',items:["Fixed: Race Predictions' \"Current\"/hero time could freeze forever after your first real race, ignoring every training run logged since. Now also counts training logged after your most recent race."]},

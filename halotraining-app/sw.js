@@ -1737,7 +1737,27 @@
 // masking that the actual on-disk content fell out of sync with what got marked "synced." Invalidating
 // SYNCK means the next time this device checks in, a real mismatch surfaces as an explicit "which
 // version should win?" prompt instead of the local copy quietly staying broken forever.
-const CACHE_NAME = 'halo-0.34.36-alpha.1';
+// v0.34.37 -- Dylon: "What i think is happening is that the app actually stores the files i upload
+// when i only require it to load the data from the files and take the information not store it.
+// Maybe i am wrong but this will be a huge issue." Investigation confirmed the raw uploaded file is
+// never stored (only its filename), but the full parsed per-second stream IS -- and legitimately
+// needs to be (route map, splits, GAP, best-efforts, HR/pace zone breakdowns all read it). That's the
+// real mechanism behind v0.34.36's storage-full bug: localStorage's ~5MB-per-origin ceiling was
+// always going to be outgrown eventually by a real, accumulating training history. This moves
+// ACTIVITIES' persistence backend from localStorage to IndexedDB (typically hundreds of MB+, tied to
+// available disk) via new idbGetActivities()/idbSetActivities()/initActivitiesStorage() functions --
+// ACTIVITIES itself stays exactly what it already was, a plain synchronous in-memory array every
+// existing read site keeps working against unchanged. loadState() no longer touches ACTIVITIES at all
+// (IndexedDB has no synchronous read API); initActivitiesStorage() runs once at boot right after it,
+// loading from IndexedDB, one-time-migrating a still-present legacy localStorage copy if IndexedDB is
+// empty (clearing the old key only once the migration is confirmed to have landed), and re-rendering
+// once real activity data is in. saveActivitiesList() now writes to IndexedDB first, falling back to
+// the same localStorage compaction retry from v0.34.36 only if IndexedDB itself is unavailable or its
+// write fails -- a successful IndexedDB write always clears any leftover localStorage fallback copy,
+// and a fallback save always leaves it populated, so a later load can tell which one is actually the
+// freshest. STREAM_MAX_POINTS raised from 1000 to 5000 now that the old localStorage-driven ceiling
+// no longer applies to the common path, for meaningfully finer route/split/GAP fidelity per activity.
+const CACHE_NAME = 'halo-0.34.37-alpha.1';
 const APP_SHELL = [
   './index.html',
   './manifest.webmanifest',

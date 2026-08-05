@@ -15,6 +15,15 @@
 // next time this device checks in, it can't assume it's already in sync with the cloud -- a real
 // mismatch surfaces as an explicit conflict prompt instead of the local copy quietly staying broken
 // forever.
+//
+// ACTIVITIES now persists to IndexedDB by default (see idbSetActivities/initActivitiesStorage in
+// index.html), with everything described above demoted to the backstop path used only when
+// IndexedDB itself is unavailable or its write fails. This file deliberately does NOT wire a fake
+// IndexedDB into its jsdom windows (window.indexedDB stays undefined, same as a browser without
+// IndexedDB support), so every saveActivitiesList() call below exercises that backstop path
+// specifically -- see test_activities_indexeddb_migration.js for the primary IndexedDB path.
+// saveActivitiesList() now kicks off persistence asynchronously rather than blocking synchronously,
+// so a short wait() is needed between a save and reading its result back.
 const fs = require('fs');
 const path = require('path');
 const { JSDOM } = require('/tmp/node_modules/jsdom');
@@ -75,6 +84,7 @@ function fakeStream(points) {
     }
     saveActivitiesList();
   `);
+  await wait(50);
   const t2saved = win.eval(`JSON.parse(localStorage.getItem('b5_activities')).length`);
   const t2toasts = win.eval(`__toasts`);
   const t2 = t2saved===250 && t2toasts.length===0;
@@ -90,6 +100,7 @@ function fakeStream(points) {
   // fallback retry) -- invalidation is specifically for the "genuinely could not save at all" case. ----
   win.eval(`safeSet('b5_last_sync','2027-01-01T00:00:00.000Z');`);
   win.eval(`saveActivitiesList();`); // re-save the same (now-fitting) 250 activities -- should succeed again
+  await wait(50);
   const t4 = win.eval(`safeGet('b5_last_sync',null)==='2027-01-01T00:00:00.000Z'`);
   console.log('Test 4 (SYNCK is untouched when the save succeeds, even via the fallback retry):', t4?'PASS':'FAIL');
 
@@ -107,6 +118,7 @@ function fakeStream(points) {
     }
     saveActivitiesList();
   `);
+  await wait(50);
   const t5toasts = win.eval(`__toasts`);
   const t5syncCleared = win.eval(`localStorage.getItem('b5_last_sync')===null`);
   const t5 = t5toasts.length===1 && t5syncCleared;

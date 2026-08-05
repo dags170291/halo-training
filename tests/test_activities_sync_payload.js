@@ -3,13 +3,14 @@
 // ACTIVITIES (imported/synced watch files, Phase 0 of ANALYTICS_ROADMAP.md) at all. A backup exported
 // and restored on another device, or a fresh device pulling from cloud sync, would come back with
 // every session status/note/block/race intact but zero imported activities -- silently, with no error.
-// ACTIVITIES also persists to its own localStorage key (saveActivitiesList(), the AK constant) rather
-// than through saveState() like everything else, which is exactly why it was easy to leave out of both
-// functions and why applySyncPayload's fix needs its own explicit save call, not just an in-memory
-// assignment.
+// ACTIVITIES now persists to IndexedDB (see idbSetActivities/initActivitiesStorage in index.html)
+// rather than a plain localStorage key, which is exactly why it was easy to leave out of both
+// buildSyncPayload/applySyncPayload and why applySyncPayload's fix needs its own explicit save call,
+// not just an in-memory assignment.
 const fs = require('fs');
 const path = require('path');
 const { JSDOM } = require('/tmp/node_modules/jsdom');
+const fakeIndexedDB = require('/tmp/node_modules/fake-indexeddb');
 
 const html = fs.readFileSync(path.join(__dirname, '..', 'halotraining-app', 'index.html'), 'utf8');
 
@@ -26,6 +27,11 @@ function makeWindow() {
       win.Element.prototype.scrollIntoView = () => {};
       win.Element.prototype.scrollBy = () => {};
       win.matchMedia = () => ({ matches: true, addListener(){}, removeListener(){} });
+      // jsdom has no native IndexedDB -- polyfill it so saveActivitiesList()/applySyncPayload() exercise
+      // the real production persistence path instead of always falling through to the localStorage
+      // backstop (see test_activity_storage_quota.js for that fallback path specifically).
+      win.indexedDB = fakeIndexedDB.indexedDB;
+      win.IDBKeyRange = fakeIndexedDB.IDBKeyRange;
     }
   });
   return dom.window;
@@ -42,6 +48,7 @@ function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
     ACTIVITIES=[normalizeActivityRecord({type:'run', role:'unplanned', date:'2026-07-15', distanceKm:8.2, durationSec:2400, title:'Morning Run'})];
     saveActivitiesList();
   `);
+  await wait(50);
 
   // ---- Test 1: buildSyncPayload() includes an "activities" key matching ACTIVITIES ----
   const payloadHasActivities = win.eval(`
@@ -53,28 +60,23 @@ function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
   console.log('Test 1 (buildSyncPayload includes ACTIVITIES, not just status/notes/blocks):',
     payloadHasActivities===true ? 'PASS' : 'FAIL', { payloadHasActivities });
 
-  // ---- Test 2: simulate restoring on a fresh device -- ACTIVITIES and its own localStorage key (AK)
-  // both start empty, applySyncPayload() with a real backup payload should bring the activity back in
+  // ---- Test 2: simulate restoring on a fresh device -- ACTIVITIES starts empty (both in memory and
+  // in IndexedDB), applySyncPayload() with a real backup payload should bring the activity back in
   // memory AND persist it, not just set the in-memory variable for this one session ----
-  const restoreResult = win.eval(`
-    (function(){
-      const payload = buildSyncPayload();
-      ACTIVITIES = [];
-      localStorage.removeItem('b5_activities');
-      applySyncPayload(payload);
-      const persisted = JSON.parse(localStorage.getItem('b5_activities') || '[]');
-      return {
-        inMemoryCount: ACTIVITIES.length,
-        inMemoryTitle: ACTIVITIES[0] && ACTIVITIES[0].title,
-        persistedCount: persisted.length,
-        persistedTitle: persisted[0] && persisted[0].title
-      };
-    })()
+  win.eval(`
+    window.__t2payload = buildSyncPayload();
+    ACTIVITIES = [];
+    localStorage.removeItem('b5_activities');
   `);
-  console.log('Test 2 (applySyncPayload restores ACTIVITIES both in memory and to its own localStorage key):', {
-    restoreResult,
-    result: (restoreResult.inMemoryCount===1 && restoreResult.inMemoryTitle==='Morning Run' &&
-             restoreResult.persistedCount===1 && restoreResult.persistedTitle==='Morning Run') ? 'PASS' : 'FAIL'
+  await win.eval(`idbSetActivities([])`); // clear IndexedDB too, mirroring a genuinely fresh device
+  win.eval(`applySyncPayload(window.__t2payload);`);
+  await wait(50);
+  const restoreInMemory = win.eval(`({count: ACTIVITIES.length, title: ACTIVITIES[0] && ACTIVITIES[0].title})`);
+  const restorePersisted = await win.eval(`idbGetActivities().then(list => ({count: (list||[]).length, title: list && list[0] && list[0].title}))`);
+  console.log('Test 2 (applySyncPayload restores ACTIVITIES both in memory and to IndexedDB):', {
+    restoreInMemory, restorePersisted,
+    result: (restoreInMemory.count===1 && restoreInMemory.title==='Morning Run' &&
+             restorePersisted.count===1 && restorePersisted.title==='Morning Run') ? 'PASS' : 'FAIL'
   });
 
   // ---- Test 3: an old-format backup with no "activities" key at all (from before this fix) leaves

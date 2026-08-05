@@ -7,6 +7,7 @@
 const fs = require('fs');
 const path = require('path');
 const { JSDOM } = require('/tmp/node_modules/jsdom');
+const fakeIndexedDB = require('/tmp/node_modules/fake-indexeddb');
 
 const html = fs.readFileSync(path.join(__dirname, '..', 'halotraining-app', 'index.html'), 'utf8');
 
@@ -23,6 +24,10 @@ function makeWindow() {
       win.Element.prototype.scrollIntoView = () => {};
       win.Element.prototype.scrollBy = () => {};
       win.matchMedia = () => ({ matches: true, addListener(){}, removeListener(){} });
+      // jsdom has no native IndexedDB -- polyfill it so ACTIVITIES persistence exercises the real
+      // production path (see idbSetActivities/initActivitiesStorage in index.html).
+      win.indexedDB = fakeIndexedDB.indexedDB;
+      win.IDBKeyRange = fakeIndexedDB.IDBKeyRange;
     }
   });
   return dom.window;
@@ -93,13 +98,17 @@ function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
   console.log('Test 9 (activitiesInRange includes all 3 activities regardless of role):',
     (t9Count === 3 && t9Roles.includes('fulfillment') && t9Roles.includes('accessory') && t9Roles.includes('unplanned')) ? 'PASS' : 'FAIL');
 
-  // Test 10: persistence round-trip through the same b5_activities localStorage key loadState() reads.
+  // Test 10: persistence round-trip through IndexedDB, the same store initActivitiesStorage() reads
+  // on boot -- ACTIVITIES no longer round-trips through loadState() at all (see loadState's own note
+  // in index.html), since IndexedDB has no synchronous read API to load it with there.
   win.eval(`saveActivitiesList(true);`);
-  const stored = win.eval(`localStorage.getItem('b5_activities')`);
-  win.eval(`ACTIVITIES=[]; loadState();`);
+  await wait(50);
+  const stored = await win.eval(`idbGetActivities()`);
+  win.eval(`ACTIVITIES=[];`);
+  await win.eval(`initActivitiesStorage()`);
   const t10Count = win.eval(`ACTIVITIES.length`);
-  console.log('Test 10 (ACTIVITIES persists through b5_activities and reloads via loadState):',
-    (stored && JSON.parse(stored).length === 3 && t10Count === 3) ? 'PASS' : 'FAIL');
+  console.log('Test 10 (ACTIVITIES persists through IndexedDB and reloads via initActivitiesStorage):',
+    (stored && stored.length === 3 && t10Count === 3) ? 'PASS' : 'FAIL');
 
   // Test 11: normalizeActivityRecord now also carries shoe/tags/rpe (Dylon: "shoes is missing from
   // this as well so if we can add shoes, tags and rpe scale ... just like strava to the run
