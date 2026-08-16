@@ -1660,7 +1660,7 @@ main{flex:1;padding:14px 14px 24px;max-width:560px;width:100%;margin:0 auto}
    session-style restyle, race-target connection, iOS install fix, icon redesign, onboarding flow).
    APP_STAGE is 'alpha.N' pre-launch, bump N each time you hand a build to a real tester (Dylon's
    sister counts); once launched, APP_VERSION resets to 1.0.0 and APP_STAGE becomes ''. */
-const APP_VERSION='0.34.39';
+const APP_VERSION='0.34.40';
 const APP_STAGE='alpha.1';
 const APP_VERSION_DATE='2026-08-16';
 /* ═══════════════════════════ DATA ═══════════════════════════ */
@@ -5891,6 +5891,7 @@ function openSettings(){
    to keep this array from growing unbounded and because anything older than that is no longer "what's
    new" in any useful sense. */
 const APP_CHANGELOG=[
+  {v:'0.34.40',d:'2026-08-16',items:["Fixed: a Full Rest day had a \"Complete\" button, meaning it had to be checked off like a real session. Dylon: \"full rest means no activity so i shouldnt have to be checking off doing nothing.\" Rest days now show no status actions at all — nothing to log, nothing to tap. A separate Mobility session on the same day (if there is one) is unaffected. Rest days also no longer count against Sessions Done/completion % or block a training streak, matching how a Weekly Check-In already worked."]},
   {v:'0.34.39',d:'2026-08-16',items:["Changed: Block 5 weeks 6-9 (the Ignition phase's heaviest stretch) rebalanced — Sunday is now full rest instead of an easy recovery run, Thursday's recovery run runs 6/6/7/7 km across the four weeks, and the Saturday long run adds a steady finish (10km easy + 2km steady in week 6, 13km hills in week 7, 12km easy + 3km steady for week 8's peak, pulling back to 11-12km in week 9). Changed: race-day pacing now uses a planned per-km split (5:20/5:12/5:08/5:15/5:00) that banks time ahead of a known km4 fade rather than targeting one flat pace, aiming for 25:55."]},
   {v:'0.34.38',d:'2026-08-16',items:["Fixed: Block 5's weeks 2-5 quality sessions (the 12x2min/8x3min interval progression) and the Saturday hills long runs (weeks 5-8) had drifted a week late against the real plan — both are now back on the correct week. Week 5's Wednesday session is now an easy run with a tempo finish instead of hard intervals, matching this week's plan. Changed: Tuesday full-body strength swaps Goblet Squat/Romanian Deadlift for Bulgarian Split Squat/Single-Leg RDL from week 5 onward, with ankle pogo hops added into the warm-up."]},
   {v:'0.34.37',d:'2026-08-05',items:["Changed: your activity history (routes, splits, heart rate/pace data) now saves to a much bigger on-device storage space instead of the small one browsers give regular saved data — the same \"Storage is full\" risk from before can't happen again, and it also means richer route/split detail can be kept per run."]},
@@ -6769,8 +6770,20 @@ function historyEndDate(){
 // Schedule/Today session lists themselves, or the History feed -- a check-in still shows up and can
 // still be marked done there like any other day, it just no longer feeds any aggregate number.
 function isCheckinSession(s){ return !!s && s.ty==='checkin'; }
+// A Full Rest day is the same story as a Weekly Check-In, for the same reason: not a real training
+// session, so it shouldn't count against completion math or need to be "checked off." Dylon: "full
+// rest means no activity so i shouldnt have to be checking off doing nothing" -- the Complete button
+// is gone entirely for ty:'rest' (see the status-actions/plan-check gating), which means STATUS[id]
+// can never become 'done' for one going forward; every place that already excluded Weekly Check-In
+// from session-count stats (countDone/totalSessions/Missed), streaks (dayHasActivity/
+// blockLongestStreak/streakDayTypes), block stats (computeBlockStats), week completeness
+// (weekIsComplete), and the dot bars/Week Recap needs the exact same exclusion for Full Rest, or a
+// week/block containing one could never show 100% complete and a planned rest day would wrongly
+// break a training streak. isCheckinSession itself is untouched (still checkin-only) since it's
+// tested by name elsewhere -- this is a separate, additive predicate used alongside it.
+function isProgressExemptSession(s){ return isCheckinSession(s) || (!!s && s.ty==='rest'); }
 function dayHasActivity(iso){
-  if(allBlockSessions().some(s=>!isCheckinSession(s) && s.date===iso && STATUS[s.id]==='done')) return true;
+  if(allBlockSessions().some(s=>!isProgressExemptSession(s) && s.date===iso && STATUS[s.id]==='done')) return true;
   if(EXTRALOGS.some(x=>x.date===iso)) return true;
   return false;
 }
@@ -6832,8 +6845,8 @@ function longestWeekStreak(){
   }
   return longest;
 }
-function countDone(){return DATA.filter(s=>!isCheckinSession(s) && STATUS[s.id]==='done').length;}
-function totalSessions(){return DATA.filter(s=>!isCheckinSession(s)).length;}
+function countDone(){return DATA.filter(s=>!isProgressExemptSession(s) && STATUS[s.id]==='done').length;}
+function totalSessions(){return DATA.filter(s=>!isProgressExemptSession(s)).length;}
 // Parses a single stride rep's own Dist cell ("100m", "0.1km", or a bare number -- assumed meters,
 // matching the "100m" placeholder shown in the Strides table) into km. Returns 0 for anything
 // unparseable so a summed total never goes NaN from one bad/blank cell.
@@ -7249,7 +7262,7 @@ function blockTotalWeeks(b){
 function blockLongestStreak(b){
   let longest=0,run=0;
   const byDate={};
-  (b.sessions||[]).forEach(s=>{ if(!isCheckinSession(s)) byDate[s.date]=s; });
+  (b.sessions||[]).forEach(s=>{ if(!isProgressExemptSession(s)) byDate[s.date]=s; });
   let d=new Date(b.startDate+'T12:00:00');
   const end=new Date(b.endDate+'T12:00:00');
   while(d<=end){
@@ -7261,9 +7274,9 @@ function blockLongestStreak(b){
   return longest;
 }
 function computeBlockStats(b){
-  // Weekly Check-In sessions are excluded from every count/pct here -- see isCheckinSession's own
-  // note for why.
-  const sessions=(b.sessions||[]).filter(s=>!isCheckinSession(s));
+  // Weekly Check-In and Full Rest sessions are excluded from every count/pct here -- see
+  // isProgressExemptSession's own note for why.
+  const sessions=(b.sessions||[]).filter(s=>!isProgressExemptSession(s));
   const totalCount=sessions.length;
   const doneCount=sessions.filter(s=>STATUS[s.id]==='done').length;
   const missedCount=sessions.filter(s=>STATUS[s.id]==='missed').length;
@@ -10693,8 +10706,9 @@ function personalBestsSectionHTML(){
    nothing logged at all, same as before, which naturally covers future weeks with no data yet. ── */
 function weekRecapHTML(wk){
   if(!wk || wk<1) return '';
-  // Weekly Check-In excluded from the "Sessions done" tally -- see isCheckinSession's own note.
-  const sessions=weekSessionsFull(wk).filter(s=>!isCheckinSession(s));
+  // Weekly Check-In and Full Rest excluded from the "Sessions done" tally -- see
+  // isProgressExemptSession's own note.
+  const sessions=weekSessionsFull(wk).filter(s=>!isProgressExemptSession(s));
   const doneCount=sessions.filter(s=>STATUS[s.id]==='done').length;
   const extraCount=extraLogsForWeek(wk).length;
   if(doneCount===0 && extraCount===0) return '';
@@ -10791,7 +10805,7 @@ function streakCalNextMonth(){
 function streakDayTypes(iso){
   const raw=[];
   allBlockSessions().forEach(s=>{
-    if(!isCheckinSession(s) && s.date===iso && STATUS[s.id]==='done') raw.push(s.ty);
+    if(!isProgressExemptSession(s) && s.date===iso && STATUS[s.id]==='done') raw.push(s.ty);
   });
   EXTRALOGS.forEach(x=>{
     if(x.date!==iso) return;
@@ -17078,11 +17092,11 @@ function endCalendarDrag(ev,move,up){
   CAL_DRAG=null;
 }
 function weekIsComplete(wk){
-  // Weekly Check-In excluded -- see isCheckinSession's own note.
-  const sessions=weekSessionsFull(wk).filter(s=>!isCheckinSession(s));
+  // Weekly Check-In and Full Rest excluded -- see isProgressExemptSession's own note.
+  const sessions=weekSessionsFull(wk).filter(s=>!isProgressExemptSession(s));
   return sessions.length>0 && sessions.every(s=>STATUS[s.id]==='done');
 }
-const TYLABEL={rest:'Mobility',easy:'Easy Run',qual:'Intervals',long:'Long Run',str:'Strength',race:'Race',mobility:'Mobility',checkin:'Weekly Check-In'};
+const TYLABEL={rest:'Rest',easy:'Easy Run',qual:'Intervals',long:'Long Run',str:'Strength',race:'Race',mobility:'Mobility',checkin:'Weekly Check-In'};
 
 function renderWeek(){
   const el=document.getElementById('view-week');
@@ -17172,10 +17186,11 @@ function weekListCardHTML(w){
   if(!sessions.length) return ''; // sparse week number (no sessions) — safety net for uploaded plans; skip rather than throw
   const first=sessions[0], last=sessions[sessions.length-1];
   const planned=MILEAGE_PLAN[w]||0;
-  // Weekly Check-In excluded from the dot bar and Total Workouts count -- it's a reflection day, not
-  // a training session, so it shouldn't read as an unfinished workout (a permanently-blank dot) or
-  // inflate the count. It still shows normally in the day list below. See isCheckinSession's own note.
-  const statSessions=sessions.filter(s=>!isCheckinSession(s));
+  // Weekly Check-In and Full Rest excluded from the dot bar and Total Workouts count -- neither is a
+  // real training session, so neither should read as an unfinished workout (a permanently-blank dot)
+  // or inflate the count. Both still show normally in the day list below. See
+  // isProgressExemptSession's own note.
+  const statSessions=sessions.filter(s=>!isProgressExemptSession(s));
   // Header (range/title/progress/meta) opens the full week drill-down; the day list below it is
   // its own tap target straight into each session, so clicks there stop propagation to the header.
   let html=`<div class="card plan-wk-card">
@@ -17283,6 +17298,9 @@ function planSessCardHTML(s){
   const sub=(TYLABEL[s.ty]||'')+distTxt;
   const note=coachNoteFor(s);
   const noteHTML=note?`<div class="plan-sess-note"><b>Coach:</b> ${truncateWords(note,110)}</div>`:'';
+  // Full Rest gets no quick-check circle here either -- there's nothing to mark done, same reasoning
+  // as the detail sheet's status-actions row (see that comment). Every other type is unaffected.
+  const checkHTML=s.ty==='rest'?'':`<button class="plan-check ${st==='done'?'done':''}${st==='skipped'?' skipped':''}" onclick="event.stopPropagation();quickToggleDone('${s.id}')">${st==='done'?CHECK:st==='skipped'?SKIP_ICON:''}</button>`;
   return `<div class="plan-sess${st==='done'?' done':st==='missed'?' missed':''}" onclick="openLog('${s.id}')">
     <div class="sess-ico ${ICOCLS[s.ty]}">${ICONS[s.ty]}</div>
     <div class="plan-sess-body">
@@ -17291,7 +17309,7 @@ function planSessCardHTML(s){
       <div class="plan-sess-sub">${sub}</div>
       ${noteHTML}
     </div>
-    <button class="plan-check ${st==='done'?'done':''}${st==='skipped'?' skipped':''}" onclick="event.stopPropagation();quickToggleDone('${s.id}')">${st==='done'?CHECK:st==='skipped'?SKIP_ICON:''}</button>
+    ${checkHTML}
   </div>`;
 }
 
@@ -17300,9 +17318,9 @@ function renderWeekDetailHTML(wk){
   if(!sessions.length) return `<div class="empty-msg">No sessions found for Week ${wk}.</div><button class="btn btn-ghost btn-block plan-gtc-btn" onclick="closeWeekDetail()">‹ All Weeks</button>`;
   const first=sessions[0], last=sessions[sessions.length-1];
   const planned=MILEAGE_PLAN[wk]||0;
-  // Weekly Check-In excluded from the dot bar and Total Workouts/done count -- same reasoning as
-  // weekListCardHTML above. See isCheckinSession's own note.
-  const statSessions=sessions.filter(s=>!isCheckinSession(s));
+  // Weekly Check-In and Full Rest excluded from the dot bar and Total Workouts/done count -- same
+  // reasoning as weekListCardHTML above. See isProgressExemptSession's own note.
+  const statSessions=sessions.filter(s=>!isProgressExemptSession(s));
   const doneCount=statSessions.filter(s=>STATUS[s.id]==='done').length;
   const noteFull=weekCoachNote(wk);
   const noteShort=truncateWords(noteFull,140);
@@ -17409,7 +17427,7 @@ function runProgressionCardHTML(){
 }
 function renderProgress(){
   const el=document.getElementById('view-progress');
-  const done=countDone(),missed=DATA.filter(s=>!isCheckinSession(s) && STATUS[s.id]==='missed').length,tot=totalSessions();
+  const done=countDone(),missed=DATA.filter(s=>!isProgressExemptSession(s) && STATUS[s.id]==='missed').length,tot=totalSessions();
   const cum=cumulativeActualKm();
   const planTotal=blockPlanTotal();
   const durWeeksDone=DATA.filter(s=>s.ph==='dur').every(s=>STATUS[s.id]);
@@ -18639,18 +18657,23 @@ function openLog(id){
     body+=`<div class="data-row" style="margin-top:0;margin-bottom:12px"><button class="btn btn-ghost btn-sm btn-block" onclick="closeOverlay('log-overlay');openRaceDetail('${sessionRace.key}')">Edit Race Details</button></div>`;
   }
 
-  // status actions
-  body+=`<div class="status-actions">`;
-  body+=`<button class="btn ${st==='done'?'btn-done':'btn-ghost'}" onclick="handleStatusClick('${id}','done')">${CHECK.replace('<svg','<svg class="icon-sm" style="fill:currentColor;stroke:none"')} ${st==='done'?'Completed':'Complete'}</button>`;
-  if(s.ty!=='rest'&&s.ty!=='mobility'){
-    body+=`<button class="btn ${st==='missed'?'btn-missed':'btn-ghost'}" onclick="handleStatusClick('${id}','missed')">${st==='missed'?XICO.replace('<svg','<svg class="icon-sm" style="stroke:currentColor;fill:none;stroke-width:2"')+' ':''}Missed</button>`;
-    if(isRun && !isQual && s.ty!=='race'){
-      body+=`<button class="btn ${st==='swapped'?'btn-warn':'btn-ghost'}" onclick="handleStatusClick('${id}','swapped')">Swap</button>`;
-    } else if(isStr){
-      body+=`<button class="btn ${st==='postponed'?'btn-warn':'btn-ghost'}" onclick="handleStatusClick('${id}','postponed')">Postponed</button>`;
+  // status actions -- a Full Rest day has nothing to log or complete (see isProgressExemptSession's
+  // own note: Dylon, "full rest means no activity so i shouldnt have to be checking off doing
+  // nothing"), so it gets no status-actions row at all -- not even Complete. Every other type
+  // (including its own separate Mobility session on the same day, if there is one) is unaffected.
+  if(s.ty!=='rest'){
+    body+=`<div class="status-actions">`;
+    body+=`<button class="btn ${st==='done'?'btn-done':'btn-ghost'}" onclick="handleStatusClick('${id}','done')">${CHECK.replace('<svg','<svg class="icon-sm" style="fill:currentColor;stroke:none"')} ${st==='done'?'Completed':'Complete'}</button>`;
+    if(s.ty!=='mobility'){
+      body+=`<button class="btn ${st==='missed'?'btn-missed':'btn-ghost'}" onclick="handleStatusClick('${id}','missed')">${st==='missed'?XICO.replace('<svg','<svg class="icon-sm" style="stroke:currentColor;fill:none;stroke-width:2"')+' ':''}Missed</button>`;
+      if(isRun && !isQual && s.ty!=='race'){
+        body+=`<button class="btn ${st==='swapped'?'btn-warn':'btn-ghost'}" onclick="handleStatusClick('${id}','swapped')">Swap</button>`;
+      } else if(isStr){
+        body+=`<button class="btn ${st==='postponed'?'btn-warn':'btn-ghost'}" onclick="handleStatusClick('${id}','postponed')">Postponed</button>`;
+      }
     }
+    body+=`</div>`;
   }
-  body+=`</div>`;
   if(st==='missed' && (n.missReason||n.missNote)){
     body+=`<div class="miss-reason-saved">${XICO.replace('<svg','<svg style="width:13px;height:13px;stroke:var(--t3);flex-shrink:0;margin-top:1px"')}<span>${n.missReason?`<b>${escAttr(n.missReason)}</b>`:''}${n.missReason&&n.missNote?' — ':''}${n.missNote?escAttr(n.missNote):''}</span></div>`;
   }

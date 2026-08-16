@@ -1761,7 +1761,9 @@
 // to 6/6/7/7km, Saturday long run gains a steady finish (12/13/15/11-12km, hills moved to week 7,
 // week 8 stays the true peak). Race-day pacing switched from one flat target pace to a planned
 // per-km split (5:20/5:12/5:08/5:15/5:00) that banks time ahead of a known km4 fade, targeting 25:55.
-const CACHE_NAME = 'halo-0.34.39-alpha.1';
+// Full Rest sessions no longer show a Complete button (nothing to check off) and no longer count
+// against Sessions Done/completion %/streaks, same treatment Weekly Check-In already got.
+const CACHE_NAME = 'halo-0.34.40-alpha.1';
 const APP_SHELL = [
   './index.html',
   './manifest.webmanifest',
