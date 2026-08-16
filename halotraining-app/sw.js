@@ -1757,7 +1757,11 @@
 // and a fallback save always leaves it populated, so a later load can tell which one is actually the
 // freshest. STREAM_MAX_POINTS raised from 1000 to 5000 now that the old localStorage-driven ceiling
 // no longer applies to the common path, for meaningfully finer route/split/GAP fidelity per activity.
-const CACHE_NAME = 'halo-0.34.38-alpha.1';
+// Block 5 weeks 6-9 rebalanced per Dylon's final figures: Sunday to full rest, Thursday recovery run
+// to 6/6/7/7km, Saturday long run gains a steady finish (12/13/15/11-12km, hills moved to week 7,
+// week 8 stays the true peak). Race-day pacing switched from one flat target pace to a planned
+// per-km split (5:20/5:12/5:08/5:15/5:00) that banks time ahead of a known km4 fade, targeting 25:55.
+const CACHE_NAME = 'halo-0.34.39-alpha.1';
 const APP_SHELL = [
   './index.html',
   './manifest.webmanifest',
