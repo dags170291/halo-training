@@ -88,9 +88,11 @@ function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
     result: (w3d3WarmUpLine && /jog/.test(w3d3WarmUpLine.text) && !/walk/.test(w3d3WarmUpLine.text)) ? 'PASS' : 'FAIL'
   });
 
-  // ---- Test 6: every other existing QUALITY_CFG entry (w4d1 through w10d3) is untouched by this
-  // fix -- still says jog, same as before ----
-  const untouchedIds = ['w4d1','w5d3','w6d3','w7d3','w8d3','w9d3','w10d3'];
+  // ---- Test 6: every other existing QUALITY_CFG entry is untouched by this fix -- still says jog,
+  // same as before. w5d3 is excluded here: a later plan revision turned that session into an Easy
+  // Run + Tempo Finish (no longer ty:'qual'), so it no longer has a QUALITY_CFG entry at all -- see
+  // that entry's own comment in index.html. ----
+  const untouchedIds = ['w4d1','w6d3','w7d3','w8d3','w9d3','w10d3'];
   const allStillJog = win.eval(`JSON.stringify([${untouchedIds.map(id=>`QUALITY_CFG['${id}'].wu`).join(',')}])`);
   const allStillJogArr = JSON.parse(allStillJog);
   console.log('Test 6 (every other quality session\\u2019s warm-up is untouched, still jog-based):',

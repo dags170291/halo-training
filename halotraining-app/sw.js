@@ -1757,7 +1757,7 @@
 // and a fallback save always leaves it populated, so a later load can tell which one is actually the
 // freshest. STREAM_MAX_POINTS raised from 1000 to 5000 now that the old localStorage-driven ceiling
 // no longer applies to the common path, for meaningfully finer route/split/GAP fidelity per activity.
-const CACHE_NAME = 'halo-0.34.37-alpha.1';
+const CACHE_NAME = 'halo-0.34.38-alpha.1';
 const APP_SHELL = [
   './index.html',
   './manifest.webmanifest',
